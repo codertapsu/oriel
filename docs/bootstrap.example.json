@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "providers": [
+    { "id": "ollama", "kind": "openai-compatible", "baseURL": "http://ollama.internal:11434/v1", "model": "qwen2.5:14b", "apiKey": "" },
+    { "id": "anthropic", "kind": "anthropic", "model": "<model-id>", "apiKey": "<key>" }
+  ],
+  "defaultProvider": "apple",
+  "upload": { "kind": "s3", "endpoint": "https://minio.internal", "bucket": "oriel", "accessKey": "…", "secretKey": "…", "publicBaseURL": "https://files.internal/oriel" }
+}

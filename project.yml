@@ -1,0 +1,171 @@
+name: Oriel
+options:
+  bundleIdPrefix: com.codertapsu
+  deploymentTarget:
+    macOS: "26.0"
+  xcodeVersion: "27.1"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  OrielCore:        { path: Packages/OrielCore }
+  PrivateAPIs:      { path: Packages/PrivateAPIs }
+  Permissions:      { path: Packages/Permissions }
+  Hotkeys:          { path: Packages/Hotkeys }
+  SharedUI:         { path: Packages/SharedUI }
+  IPC:              { path: Packages/IPC }
+  WindowSwitcher:   { path: Packages/WindowSwitcher }
+  Capture:          { path: Packages/Capture }
+  Recording:        { path: Packages/Recording }
+  Editor:           { path: Packages/Editor }
+  OCR:              { path: Packages/OCR }
+  OrielTranslation: { path: Packages/OrielTranslation }   # not "Translation": the SDK's Translation.framework owns that module name
+  Upload:           { path: Packages/Upload }
+
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    ARCHS: "arm64 x86_64"              # explicit; never rely on ARCHS_STANDARD
+    SWIFT_VERSION: "6.0"               # Swift 6 language mode
+    SWIFT_STRICT_CONCURRENCY: complete
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: 4XVYLW8RXS
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+  configs:
+    Debug:
+      ONLY_ACTIVE_ARCH: YES
+      CODE_SIGN_IDENTITY: "Apple Development"
+    Release:
+      ONLY_ACTIVE_ARCH: NO
+      CODE_SIGN_IDENTITY: "Developer ID Application"
+      SWIFT_COMPILATION_MODE: wholemodule
+
+targets:
+  Oriel:
+    type: application
+    platform: macOS
+    sources: [App/Sources, App/Resources]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel
+        ORIEL_DISPLAY_NAME: Oriel
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+      configs:
+        Debug:                       # macOS keeps one permission entry per bundle ID, signed by whichever build asked
+          PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel.debug   # first; a shared ID locks the release out (os-quirks)
+          ORIEL_DISPLAY_NAME: Oriel Debug                          # how System Settings lists it
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: $(ORIEL_DISPLAY_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)   # XcodeGen's defaults are a literal 1.0 and 1
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSMinimumSystemVersion: "26.0"
+        NSMicrophoneUsageDescription: "Oriel records your microphone only during screen recordings you start."
+        NSCameraUsageDescription: "Oriel shows your camera only in the recording overlay you enable."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true      # Ollama / LM Studio / llama.cpp on localhost
+          NSExceptionDomains:
+            internal:                        # plain-HTTP team hosts such as http://ollama.internal (PLAN §7.7.5)
+              NSIncludesSubdomains: true
+              NSExceptionAllowsInsecureHTTPLoads: true
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.codertapsu.oriel.document
+            UTTypeDescription: Oriel Document
+            UTTypeConformsTo: [com.apple.package, public.composite-content]
+            UTTypeTagSpecification:
+              public.filename-extension: [oriel]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Oriel Document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [com.codertapsu.oriel.document]
+          - CFBundleTypeName: Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.png, public.jpeg, public.heic, public.tiff]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.codertapsu.oriel
+            CFBundleURLSchemes: [oriel]
+    entitlements:
+      path: App/Oriel.entitlements
+      properties:
+        com.apple.security.device.audio-input: true
+        com.apple.security.device.camera: true
+    dependencies:
+      - package: OrielCore
+      - package: PrivateAPIs
+      - package: Permissions
+      - package: Hotkeys
+      - package: SharedUI
+      - package: IPC
+      - package: WindowSwitcher
+      - package: Capture
+      - package: Recording
+      - package: Editor
+      - package: OCR
+      - package: OrielTranslation
+      - package: Upload
+      - target: oriel-cli
+        embed: true                  # copied into Oriel.app/Contents/Helpers/oriel
+        codeSign: true
+        copy:                        # not Contents/MacOS: on case-insensitive APFS "oriel" there is the app's "Oriel"
+          destination: wrapper
+          subpath: Contents/Helpers
+
+  oriel-cli:                         # target name must differ from "Oriel" by more than case (shared intermediates dir)
+    type: tool
+    platform: macOS
+    sources: [CLI/Sources]
+    settings:
+      base:
+        PRODUCT_NAME: oriel
+        PRODUCT_MODULE_NAME: OrielCLI  # "oriel.swiftmodule" would share a path with the app's "Oriel.swiftmodule"
+        PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel.cli
+        GENERATE_INFOPLIST_FILE: YES             # embedded in the binary, so the code signature's
+        CREATE_INFOPLIST_SECTION_IN_BINARY: YES  # identifier is the bundle ID instead of "oriel"
+        SKIP_INSTALL: YES              # it ships inside the app; installed on its own it makes the archive generic
+    dependencies:
+      - package: IPC
+      - package: OrielCore
+
+  OrielTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests/OrielTests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES   # test bundles must be signed, and signing needs an Info.plist
+    dependencies:
+      - target: Oriel
+      - package: OrielCore
+        product: OrielTestSupport
+
+  OrielUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [Tests/OrielUITests]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies: [{ target: Oriel }]
+
+schemes:
+  Oriel:
+    build:
+      targets: { Oriel: all, oriel-cli: all }
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [OrielTests, OrielUITests]
+      environmentVariables:
+        ORIEL_TCC_TESTS: "0"
+    archive:
+      config: Release
