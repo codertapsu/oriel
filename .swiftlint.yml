@@ -1,0 +1,29 @@
+included: [App, CLI, Packages, Tests]
+excluded: [Spikes, build, .build, .claude, Packages/*/.build]   # swift test writes generated sources into each package's .build
+custom_rules:
+  no_polling:
+    name: "No polling"
+    regex: "Timer\\.scheduledTimer|DispatchSource\\.makeTimerSource|Timer\\.publish"
+    message: "Polling is banned. Use observers/notifications. Allowed only inside Recording and ScrollingCapture sessions."
+    severity: error
+    excluded: "Packages/(Recording|Capture)/Sources/.*Session\\.swift"
+  no_tcc_db:
+    regex: "TCC\\.db|com\\.apple\\.TCC"
+    message: "Never touch the TCC database."
+    severity: error
+opt_in_rules: [force_unwrapping, implicitly_unwrapped_optional, private_outlet, sorted_imports]
+force_unwrapping: { severity: error }
+trailing_comma: { mandatory_comma: true }   # agree with SwiftFormat's trailingCommas rule instead of fighting it
+line_length: { warning: 140, error: 180 }
+# --strict turns every warning into an error, so the warning levels are the real limits: set where a reviewer
+# would object in an app of this size, instead of SwiftLint's defaults (50-line functions, 250-line types).
+function_body_length: { warning: 80, error: 150 }
+type_body_length: { warning: 450, error: 800 }
+file_length: { warning: 800, error: 1200 }
+cyclomatic_complexity: { warning: 16, error: 30, ignores_case_statements: true }
+function_parameter_count: { warning: 7, error: 10 }
+large_tuple: { warning: 3, error: 4 }
+nesting: { type_level: 2 }
+identifier_name:
+  min_length: { warning: 2, error: 1 }
+  excluded: [x, y, i, j, id, dx, dy, ok, to]

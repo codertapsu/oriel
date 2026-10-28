@@ -1,0 +1,12 @@
+*.xcodeproj
+build/
+dist/
+.build/
+DerivedData/
+*.p8
+*.p12
+bootstrap.json
+.DS_Store
+# Apple signing + notarization credentials, sourced by scripts/release; only the .example is committed
+scripts/apple-credentials.env
+*credentials*.env
