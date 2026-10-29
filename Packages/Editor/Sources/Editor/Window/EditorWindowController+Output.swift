@@ -68,33 +68,20 @@ extension EditorWindowController {
         }
     }
 
-    /// ⌘E: a save panel with a format pop-up (PNG, JPEG, HEIC, PDF), starting from the default format.
+    /// ⌘E: a save panel with a format pop-up (PNG, JPEG, HEIC, PDF), starting from the last format used here.
     func export() {
         guard let window else { return }
         session.commitPendingEdits()
-        let panel = NSSavePanel()
-        panel.allowedContentTypes = [exportFormat.contentType]
-        panel.nameFieldStringValue = EditorExporter.fileName(for: session.title, fileExtension: exportFormat.fileExtension)
-        panel.directoryURL = session.sourceURL?.deletingLastPathComponent()
-        panel.canCreateDirectories = true
-        panel.isExtensionHidden = false
-        panel.accessoryView = makeFormatAccessory()
-        exportPanel = panel
+        let export = ExportPanel(title: session.title, format: exportFormat, directory: session.sourceURL?.deletingLastPathComponent())
+        exportPanel = export
         Task { @MainActor [weak self] in
-            let response = await panel.beginSheetModal(for: window)
-            guard let self, response == .OK, let url = panel.url else { return }
-            writeExport(to: url, format: exportFormat)
+            let response = await export.panel.beginSheetModal(for: window)
+            guard let self else { return }
+            exportPanel = nil
+            exportFormat = export.format
+            guard response == .OK, let url = export.panel.url else { return }
+            writeExport(to: url, format: export.format)
         }
-    }
-
-    @objc func exportFormatChanged(_ sender: NSPopUpButton) {
-        let formats = EditorExportFormat.allCases
-        guard formats.indices.contains(sender.indexOfSelectedItem) else { return }
-        exportFormat = formats[sender.indexOfSelectedItem]
-        guard let panel = exportPanel else { return }
-        panel.allowedContentTypes = [exportFormat.contentType]
-        let base = (panel.nameFieldStringValue as NSString).deletingPathExtension
-        panel.nameFieldStringValue = "\(base).\(exportFormat.fileExtension)"
     }
 
     func writeExport(to url: URL, format: EditorExportFormat) {
@@ -153,20 +140,6 @@ extension EditorWindowController {
     }
 
     // MARK: - Private
-
-    private func makeFormatAccessory() -> NSView {
-        let popup = NSPopUpButton(frame: .zero, pullsDown: false)
-        popup.addItems(withTitles: EditorExportFormat.allCases.map(\.title))
-        popup.selectItem(at: EditorExportFormat.allCases.firstIndex(of: exportFormat) ?? 0)
-        popup.target = self
-        popup.action = #selector(exportFormatChanged(_:))
-        popup.setAccessibilityLabel("Format")
-        let label = NSTextField(labelWithString: "Format:")
-        let stack = NSStackView(views: [label, popup])
-        stack.edgeInsets = NSEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
-        stack.frame.size = stack.fittingSize
-        return stack
-    }
 
     private func present(_ error: any Error) {
         guard let window else { return }

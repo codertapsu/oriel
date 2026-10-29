@@ -1,9 +1,10 @@
 import AppKit
 import OrielCore
+import SharedUI
 
-/// Opens image editor windows (PLAN §7.5). The app keeps one launcher and calls it from the Quick Access
-/// Overlay, pins, history and file opening. Each window starts from the editor settings (default colour, width,
-/// export format and background preset) as they are when it opens.
+/// Opens image editor windows (PLAN §7.5) and Instant Capture's in-place editor (PLAN §17). The app keeps one launcher
+/// and calls it from the Quick Access Overlay, pins, history, file opening and Instant Capture. Each window starts from
+/// the editor settings (default colour, width, export format and background preset) as they are when it opens.
 public final class EditorLauncher {
     /// What the editor's copies are called in Clipboard History.
     static let clipboardLabel = "Screenshot"
@@ -16,6 +17,7 @@ public final class EditorLauncher {
     /// The user's saved backgrounds.
     let library: BackgroundLibrary
     private var controllers: [EditorWindowController] = []
+    private var instantControllers: [InstantCaptureController] = []
     private let log = Log.logger("editor")
 
     /// Wired by the app to the Upload button; the editor passes the flattened image. While nil, editor windows
@@ -23,6 +25,9 @@ public final class EditorLauncher {
     public var onUpload: ((CGImage) -> Void)? {
         didSet {
             for controller in controllers {
+                controller.onUpload = onUpload
+            }
+            for controller in instantControllers {
                 controller.onUpload = onUpload
             }
         }
@@ -39,10 +44,31 @@ public final class EditorLauncher {
     }
 
     /// Instant Capture (PLAN §17): annotates a capture in place, over the area it was taken from, with a compact
-    /// toolbar beside it. `screenRect` is the selection as `CaptureCoordinator.selectRegion` returns it.
+    /// toolbar beside it. `screenRect` is the selection as `CaptureCoordinator.selectRegion` returns it (global
+    /// CoreGraphics points). Without a screen to show it on, the capture opens in an editor window instead.
     public func openInstant(_ capture: CaptureResult, at screenRect: CGRect) {
-        _ = screenRect
-        open(capture)
+        let session = makeInstantSession(for: capture)
+        guard let controller = InstantCaptureController(
+            session: session,
+            captureID: capture.id,
+            selection: screenRect,
+            screens: InstantCaptureController.screens(),
+            primaryHeight: ScreenLocator.primaryHeight,
+            showsUpload: onUpload != nil
+        ) else {
+            log.info("No screen shows the instant capture's area; opening it in the editor")
+            open(capture)
+            return
+        }
+        controller.onUpload = onUpload
+        controller.onOpenInEditor = { [weak self] session in
+            self?.present(session, captureID: capture.id)
+        }
+        controller.onClose = { [weak self] closed in
+            self?.instantControllers.removeAll { $0 === closed }
+        }
+        instantControllers.append(controller)
+        controller.present()
     }
 
     /// Opens an editor window for a capture (from the Quick Access Overlay, a pin or history). A capture that is
@@ -77,12 +103,27 @@ public final class EditorLauncher {
         controllers.count
     }
 
+    /// The number of instant captures open.
+    var openInstantCount: Int {
+        instantControllers.count
+    }
+
     func makeSession(for capture: CaptureResult) -> EditorSession {
         let defaults = EditorDefaults(settings: settings)
         return EditorSession(
             document: EditorDocument(capture: capture, preset: defaults.backgroundPreset),
             title: Self.title(for: capture.date),
             defaults: defaults
+        )
+    }
+
+    /// An instant capture's session: the capture alone, without the default background, so it matches the screen
+    /// it covers.
+    func makeInstantSession(for capture: CaptureResult) -> EditorSession {
+        EditorSession(
+            document: EditorDocument(base: ImageRef(image: capture.image, scale: capture.scale)),
+            title: Self.title(for: capture.date),
+            defaults: EditorDefaults(settings: settings)
         )
     }
 

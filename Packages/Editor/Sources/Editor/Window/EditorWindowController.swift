@@ -29,7 +29,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     let log = Log.logger("editor")
     /// The format picked in this window's last export panel.
     var exportFormat: EditorExportFormat
-    weak var exportPanel: NSSavePanel?
+    /// The export panel while it is open.
+    var exportPanel: ExportPanel?
     /// Set when "Save…" was chosen while closing: the window closes once the save succeeds.
     var closesAfterSaving = false
     /// The PNG Quick Look is showing, while it is.

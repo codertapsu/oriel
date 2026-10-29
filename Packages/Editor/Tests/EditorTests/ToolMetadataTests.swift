@@ -23,7 +23,7 @@ struct ToolMetadataTests {
     /// The symbols of the new chrome exist on this system.
     @Test(arguments: [
         "eye.slash", "text.redaction", "wand.and.stars", "photo.on.rectangle", "menubar.dock.rectangle", "photo.badge.plus",
-        "text.alignleft", "cube",
+        "arrow.up.forward.app", "icloud.and.arrow.up", "square.and.arrow.down", "doc.on.doc", "xmark", "text.alignleft", "cube",
         "square.dashed", "1.circle.fill", "1.square.fill", "slash.circle",
     ])
     func chromeSymbolsExist(_ name: String) {

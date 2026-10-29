@@ -28,7 +28,8 @@ final class EditorWindow: NSWindow {
     }
 
     /// ⌘Z, ⇧⌘Z, ⌘X, ⌘C, ⌘V and ⌘A act on the text being typed; anything else (⌘S, ⌘E, ⌘W) goes to the editor.
-    private static func performTextEditingShortcut(_ event: NSEvent, in textView: NSTextView) -> Bool {
+    /// Instant Capture's panel routes them the same way.
+    static func performTextEditingShortcut(_ event: NSEvent, in textView: NSTextView) -> Bool {
         let shift = event.modifierFlags.contains(.shift)
         switch event.charactersIgnoringModifiers?.lowercased() {
         case "z":
