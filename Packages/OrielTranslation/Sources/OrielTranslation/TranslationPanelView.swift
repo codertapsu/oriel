@@ -1,11 +1,12 @@
 import SwiftUI
 
 /// The side panel (PLAN §7.7.6): source and translation for every block, copy all or one, swap languages, translate
-/// again with another provider, export.
+/// again with another provider or glossary, export.
 struct TranslationPanelView: View {
     struct Actions {
         var selectProvider: @MainActor (ProviderID) -> Void
         var selectTarget: @MainActor (String) -> Void
+        var selectGlossary: @MainActor (UUID?) -> Void
         var swap: @MainActor () -> Void
         var copyAll: @MainActor () -> Void
         var copy: @MainActor (String) -> Void
@@ -13,6 +14,7 @@ struct TranslationPanelView: View {
     }
 
     let model: TranslationSessionModel
+    let glossaries: GlossaryLibraryModel
     let actions: Actions
 
     var body: some View {
@@ -33,7 +35,7 @@ struct TranslationPanelView: View {
             footer
                 .padding(10)
         }
-        .frame(minWidth: 320, minHeight: 280)
+        .frame(minWidth: 340, minHeight: 280)
     }
 
     private var header: some View {
@@ -108,6 +110,19 @@ struct TranslationPanelView: View {
         HStack {
             Button("Copy All", systemImage: "doc.on.doc", action: actions.copyAll)
                 .disabled(model.translatedCount == 0)
+            if !glossaries.projects.isEmpty {
+                Picker("Glossary", selection: Binding(get: { glossaries.activeProjectID }, set: { actions.selectGlossary($0) })) {
+                    Label("No Glossary", systemImage: "book.closed").tag(UUID?.none)
+                    Divider()
+                    ForEach(glossaries.projects) { project in
+                        Label(project.name.isEmpty ? "Untitled" : project.name, systemImage: "character.book.closed")
+                            .tag(UUID?.some(project.id))
+                    }
+                }
+                .labelsHidden()
+                .fixedSize()
+                .help("The glossary translations use")
+            }
             Spacer()
             Menu("Export", systemImage: "square.and.arrow.up") {
                 ForEach(TranslationExporter.Format.allCases) { format in

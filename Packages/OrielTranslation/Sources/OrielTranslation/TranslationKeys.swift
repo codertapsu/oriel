@@ -11,7 +11,12 @@ enum TranslationKeys {
     static let lastProviderByTarget = SettingKey("translation.lastProviderByTarget", default: [String: String]())
     /// Apple Translation's high-fidelity strategy when Apple Intelligence is available (macOS 26.4+).
     static let appleHighFidelity = SettingKey("translation.apple.highFidelity", default: true)
-    static let glossary = SettingKey("translation.glossary", default: [String: String]())
+    /// The one list of terms before glossary projects; moved into a project called "Glossary" on first load.
+    static let legacyGlossary = SettingKey("translation.glossary", default: [String: String]())
+    /// The id of the glossary project translations use; empty for none. The projects are in `GlossaryStore`.
+    static let activeGlossary = SettingKey("translation.glossary.activeProject", default: "")
+    /// DeepL glossaries Oriel created, by provider, project and language pair (`DeepLGlossaryBook`).
+    static let deepLGlossaries = SettingKey("translation.deepl.glossaries", default: [String: DeepLGlossaryRecord]())
     /// History is opt-in (PLAN §7.7.6).
     static let historyEnabled = SettingKey("translation.history.enabled", default: false)
     /// Days to keep history entries; 0 keeps them until deleted.

@@ -4,7 +4,7 @@ import OCR
 /// Apple Translation (PLAN §7.7.2, priority 1): on-device and offline once the pair's language pack is installed.
 /// It needs a known source language, so a request without one uses the language `LanguageDetector` finds in the
 /// segments. Pairs whose pack is missing report `.packNotInstalled`, which the coordinator answers with the
-/// download sheet.
+/// download sheet. It has no glossary of its own, so glossary terms are protected with placeholder tokens.
 struct AppleTranslationProvider: TranslationProvider {
     let id: ProviderID
     let displayName: String
@@ -80,9 +80,19 @@ struct AppleTranslationProvider: TranslationProvider {
         if let failure = await availability(source: source, target: request.target).failure {
             throw failure
         }
-        for try await segment in backend.translate(request.segments, from: source, to: request.target) {
-            continuation.yield(.segment(segment))
-        }
-        continuation.yield(.usage(TranslationUsage(characters: request.characterCount)))
+        // Apple Translation has no glossary, so terms travel as placeholder tokens (GlossaryProtection).
+        var characters = 0
+        try await GlossaryProtection.run(
+            request.segments,
+            terms: request.glossary.usableTerms,
+            emit: { continuation.yield(.segment($0)) },
+            translate: { segments, emit in
+                characters += segments.reduce(0) { $0 + $1.text.count }
+                for try await segment in backend.translate(segments, from: source, to: request.target) {
+                    emit(segment)
+                }
+            }
+        )
+        continuation.yield(.usage(TranslationUsage(characters: characters)))
     }
 }

@@ -9,15 +9,15 @@ public struct TranslationRequest: Sendable {
     public var target: Locale.Language
     /// The capture, sent only to `.imageInput` providers in AI Vision mode.
     public var image: CGImage?
-    /// Fixed translations for terms (`"Oriel" → "Oriel"`). LLM providers put them in the prompt.
-    public var glossary: [String: String]
+    /// Fixed translations for terms, from the active glossary project (`TranslationGlossary`).
+    public var glossary: TranslationGlossary
 
     public init(
         segments: [TranslationSegment],
         source: Locale.Language? = nil,
         target: Locale.Language,
         image: CGImage? = nil,
-        glossary: [String: String] = [:]
+        glossary: TranslationGlossary = .none
     ) {
         self.segments = segments
         self.source = source

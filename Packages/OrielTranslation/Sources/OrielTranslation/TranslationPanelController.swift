@@ -11,7 +11,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         panel.isVisible
     }
 
-    init(model: TranslationSessionModel, actions: TranslationPanelView.Actions) {
+    init(model: TranslationSessionModel, glossaries: GlossaryLibraryModel, actions: TranslationPanelView.Actions) {
         panel = NSPanel(
             contentRect: CGRect(x: 0, y: 0, width: 380, height: 520),
             styleMask: [.titled, .closable, .resizable, .utilityWindow, .nonactivatingPanel],
@@ -26,7 +26,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         panel.isReleasedWhenClosed = false
         panel.becomesKeyOnlyIfNeeded = true
         panel.collectionBehavior = [.fullScreenAuxiliary, .canJoinAllSpaces]
-        panel.contentView = NSHostingView(rootView: TranslationPanelView(model: model, actions: actions))
+        panel.contentView = NSHostingView(rootView: TranslationPanelView(model: model, glossaries: glossaries, actions: actions))
         panel.delegate = self
     }
 

@@ -4,12 +4,15 @@ import Testing
 
 struct SegmentPromptTests {
     @Test func instructionsNameTheLanguagesAndTheContract() {
-        var request = TestSupport.request(["Hello"], source: "en", target: "ja")
-        request.glossary = ["Oriel": "Oriel", "capture": "キャプチャ"]
+        var request = TestSupport.request(["Hello, capture"], source: "en", target: "ja")
+        request.glossary = TranslationGlossary(terms: [
+            GlossaryTerm(source: "Oriel", target: "Oriel"),
+            GlossaryTerm(source: "capture", target: "キャプチャ"),
+        ])
         let instructions = SegmentPrompt.instructions(for: request)
         #expect(instructions.contains("Japanese (ja)") && instructions.contains("The source language is English."))
         #expect(instructions.contains(#"{"id": number, "translation": string}"#))
-        #expect(instructions.contains(#""capture" → "キャプチャ""#))
+        #expect(instructions.contains(#""capture" → "キャプチャ""#) && !instructions.contains(#""Oriel""#))
         let detected = SegmentPrompt.instructions(for: TestSupport.request(["Hello"], source: nil, target: "de"))
         #expect(detected.contains("Detect the source language") && !detected.contains("glossary"))
     }

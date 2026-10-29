@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Settings → Translation (PLAN §7.7.5): languages, default provider, every provider's endpoint, model, key and
-/// options with "Test connection", the language-pack sheet, glossary and history.
+/// Settings → Translation (PLAN §7.7.5, §17): languages, default provider, every provider's endpoint, model, key and
+/// options with "Test connection", the language-pack sheet, glossary projects and history.
 struct TranslationSettingsView: View {
     @Bindable var model: TranslationSettingsModel
 
@@ -15,10 +15,17 @@ struct TranslationSettingsView: View {
             history
         }
         .formStyle(.grouped)
+        .task { await model.glossaries.loadIfNeeded() }
         .sheet(isPresented: $model.showsLanguagePackSheet) {
             LanguagePackDownloadView(
                 source: "en", target: targetCode == "en" ? "fr" : targetCode, allowsChoosingLanguages: true
             ) { _ in model.showsLanguagePackSheet = false }
+        }
+        .sheet(isPresented: $model.showsGlossaryEditor) {
+            GlossaryEditorView(glossaries: model.glossaries) {
+                model.showsGlossaryEditor = false
+                Task { await model.glossaries.saveNow() }
+            }
         }
     }
 
@@ -89,17 +96,37 @@ struct TranslationSettingsView: View {
 
     private var glossary: some View {
         Section {
-            TextEditor(text: model.glossary)
-                .font(.body.monospaced())
-                .frame(minHeight: 60)
+            Picker("Use glossary", selection: model.activeGlossary) {
+                Text("None").tag(UUID?.none)
+                if !model.glossaries.projects.isEmpty {
+                    Divider()
+                }
+                ForEach(model.glossaries.projects) { project in
+                    Text(project.name.isEmpty ? "Untitled" : project.name).tag(UUID?.some(project.id))
+                }
+            }
+            LabeledContent("Glossary projects") {
+                Button("Edit Glossaries…") { model.showsGlossaryEditor = true }
+            }
+            if let problem = model.glossaries.loadProblem {
+                Label(problem, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
         } header: {
             Text("Glossary")
         } footer: {
-            Text("One “term = translation” per line. Language-model providers keep these translations.")
+            Text(Self.glossaryFooter)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
     }
+
+    private static let glossaryFooter = """
+    A glossary keeps names and terms translated the same way. DeepL uses its own glossaries, Google a Cloud \
+    glossary named in the project, language models get the terms that occur in the text, and Apple Translation keeps \
+    them with placeholders.
+    """
 
     private var history: some View {
         Section("History") {

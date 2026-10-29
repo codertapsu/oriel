@@ -1,10 +1,17 @@
 import Foundation
 import OCR
+import OrielCore
 
 /// Google Cloud Translation (PLAN §7.7.2): Basic (v2) with an API key by default, Advanced (v3) when a glossary is
 /// set. The API key goes in the `X-Goog-Api-Key` header rather than the URL, so it never appears in a URL that could
 /// be logged. v3 takes no API keys: it uses an OAuth token for the service account key stored beside the API key.
 /// Segments are batched.
+///
+/// Glossary projects (PLAN §17): a project that names a Cloud Translation glossary sends the translation to v3 with
+/// it, when this provider has a service account key; otherwise the provider's own glossary applies, and without either
+/// the project's terms are protected with placeholder tokens on v2. Google creates glossaries only from files in Cloud
+/// Storage, which Oriel cannot write to, so a project's terms are not uploaded: the glossary editor exports them in the
+/// format Google imports.
 struct GoogleTranslateProvider: TranslationProvider {
     let config: ProviderConfig
     let apiKey: APIKey?
@@ -46,8 +53,10 @@ struct GoogleTranslateProvider: TranslationProvider {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    if usesGlossary {
-                        try await runWithGlossary(request, continuation: continuation)
+                    if let projectGlossary = projectGlossary(for: request) {
+                        try await runWithProjectGlossary(request, glossary: projectGlossary, continuation: continuation)
+                    } else if usesGlossary {
+                        try await runWithGlossary(request, glossary: glossary, continuation: continuation)
                     } else {
                         try await run(request, continuation: continuation)
                     }
@@ -126,6 +135,31 @@ struct GoogleTranslateProvider: TranslationProvider {
         Self.glossaryResource(config.glossaryResource, projectID: serviceAccount?.projectID)
     }
 
+    /// The glossary project's Cloud Translation glossary, when it names one that resolves and a service account key
+    /// is there to use it.
+    private func projectGlossary(for request: TranslationRequest) -> String? {
+        guard let serviceAccount else { return nil }
+        return Self.glossaryResource(request.glossary.googleGlossary, projectID: serviceAccount.projectID)
+    }
+
+    /// v3 with the project's glossary. A Cloud glossary covers one language pair and Google refuses it for others
+    /// (HTTP 400), so a refused glossary sends the text to Basic with the project's terms as tokens, when this
+    /// provider has an API key for it.
+    private func runWithProjectGlossary(
+        _ request: TranslationRequest,
+        glossary: String,
+        continuation: SegmentEmitter.Continuation
+    ) async throws {
+        do {
+            try await runWithGlossary(request, glossary: glossary, continuation: continuation)
+        } catch let failure as TranslationFailure where failure.isRejectedRequest && apiKey != nil {
+            Self.log.info("Google refused the glossary project's Cloud glossary for this pair; translating without it")
+            try await run(request, continuation: continuation)
+        }
+    }
+
+    private static let log = Log.logger("translation")
+
     private var translateURL: URL? {
         Endpoint.url(config.effectiveBaseURL, path: "", versionPrefix: "language/translate/v2")
     }
@@ -155,7 +189,7 @@ struct GoogleTranslateProvider: TranslationProvider {
 
     /// v3 `translateText` with the glossary. A glossary needs the source language, so a request without one uses
     /// the detected language; when nothing is detected the text is translated without the glossary.
-    private func runWithGlossary(_ request: TranslationRequest, continuation: SegmentEmitter.Continuation) async throws {
+    private func runWithGlossary(_ request: TranslationRequest, glossary: String?, continuation: SegmentEmitter.Continuation) async throws {
         guard let glossary, let parent = Self.parent(ofGlossary: glossary), let url = advancedURL("\(parent):translateText") else {
             throw TranslationFailure.notConfigured(Self.badGlossary)
         }
@@ -206,11 +240,32 @@ struct GoogleTranslateProvider: TranslationProvider {
         return entries.map { "Connected · glossary with \($0) entries" } ?? "Connected · glossary found"
     }
 
+    /// Basic (v2), which has no glossaries: a glossary project's terms travel as placeholder tokens.
     private func run(_ request: TranslationRequest, continuation: SegmentEmitter.Continuation) async throws {
         guard let url = translateURL
         else { throw TranslationFailure.notConfigured("Enter an https:// address for the Google Translation API.") }
         guard let key = apiKey else { throw TranslationFailure.missingAPIKey }
-        let batches = SegmentBatcher.batches(request.segments, maxCount: Self.batchLimits.count, maxCost: Self.batchLimits.characters)
+        var characters = 0
+        try await GlossaryProtection.run(
+            request.segments,
+            terms: request.glossary.usableTerms,
+            emit: { continuation.yield(.segment($0)) },
+            translate: { segments, emit in
+                characters += try await translateBasic(segments, of: request, url: url, key: key, emit: emit)
+            }
+        )
+        continuation.yield(.usage(TranslationUsage(characters: characters)))
+    }
+
+    /// Sends `segments` to v2 in batches and returns the characters sent.
+    private func translateBasic(
+        _ segments: [TranslationSegment],
+        of request: TranslationRequest,
+        url: URL,
+        key: APIKey,
+        emit: (TranslatedSegment) -> Void
+    ) async throws -> Int {
+        let batches = SegmentBatcher.batches(segments, maxCount: Self.batchLimits.count, maxCost: Self.batchLimits.characters)
         for batch in batches {
             try Task.checkCancellation()
             var body: [String: Any] = ["q": batch.map(\.text), "target": Self.code(for: request.target), "format": "text"]
@@ -230,10 +285,10 @@ struct GoogleTranslateProvider: TranslationProvider {
                 throw TranslationFailure.badResponse("Google returned \(translations.count) translations for \(batch.count) texts.")
             }
             for (segment, translation) in zip(batch, translations) {
-                continuation.yield(.segment(TranslatedSegment(id: segment.id, text: translation.translatedText)))
+                emit(TranslatedSegment(id: segment.id, text: translation.translatedText))
             }
         }
-        continuation.yield(.usage(TranslationUsage(characters: request.characterCount)))
+        return segments.reduce(0) { $0 + $1.text.count }
     }
 }
 

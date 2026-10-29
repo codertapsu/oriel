@@ -2,6 +2,8 @@
 /// changed setting or key takes effect at once.
 struct ProviderFactory: Sendable {
     let http: HTTPClient
+    /// The DeepL glossaries Oriel made, shared by every DeepL provider.
+    var deepLGlossaries: DeepLGlossaryBook?
 
     /// `serviceAccount` is the Google key file for glossaries (Cloud Translation v3); other kinds ignore it.
     func make(
@@ -24,7 +26,7 @@ struct ProviderFactory: Sendable {
         case .google:
             GoogleTranslateProvider(config: config, apiKey: apiKey, http: http, serviceAccount: serviceAccount)
         case .deepl:
-            DeepLProvider(config: config, apiKey: apiKey, http: http)
+            DeepLProvider(config: config, apiKey: apiKey, http: http, glossaries: deepLGlossaries)
         }
     }
 }

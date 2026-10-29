@@ -74,6 +74,7 @@ extension TranslationCoordinator {
         }
         let provider = registry.provider(for: config)
         model.phase = .translating
+        await glossaries.loadIfNeeded()
         let availability = await provider.availability(source: model.sourceLanguage, target: model.targetLanguage)
         guard generation == current, session === model else { return }
         if case let .packNotInstalled(source, target) = availability {
@@ -90,7 +91,10 @@ extension TranslationCoordinator {
         }
         let request = TranslationRequest(
             segments: model.segments, source: model.sourceLanguage, target: model.targetLanguage,
-            image: useImage ? model.capture.image : nil, glossary: settings[TranslationKeys.glossary]
+            image: useImage ? model.capture.image : nil, glossary: glossaries.glossary(
+                source: model.sourceLanguage,
+                target: model.targetLanguage
+            )
         )
         let task = Task { [weak self] in
             do {
@@ -224,7 +228,7 @@ extension TranslationCoordinator {
             sidePanel.close()
             return
         }
-        let panel = sidePanel ?? TranslationPanelController(model: model, actions: panelActions(for: model))
+        let panel = sidePanel ?? TranslationPanelController(model: model, glossaries: glossaries, actions: panelActions(for: model))
         panel.onClose = { [weak self, weak panel] in
             guard let self, overlay == nil, sidePanel === panel else { return }
             session = nil
@@ -243,6 +247,11 @@ extension TranslationCoordinator {
             selectTarget: { [weak self, weak model] code in
                 guard let model else { return }
                 self?.selectTarget(code, in: model)
+            },
+            selectGlossary: { [weak self, weak model] id in
+                guard let self, let model, glossaries.activeProjectID != id else { return }
+                glossaries.activeProjectID = id
+                retranslate(model, useImage: model.usesImageInput)
             },
             swap: { [weak self, weak model] in
                 guard let model else { return }

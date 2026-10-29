@@ -4,7 +4,7 @@ import OrielCore
 import SwiftUI
 
 /// State and actions behind Settings → Translation: provider editing, API keys (Keychain only), "Fetch models",
-/// "Test connection", usage counters and caps, glossary and history settings.
+/// "Test connection", usage counters and caps, glossary projects and history settings.
 @MainActor
 @Observable
 final class TranslationSettingsModel {
@@ -17,6 +17,7 @@ final class TranslationSettingsModel {
     let settings: SettingsStore
     let registry: ProviderRegistry
     let usage: UsageTracker
+    let glossaries: GlossaryLibraryModel
     let openHistory: @MainActor () -> Void
     let clearHistory: @MainActor () async -> Void
 
@@ -25,8 +26,8 @@ final class TranslationSettingsModel {
     var keyDrafts: [ProviderID: String] = [:]
     var keyMessages: [ProviderID: String] = [:]
     var headerDrafts: [ProviderID: String] = [:]
-    var glossaryDraft: String
     var showsLanguagePackSheet = false
+    var showsGlossaryEditor = false
     /// Whether the Keychain has a key, cached so views do not query it on every update. Not observed: it is filled
     /// while views read it, and every change to it also changes `keyMessages`.
     @ObservationIgnored private var storedKeys: [ProviderID: Bool] = [:]
@@ -37,15 +38,21 @@ final class TranslationSettingsModel {
         settings: SettingsStore,
         registry: ProviderRegistry,
         usage: UsageTracker,
+        glossaries: GlossaryLibraryModel,
         openHistory: @escaping @MainActor () -> Void,
         clearHistory: @escaping @MainActor () async -> Void
     ) {
         self.settings = settings
         self.registry = registry
         self.usage = usage
+        self.glossaries = glossaries
         self.openHistory = openHistory
         self.clearHistory = clearHistory
-        glossaryDraft = Self.text(from: settings[TranslationKeys.glossary], separator: " = ")
+    }
+
+    /// The glossary project translations use; nil for none.
+    var activeGlossary: Binding<UUID?> {
+        Binding(get: { [glossaries] in glossaries.activeProjectID }, set: { [glossaries] in glossaries.activeProjectID = $0 })
     }
 
     /// Providers shown in Settings: every configured one except those hidden by a closed gate.
@@ -207,16 +214,6 @@ final class TranslationSettingsModel {
                 var updated = registry.config(for: config.id) ?? config
                 updated.customHeaders = Self.pairs(from: text, separator: ":")
                 registry.update(updated)
-            }
-        )
-    }
-
-    var glossary: Binding<String> {
-        Binding(
-            get: { [self] in glossaryDraft },
-            set: { [self] text in
-                glossaryDraft = text
-                settings[TranslationKeys.glossary] = Self.pairs(from: text, separator: "=")
             }
         )
     }

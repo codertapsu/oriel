@@ -21,6 +21,8 @@ public final class TranslationCoordinator {
     let registry: ProviderRegistry
     let usage: UsageTracker
     let history: TranslationHistoryStore
+    /// The glossary projects, and which one translations use (PLAN §17).
+    let glossaries: GlossaryLibraryModel
     let log = Log.logger("translation")
 
     var session: TranslationSessionModel?
@@ -45,18 +47,20 @@ public final class TranslationCoordinator {
             secrets: keychain,
             textRecognizer: textRecognizer,
             http: .makeDefault(),
-            historyDirectory: AppPaths.translationHistory
+            historyDirectory: AppPaths.translationHistory,
+            glossaryFile: GlossaryStore.defaultFile
         )
     }
 
     /// The designated initializer, for tests: fake secrets, a stubbed URLSession, a temporary history folder and
-    /// substitute providers.
+    /// substitute providers. Without a `glossaryFile`, glossaries live in memory only.
     init(
         settings: SettingsStore,
         secrets: any SecretStore,
         textRecognizer: any TextRecognizing,
         http: HTTPClient,
         historyDirectory: URL,
+        glossaryFile: URL? = nil,
         providerOverride: ProviderRegistry.ProviderOverride? = nil,
         foundationModelsGate: @escaping @MainActor () -> FeatureGate = { FoundationModelsProvider.gate }
     ) {
@@ -67,6 +71,8 @@ public final class TranslationCoordinator {
         )
         usage = UsageTracker(settings: settings)
         history = TranslationHistoryStore(directory: historyDirectory)
+        glossaries = GlossaryLibraryModel(store: glossaryFile.map(GlossaryStore.init(file:)), settings: settings)
+        glossaries.onProjectDeleted = { [registry] id in registry.deleteDeepLGlossaries(ofProject: id) }
     }
 
     // MARK: - Public API
@@ -129,9 +135,10 @@ public final class TranslationCoordinator {
             if let failure = await provider.availability(source: source, target: targetLanguage).failure {
                 throw failure
             }
+            await glossaries.loadIfNeeded()
             let request = TranslationRequest(
                 segments: blocks.map { TranslationSegment(id: $0.id, text: $0.text) }, source: source, target: targetLanguage,
-                glossary: settings[TranslationKeys.glossary]
+                glossary: glossaries.glossary(source: source, target: targetLanguage)
             )
             for try await event in provider.translate(request) {
                 switch event {
@@ -169,6 +176,7 @@ public final class TranslationCoordinator {
             settings: settings,
             registry: registry,
             usage: usage,
+            glossaries: glossaries,
             openHistory: { [weak self] in self?.showHistory() },
             clearHistory: { [history] in try? await history.deleteAll() }
         )

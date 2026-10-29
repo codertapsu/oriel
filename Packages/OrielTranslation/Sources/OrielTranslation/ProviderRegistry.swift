@@ -27,9 +27,29 @@ final class ProviderRegistry {
     ) {
         self.settings = settings
         self.secrets = secrets
-        factory = ProviderFactory(http: http)
+        deepLGlossaries = DeepLGlossaryBook(records: settings[TranslationKeys.deepLGlossaries]) { records in
+            await MainActor.run { settings[TranslationKeys.deepLGlossaries] = records }
+        }
+        factory = ProviderFactory(http: http, deepLGlossaries: deepLGlossaries)
         self.override = override
         self.foundationModelsGate = foundationModelsGate
+    }
+
+    /// The DeepL glossaries made for glossary projects, kept in settings.
+    let deepLGlossaries: DeepLGlossaryBook
+
+    /// Deletes the DeepL glossaries of a deleted glossary project, as far as DeepL lets it; a glossary that cannot be
+    /// deleted now stays in the account, where it does no harm.
+    func deleteDeepLGlossaries(ofProject projectID: UUID) {
+        let book = deepLGlossaries
+        let providers = configs.filter { $0.kind == .deepl }.compactMap { provider(for: $0) as? DeepLProvider }
+        Task {
+            for item in await book.removeRecords(forProject: projectID) {
+                let providerID = item.key.split(separator: "|").first.map(String.init)
+                guard let provider = providers.first(where: { $0.config.id.rawValue == providerID }) else { continue }
+                try? await provider.deleteGlossary(item.record.glossaryID)
+            }
+        }
     }
 
     /// Every configured provider, in Settings order, with the built-in ones always present.

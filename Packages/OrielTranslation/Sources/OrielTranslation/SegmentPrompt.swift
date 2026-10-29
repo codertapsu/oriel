@@ -35,11 +35,37 @@ enum SegmentPrompt {
             "Keep translations about as short as the original, because they replace it on screen.",
             "No commentary, no explanations, no Markdown.",
         ]
-        if !request.glossary.isEmpty {
-            let terms = request.glossary.sorted { $0.key < $1.key }.map { "\"\($0.key)\" → \"\($0.value)\"" }
-            lines.append("Always translate these terms like this: \(terms.joined(separator: "; ")).")
+        let terms = glossaryTerms(for: request)
+        if !terms.isEmpty {
+            lines.append("Glossary: translate these terms with exactly these translations, inflected only where grammar requires it:")
+            lines += terms.map(glossaryLine)
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// The glossary terms worth the prompt: those that occur in the segments, at most `maxGlossaryTerms`. In AI
+    /// Vision mode the model reads text that OCR may have missed, so every term of the pair is offered.
+    static func glossaryTerms(for request: TranslationRequest) -> [GlossaryTerm] {
+        let terms = request.image == nil
+            ? request.glossary.terms(occurringIn: request.segments.map(\.text))
+            : request.glossary.usableTerms
+        return Array(terms.prefix(maxGlossaryTerms))
+    }
+
+    /// Keeps the instructions well within small context windows (Apple Intelligence, local models).
+    static let maxGlossaryTerms = 80
+
+    /// `- "capture" → "キャプチャ" (the UI noun) [case-sensitive]`
+    private static func glossaryLine(_ term: GlossaryTerm) -> String {
+        var line = "- \"\(term.trimmedSource)\" → \"\(term.trimmedTarget)\""
+        let note = term.note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !note.isEmpty {
+            line += " (\(note.replacingOccurrences(of: "\n", with: " ")))"
+        }
+        if term.isCaseSensitive {
+            line += " [case-sensitive]"
+        }
+        return line
     }
 
     /// `[{"id":1,"text":"…"}]`, compact, with keys in a fixed order.
