@@ -26,7 +26,7 @@ The capture, editor, recording, OCR and translation tools use public APIs only, 
 | OCR and translation (Apple Translation, Foundation Models, cloud and local LLM providers) | Yes, with the network client entitlement. Local endpoints over plain HTTP need an ATS exception, which review may question; prefer HTTPS. |
 | S3 upload | Yes. |
 | Window switcher, Cmd-Tab takeover, trackpad gestures | No. |
-| `oriel` CLI and IPC socket | No: drop it, or ship App Intents for Shortcuts instead (PLAN §17). |
+| `oriel` CLI and IPC socket | No: drop it, and keep the App Intents for Shortcuts instead (PLAN §7.17). |
 | Launch at login (`SMAppService`) | Yes, but only if the user turns it on (2.4.5(iii)). |
 | Bootstrap import | From the app's container or a managed `BootstrapURL`; there is no shared Application Support folder. |
 
