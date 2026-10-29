@@ -15,6 +15,9 @@ import SwiftUI
 public final class TranslationCoordinator {
     let settings: SettingsStore
     let textRecognizer: any TextRecognizing
+    /// Captures part of the screen, in the global coordinates `CaptureCoordinator.captureRect` takes; set by the app,
+    /// for the modes that read the screen themselves (Translate Under Cursor).
+    public var screenCapture: (@MainActor (CGRect) async throws -> CGImage)?
     let registry: ProviderRegistry
     let usage: UsageTracker
     let history: TranslationHistoryStore

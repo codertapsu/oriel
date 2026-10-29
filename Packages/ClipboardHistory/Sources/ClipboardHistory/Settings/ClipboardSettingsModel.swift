@@ -31,7 +31,7 @@ final class ClipboardSettingsModel {
     }
 
     var shortcut: String? {
-        module?.shortcutDescription?()
+        module?.shortcutDescription
     }
 
     /// Reads the counts and the size again while the pane shows, one read at a time.

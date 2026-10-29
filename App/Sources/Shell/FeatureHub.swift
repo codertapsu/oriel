@@ -1,6 +1,9 @@
+import ActivityMonitor
 import AppKit
 import Capture
 import ClipboardHistory
+import ColorPicker
+import DiskAnalyzer
 import Editor
 import IPC
 import OCR
@@ -9,14 +12,16 @@ import OrielTranslation
 import os
 import Permissions
 import Recording
+import ScreenRuler
 import SharedUI
 import SwiftUI
 import Upload
 import WindowSwitcher
+import WindowTiling
 
-/// Owns the feature coordinators — capture, recording, translation, the editor, upload, and the switcher and
-/// Clipboard History modules — and connects them: the Quick Access Overlay's Annotate, Translate and Upload come back
-/// here through `CaptureActionHandling`. The shell talks only to this type.
+/// Owns the feature coordinators — capture, recording, translation, the editor and upload — and the utility modules,
+/// and connects them: the Quick Access Overlay's Annotate, Translate and Upload come back here through
+/// `CaptureActionHandling`. The shell talks only to this type.
 @MainActor
 final class FeatureHub: CaptureActionHandling {
     let recognizer = VisionTextRecognizer()
@@ -27,6 +32,11 @@ final class FeatureHub: CaptureActionHandling {
     let uploads: UploadCoordinator
     let switcher = WindowSwitcherModule()
     let clipboard = ClipboardHistoryModule()
+    let diskAnalyzer = DiskAnalyzerModule()
+    let activityMonitor = ActivityMonitorModule()
+    let colorPicker = ColorPickerModule()
+    let screenRuler = ScreenRulerModule()
+    let windowTiling = WindowTilingModule()
 
     /// Called whenever a recording starts, pauses or ends, so the status item can show it.
     var onRecordingChange: ((Bool) -> Void)?
@@ -39,11 +49,15 @@ final class FeatureHub: CaptureActionHandling {
         self.settings = settings
         self.keychain = keychain
         capture = CaptureCoordinator(settings: settings, permissions: permissions, textRecognizer: recognizer)
-        recording = RecordingCoordinator(settings: settings, permissions: permissions)
+        recording = RecordingCoordinator(settings: settings, permissions: permissions, textRecognizer: recognizer)
         translation = TranslationCoordinator(settings: settings, keychain: keychain, textRecognizer: recognizer)
-        editor = EditorLauncher(settings: settings)
+        editor = EditorLauncher(settings: settings, textRecognizer: recognizer)
         uploads = UploadCoordinator(settings: settings, keychain: keychain)
         capture.actions = self
+        translation.screenCapture = { [weak self] rect in
+            guard let self else { throw CancellationError() }
+            return try await capture.captureRect(rect).image
+        }
         editor.onUpload = { [weak self] image in
             Task { await self?.uploads.upload(image) }
         }
@@ -56,8 +70,14 @@ final class FeatureHub: CaptureActionHandling {
         recognizer
     }
 
+    /// The tools, in Settings order.
     var modules: [any UtilityModule] {
-        [switcher, clipboard]
+        [switcher, clipboard, diskAnalyzer, activityMonitor, colorPicker, screenRuler, windowTiling]
+    }
+
+    /// The commands of the features (PLAN §6.5); the tools' own come through the module registry.
+    var commands: [ToolCommand] {
+        [instantCaptureCommand] + capture.commands + recording.commands + translation.commands + editor.commands
     }
 
     var isRecording: Bool {
@@ -67,7 +87,6 @@ final class FeatureHub: CaptureActionHandling {
     func isAvailable(_ action: AppAction) -> Bool {
         switch action {
         case .stopRecording: recording.isActive
-        case .showClipboardHistory: clipboard.isActive
         default: true
         }
     }
@@ -88,11 +107,34 @@ final class FeatureHub: CaptureActionHandling {
         case .recordScreen: await recordScreen()
         case .stopRecording: await recording.stop()
         case .translateArea: await translateArea()
-        case .showClipboardHistory: clipboard.togglePanel()
         case .showCaptureHistory: capture.showHistory()
         case .showTranslationHistory: translation.showHistory()
         case .openImage: openImage()
         case .showSettings, .showOnboarding, .quit: break
+        }
+    }
+
+    /// Lightshot-style: select an area and annotate it where it is, without the Quick Access Overlay (PLAN §17).
+    private var instantCaptureCommand: ToolCommand {
+        ToolCommand(
+            id: "captureInstant",
+            title: "Instant Capture",
+            symbol: "bolt.square",
+            group: .capture,
+            defaultShortcut: KeyCombo(keyCode: KeyCode.ansi2, modifiers: [.control, .shift]),
+            route: "capture/instant"
+        ) { [weak self] in
+            Task { await self?.instantCapture() }
+        }
+    }
+
+    private func instantCapture() async {
+        guard let region = await capture.selectRegion(prompt: "Select the area to annotate") else { return }
+        do {
+            let shot = try await capture.captureRect(region.rect)
+            editor.openInstant(shot, at: region.rect)
+        } catch {
+            Toast.show(error.localizedDescription, symbol: "exclamationmark.triangle")
         }
     }
 
@@ -177,20 +219,14 @@ final class FeatureHub: CaptureActionHandling {
 
     // MARK: Settings, bootstrap, shutdown
 
+    /// A tab for each tool with a pane, named after its module ID, then the features' tabs.
     var settingsPanes: [SettingsPaneEntry] {
-        [
-            SettingsPaneEntry(
-                id: "switcher",
-                title: "Window Switcher",
-                symbol: "rectangle.stack",
-                view: switcher.settingsPane ?? AnyView(EmptyView())
-            ),
-            SettingsPaneEntry(
-                id: "clipboard",
-                title: "Clipboard History",
-                symbol: "list.clipboard",
-                view: clipboard.settingsPane ?? AnyView(EmptyView())
-            ),
+        let tools = modules.compactMap { module in
+            module.settingsPane.map { view in
+                SettingsPaneEntry(id: type(of: module).id.rawValue, title: module.displayName, symbol: module.settingsSymbol, view: view)
+            }
+        }
+        return tools + [
             SettingsPaneEntry(id: "capture", title: "Capture", symbol: "camera.viewfinder", view: capture.settingsPane),
             SettingsPaneEntry(id: "recording", title: "Recording", symbol: "record.circle", view: recording.settingsPane),
             SettingsPaneEntry(id: "translation", title: "Translation", symbol: "character.bubble", view: translation.settingsPane),

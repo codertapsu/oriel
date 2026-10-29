@@ -18,7 +18,8 @@ final class AppController {
     let registry: ModuleRegistry
 
     private let hotkeys = CarbonHotkeyEngine()
-    private(set) var shortcutErrors: [AppAction: String] = [:]
+    /// Shortcut conflicts by action or command id, for the Shortcuts pane.
+    private(set) var shortcutErrors: [String: String] = [:]
     private var statusMenu: StatusMenuController?
     private var settingsWindow: SettingsWindowController?
     private var onboardingWindow: OnboardingWindowController?
@@ -43,10 +44,7 @@ final class AppController {
         LaunchChecks.showArchitectureNotices(settings: settings)
         statusMenu = StatusMenuController(controller: self)
         hub.onRecordingChange = { [weak self] recording in self?.statusMenu?.showRecording(recording) }
-        hub.clipboard.openSettings = { [weak self] in self?.showSettings(tab: "clipboard") }
-        hub.clipboard.shortcutDescription = { [weak self] in
-            self.flatMap { $0.settings[AppAction.showClipboardHistory.shortcutKey] }?.description
-        }
+        registry.openSettings = { [weak self] id in self?.showSettings(tab: id.rawValue) }
         registry.enableNewDefaultModules()
         registerShortcuts()
         settingsObserver = NotificationCenter.default.addObserver(
@@ -92,11 +90,18 @@ final class AppController {
             hub.open(fileAt: url)
             return
         }
-        guard let action = AppAction(url: url) else {
+        if let action = AppAction(url: url) {
+            perform(action)
+        } else if let route = AppAction.route(of: url), let command = commands.first(where: { $0.route == route }) {
+            command.perform()
+        } else {
             log.error("unknown URL \(url.absoluteString, privacy: .private)")
-            return
         }
-        perform(action)
+    }
+
+    /// Every command the features and the turned-on tools offer (PLAN §6.5).
+    var commands: [ToolCommand] {
+        hub.commands + registry.commands
     }
 
     func showSettings(tab: String? = nil) {
@@ -128,18 +133,25 @@ final class AppController {
 
     // MARK: Shortcuts
 
-    /// Registers every action's global shortcut with Carbon; conflicts are kept for the Shortcuts pane. A tool's
-    /// shortcut is registered only while the tool is on.
+    /// Registers the global shortcuts of every action and command with Carbon; conflicts are kept for the Shortcuts
+    /// pane. A tool's commands are registered only while the tool is on.
     func registerShortcuts() {
         hotkeys.unregisterAll()
         shortcutErrors = [:]
-        for action in AppAction.shortcutActions where action.module.map(registry.isEnabled) ?? true {
-            guard let combo = settings[action.shortcutKey] else { continue }
-            do {
-                try hotkeys.register(combo, name: action.rawValue) { [weak self] in self?.perform(action) }
-            } catch {
-                shortcutErrors[action] = "\(combo) is taken by another app or by macOS."
-            }
+        for action in AppAction.shortcutActions {
+            register(settings[action.shortcutKey], name: action.rawValue) { [weak self] in self?.perform(action) }
+        }
+        for command in commands {
+            register(settings[command.shortcutKey], name: command.id, handler: command.perform)
+        }
+    }
+
+    private func register(_ combo: KeyCombo?, name: String, handler: @escaping @MainActor () -> Void) {
+        guard let combo else { return }
+        do {
+            try hotkeys.register(combo, name: name, handler: handler)
+        } catch {
+            shortcutErrors[name] = "\(combo) is taken by another app or by macOS."
         }
     }
 

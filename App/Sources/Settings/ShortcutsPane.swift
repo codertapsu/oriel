@@ -2,49 +2,85 @@ import Hotkeys
 import OrielCore
 import SwiftUI
 
-/// Global shortcuts for capture, recording and translation (Carbon hot keys, no permission needed).
-/// The window switcher's own shortcuts are in its pane.
+/// Global shortcuts for capture, recording, translation and every tool that is on (Carbon hot keys, no permission
+/// needed). The window switcher's own shortcuts are in its pane.
 struct ShortcutsPane: View {
     let controller: AppController
 
     var body: some View {
         Form {
             Section {
-                ForEach(AppAction.shortcutActions) { action in
-                    LabeledContent(action.title) {
-                        HStack {
-                            ShortcutRecorder(combo: binding(action), inUse: inUse(except: action))
-                                .frame(width: 160, height: 24)
-                            if let error = controller.shortcutErrors[action] {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                    .help(error)
-                            }
-                            Button("Default") { controller.settings.reset(action.shortcutKey) }
-                                .disabled(controller.settings[action.shortcutKey] == action.defaultShortcut)
-                        }
-                    }
+                ForEach(appRows) { row in
+                    rowView(row)
                 }
             } header: {
                 Text("Global shortcuts")
             } footer: {
                 Text("Click a field, then type the combination. Esc cancels, Delete clears. ⚠︎ means another app already uses it.")
             }
+            let modules = controller.registry.enabledModulesWithCommands
+            ForEach(modules.indices, id: \.self) { index in
+                Section(modules[index].displayName) {
+                    ForEach(modules[index].commands.map(ShortcutRow.init)) { row in
+                        rowView(row)
+                    }
+                }
+            }
         }
         .formStyle(.grouped)
     }
 
-    private func binding(_ action: AppAction) -> Binding<KeyCombo?> {
-        controller.settings.binding(action.shortcutKey)
+    /// The app's own actions, then the commands of capture, recording, translation and the editor.
+    private var appRows: [ShortcutRow] {
+        AppAction.shortcutActions.map(ShortcutRow.init) + controller.hub.commands.map(ShortcutRow.init)
     }
 
-    private func inUse(except action: AppAction) -> [KeyCombo: String] {
+    private var allRows: [ShortcutRow] {
+        appRows + controller.registry.commands.map(ShortcutRow.init)
+    }
+
+    private func rowView(_ row: ShortcutRow) -> some View {
+        LabeledContent(row.title) {
+            HStack {
+                ShortcutRecorder(combo: controller.settings.binding(row.key), inUse: inUse(except: row))
+                    .frame(width: 160, height: 24)
+                if let error = controller.shortcutErrors[row.id] {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .help(error)
+                }
+                Button("Default") { controller.settings.reset(row.key) }
+                    .disabled(controller.settings[row.key] == row.key.defaultValue)
+            }
+        }
+    }
+
+    private func inUse(except row: ShortcutRow) -> [KeyCombo: String] {
         var used: [KeyCombo: String] = [:]
-        for other in AppAction.shortcutActions where other != action {
-            if let combo = controller.settings[other.shortcutKey] {
+        for other in allRows where other.id != row.id {
+            if let combo = controller.settings[other.key] {
                 used[combo] = other.title
             }
         }
         return used
+    }
+}
+
+/// One line of the pane: an app action or a command.
+private struct ShortcutRow: Identifiable {
+    let id: String
+    let title: String
+    let key: SettingKey<KeyCombo?>
+
+    init(_ action: AppAction) {
+        id = action.rawValue
+        title = action.title
+        key = action.shortcutKey
+    }
+
+    init(_ command: ToolCommand) {
+        id = command.id
+        title = command.title
+        key = command.shortcutKey
     }
 }

@@ -23,6 +23,17 @@ public enum KeyCode {
     public static let ansiA: UInt16 = 0
     public static let ansiS: UInt16 = 1
     public static let ansiV: UInt16 = 9
+    public static let ansiC: UInt16 = 8
+    public static let ansiD: UInt16 = 2
+    public static let ansiE: UInt16 = 14
+    public static let ansiG: UInt16 = 5
+    public static let ansiI: UInt16 = 34
+    public static let ansiJ: UInt16 = 38
+    public static let ansiK: UInt16 = 40
+    public static let ansiO: UInt16 = 31
+    public static let ansiU: UInt16 = 32
+    public static let ansiMinus: UInt16 = 27
+    public static let ansiEqual: UInt16 = 24
     public static let ansi1: UInt16 = 18
     public static let ansi2: UInt16 = 19
     public static let ansi3: UInt16 = 20

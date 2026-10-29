@@ -4,10 +4,12 @@ import OrielCore
 /// App-level settings keys. Each module keeps its own keys.
 enum AppSettings {
     static let onboardingCompleted = SettingKey("app.onboardingCompleted", default: false)
-    /// Modules the user turned on; both are on until turned off.
+    /// Modules the user turned on; every default module is on until turned off.
     static let enabledModules = SettingKey("app.enabledModules", default: defaultModules.map(\.rawValue))
     /// Modules that are on by default, in Settings order.
-    static let defaultModules: [ModuleID] = [.windowSwitcher, .clipboardHistory]
+    static let defaultModules: [ModuleID] = [
+        .windowSwitcher, .clipboardHistory, .diskAnalyzer, .activityMonitor, .colorPicker, .screenRuler, .windowTiling,
+    ]
     /// Default modules the user has already been given. One that is missing here arrived in an update and is turned on
     /// once, even for a user who had already chosen their tools; the switcher predates the list.
     static let offeredModules = SettingKey("app.offeredModules", default: [ModuleID.windowSwitcher.rawValue])

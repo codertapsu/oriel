@@ -18,10 +18,11 @@ public final class ClipboardHistoryModule: UtilityModule {
 
     public let displayName = "Clipboard History"
 
-    /// Opens Settings at Clipboard History; set by the app.
-    public var openSettings: (() -> Void)?
-    /// The panel's global shortcut as text ("⌥V"), for the Settings pane; set by the app.
-    public var shortcutDescription: (() -> String?)?
+    /// The panel's default shortcut (PLAN §7.9).
+    static let defaultShortcut = KeyCombo(keyCode: KeyCode.ansiV, modifiers: .option)
+
+    /// Opens Settings at Clipboard History; from the context the module was activated with.
+    private var openSettings: (@MainActor @Sendable () -> Void)?
 
     public private(set) var isActive = false
     private(set) var recorder: ClipboardRecorder?
@@ -60,6 +61,31 @@ public final class ClipboardHistoryModule: UtilityModule {
         AnyView(ClipboardSettingsView(model: settingsModel))
     }
 
+    public var settingsSymbol: String {
+        "list.clipboard"
+    }
+
+    /// Opens or closes the panel. The id is the one the shortcut had as an app action, so a shortcut set before keeps
+    /// working, and so does `oriel://clipboard`.
+    public var commands: [ToolCommand] {
+        let command = ToolCommand(
+            id: "showClipboardHistory",
+            title: "Clipboard History",
+            symbol: "list.clipboard",
+            group: .library,
+            defaultShortcut: Self.defaultShortcut,
+            route: "clipboard"
+        ) { [weak self] in
+            self?.togglePanel()
+        }
+        return [command]
+    }
+
+    /// The panel's shortcut as text ("⌥V"), for the Settings pane.
+    var shortcutDescription: String? {
+        commands.first.flatMap { currentSettings[$0.shortcutKey] }?.description
+    }
+
     /// `debug clipboard`: the state, never the contents.
     public var ipcCommands: [IPCCommandHandler] {
         let command = IPCCommandHandler(verb: "debug.clipboard", usage: "debug clipboard [--json]") { [weak self] request in
@@ -82,6 +108,7 @@ public final class ClipboardHistoryModule: UtilityModule {
         isActive = true
         settings = context.settings
         permissions = context.services.permissions
+        openSettings = context.openSettings
         do {
             let key = try ClipboardVault.key(in: context.services.keychain)
             let store = ClipboardStore(directory: AppPaths.clipboardHistory, vault: ClipboardVault(key: key))

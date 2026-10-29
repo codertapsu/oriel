@@ -2,7 +2,7 @@ import AppKit
 import OrielCore
 import SharedUI
 
-/// Menu items for `AppAction`s, with their global shortcut shown as the key equivalent.
+/// Menu items for `AppAction`s and `ToolCommand`s, with their global shortcut shown as the key equivalent.
 enum ActionMenuItemFactory {
     static func make(
         _ title: String,
@@ -15,7 +15,14 @@ enum ActionMenuItemFactory {
     }
 
     static func make(_ action: AppAction, shortcut: KeyCombo?, handler: @escaping @MainActor @Sendable () -> Void) -> NSMenuItem {
-        let item = ActionMenuItem(action.title, symbol: action.symbol, handler: handler)
+        withShortcut(ActionMenuItem(action.title, symbol: action.symbol, handler: handler), shortcut)
+    }
+
+    static func make(_ command: ToolCommand, shortcut: KeyCombo?) -> NSMenuItem {
+        withShortcut(ActionMenuItem(command.title, symbol: command.symbol, handler: command.perform), shortcut)
+    }
+
+    private static func withShortcut(_ item: NSMenuItem, _ shortcut: KeyCombo?) -> NSMenuItem {
         if let shortcut, let character = keyEquivalent(for: shortcut.keyCode) {
             item.keyEquivalent = character
             item.keyEquivalentModifierMask = modifierFlags(shortcut.modifiers)

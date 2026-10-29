@@ -49,9 +49,12 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             moduleItems.forEach(menu.addItem)
             menu.addItem(.separator())
         }
+        let features = controller.hub.commands.filter(\.showsInMenu)
+        let tools = controller.registry.menuCommands
         for action in [AppAction.captureArea, .captureWindow, .captureScreen, .captureScrolling, .capturePreviousArea, .captureWithTimer] {
             menu.addItem(item(action))
         }
+        add(features, in: .capture, to: menu)
         menu.addItem(.separator())
         if controller.hub.isRecording {
             menu.addItem(item(.stopRecording))
@@ -60,13 +63,19 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             menu.addItem(item(.recordWindow))
             menu.addItem(item(.recordScreen))
         }
+        add(features, in: .recording, to: menu)
         menu.addItem(.separator())
         menu.addItem(item(.translateArea))
+        add(features, in: .translation, to: menu)
         menu.addItem(.separator())
-        let histories = [AppAction.showClipboardHistory, .showCaptureHistory, .showTranslationHistory, .openImage]
-        for action in histories where controller.hub.isAvailable(action) {
+        if add(tools + features, in: .tools, to: menu) {
+            menu.addItem(.separator())
+        }
+        add(tools, in: .library, to: menu)
+        for action in [AppAction.showCaptureHistory, .showTranslationHistory, .openImage] where controller.hub.isAvailable(action) {
             menu.addItem(item(action))
         }
+        add(features, in: .library, to: menu)
         menu.addItem(pinnedItem())
         menu.addItem(.separator())
         menu.addItem(item(.showSettings))
@@ -80,6 +89,16 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         item.image = NSImage(systemSymbolName: "pin", accessibilityDescription: "Pinned")
         item.submenu = controller.hub.capture.makePinnedMenu()
         return item
+    }
+
+    /// Adds the commands of one section; returns whether there were any.
+    @discardableResult
+    private func add(_ commands: [ToolCommand], in group: ToolCommand.Group, to menu: NSMenu) -> Bool {
+        let matching = commands.filter { $0.group == group }
+        for command in matching {
+            menu.addItem(ActionMenuItemFactory.make(command, shortcut: controller.settings[command.shortcutKey]))
+        }
+        return !matching.isEmpty
     }
 
     private func item(_ action: AppAction) -> NSMenuItem {

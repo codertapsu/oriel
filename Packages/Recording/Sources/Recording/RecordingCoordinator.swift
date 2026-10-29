@@ -40,6 +40,8 @@ public final class RecordingCoordinator {
 
     private let settings: SettingsStore
     private let permissions: PermissionCenter
+    /// On-device OCR for reading text off a video frame; nil leaves that out.
+    let textRecognizer: (any TextRecognizing)?
     private var current: ActiveRecording?
     private var stopRequested = false
     /// Why capture ended early, shown once the movie is saved.
@@ -48,9 +50,10 @@ public final class RecordingCoordinator {
     private let log = Log.logger("recording")
 
     /// Creating the coordinator starts nothing and asks for no permission.
-    public init(settings: SettingsStore, permissions: PermissionCenter) {
+    public init(settings: SettingsStore, permissions: PermissionCenter, textRecognizer: (any TextRecognizing)? = nil) {
         self.settings = settings
         self.permissions = permissions
+        self.textRecognizer = textRecognizer
     }
 
     /// Requests Screen Recording (and the microphone and camera when settings use them), shows the control bar and

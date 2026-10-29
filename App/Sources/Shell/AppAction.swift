@@ -1,13 +1,13 @@
 import Foundation
 import OrielCore
 
-/// Everything the user can trigger from the status menu, a global shortcut or an `oriel://` URL. One table,
-/// so the three never disagree (PLAN §10.1, §6.5).
+/// What the app itself lets the user trigger from the status menu, a global shortcut or an `oriel://` URL. One table,
+/// so the three never disagree (PLAN §10.1, §6.5). Features and tools add their own as `ToolCommand`s, which the app
+/// wires up the same way.
 enum AppAction: String, CaseIterable, Identifiable {
     case captureArea, captureWindow, captureScreen, captureScrolling, capturePreviousArea, captureWithTimer, captureAllDisplays
     case recordArea, recordWindow, recordScreen, stopRecording
     case translateArea
-    case showClipboardHistory
     case showCaptureHistory, showTranslationHistory, openImage
     case showSettings, showOnboarding, quit
 
@@ -29,7 +29,6 @@ enum AppAction: String, CaseIterable, Identifiable {
         case .recordScreen: "Record Screen"
         case .stopRecording: "Stop Recording"
         case .translateArea: "Translate Area"
-        case .showClipboardHistory: "Clipboard History"
         case .showCaptureHistory: "Capture History"
         case .showTranslationHistory: "Translation History"
         case .openImage: "Open Image in Editor…"
@@ -53,7 +52,6 @@ enum AppAction: String, CaseIterable, Identifiable {
         case .recordScreen: "menubar.dock.rectangle.badge.record"
         case .stopRecording: "stop.circle"
         case .translateArea: "character.bubble"
-        case .showClipboardHistory: "list.clipboard"
         case .showCaptureHistory: "clock.arrow.circlepath"
         case .showTranslationHistory: "text.bubble"
         case .openImage: "photo"
@@ -63,12 +61,10 @@ enum AppAction: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The default global shortcut, ⌃⇧ plus a key (PLAN §7.2, §10.5), for the actions that have one; Clipboard History
-    /// opens with ⌥V (PLAN §7.9).
+    /// The default global shortcut, ⌃⇧ plus a key (PLAN §7.2, §10.5), for the actions that have one.
     var defaultShortcut: KeyCombo? {
         let controlShift: KeyCombo.Modifiers = [.control, .shift]
         return switch self {
-        case .showClipboardHistory: KeyCombo(keyCode: KeyCode.ansiV, modifiers: .option)
         case .captureArea: KeyCombo(keyCode: KeyCode.ansi4, modifiers: controlShift)
         case .captureWindow: KeyCombo(keyCode: KeyCode.ansi5, modifiers: controlShift)
         case .captureScreen: KeyCombo(keyCode: KeyCode.ansi3, modifiers: controlShift)
@@ -82,29 +78,29 @@ enum AppAction: String, CaseIterable, Identifiable {
     /// Actions that can have a global shortcut, in Settings order.
     static let shortcutActions: [AppAction] = [
         .captureArea, .captureWindow, .captureScreen, .captureScrolling, .capturePreviousArea, .captureWithTimer,
-        .captureAllDisplays, .recordArea, .recordWindow, .recordScreen, .translateArea, .showClipboardHistory, .showCaptureHistory,
+        .captureAllDisplays, .recordArea, .recordWindow, .recordScreen, .translateArea, .showCaptureHistory,
     ]
-
-    /// The tool an action belongs to: while it is turned off, the action's shortcut is not registered, so it keeps no
-    /// key from other apps.
-    var module: ModuleID? {
-        self == .showClipboardHistory ? .clipboardHistory : nil
-    }
 
     var shortcutKey: SettingKey<KeyCombo?> {
         SettingKey("shortcuts.\(rawValue)", default: defaultShortcut)
     }
 
+    /// The route of an `oriel://` URL (`capture/area` for `oriel://capture/area`), which is also how a `ToolCommand`
+    /// names its URL.
+    static func route(of url: URL) -> String? {
+        guard url.scheme == "oriel" else { return nil }
+        return ([url.host] + url.pathComponents.filter { $0 != "/" }).compactMap(\.self).joined(separator: "/")
+    }
+
     /// `oriel://capture/area` and friends.
     init?(url: URL) {
-        guard url.scheme == "oriel" else { return nil }
-        let path = ([url.host] + url.pathComponents.filter { $0 != "/" }).compactMap(\.self).joined(separator: "/")
+        guard let path = Self.route(of: url) else { return nil }
         let routes: [String: AppAction] = [
             "capture/area": .captureArea, "capture/window": .captureWindow, "capture/screen": .captureScreen,
             "capture/scrolling": .captureScrolling, "capture/previous": .capturePreviousArea, "capture/timer": .captureWithTimer,
             "capture/all": .captureAllDisplays, "record/area": .recordArea, "record/window": .recordWindow,
             "record/screen": .recordScreen, "record/stop": .stopRecording,
-            "translate/area": .translateArea, "clipboard": .showClipboardHistory, "history": .showCaptureHistory,
+            "translate/area": .translateArea, "history": .showCaptureHistory,
             "settings": .showSettings,
         ]
         guard let action = routes[path] else { return nil }

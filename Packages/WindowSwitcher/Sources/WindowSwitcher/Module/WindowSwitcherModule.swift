@@ -85,6 +85,10 @@ public final class WindowSwitcherModule: UtilityModule {
         AnyView(SwitcherSettingsView(settings: settings ?? standaloneSettings))
     }
 
+    public var settingsSymbol: String {
+        "rectangle.stack"
+    }
+
     /// `windows list|focus|close|minimize` and, in Debug builds, `debug open-switcher`.
     public var ipcCommands: [IPCCommandHandler] {
         WindowCommands.handlers(for: self)

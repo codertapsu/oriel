@@ -10,6 +10,8 @@ final class ModuleRegistry {
     private let services: ServiceContainer
     private let modules: [any UtilityModule]
     private var active: Set<ModuleID> = []
+    /// Opens Settings at a module's pane; set by the app.
+    var openSettings: ((ModuleID) -> Void)?
 
     init(settings: SettingsStore, services: ServiceContainer, modules: [any UtilityModule]) {
         self.settings = settings
@@ -78,6 +80,21 @@ final class ModuleRegistry {
         modules.filter { active.contains(type(of: $0).id) }.flatMap(\.menuItems)
     }
 
+    /// Commands of the modules that are turned on, for shortcuts and URLs: a tool that is off keeps no key from other apps.
+    var commands: [ToolCommand] {
+        modules.filter { isEnabled(type(of: $0).id) }.flatMap(\.commands)
+    }
+
+    /// Commands of the active modules that the status menu lists.
+    var menuCommands: [ToolCommand] {
+        modules.filter { active.contains(type(of: $0).id) }.flatMap(\.commands).filter(\.showsInMenu)
+    }
+
+    /// The modules that are turned on and have commands, in Settings order, for Settings → Shortcuts.
+    var enabledModulesWithCommands: [any UtilityModule] {
+        modules.filter { isEnabled(type(of: $0).id) && !$0.commands.isEmpty }
+    }
+
     /// CLI verbs of every module; a verb of an inactive module answers that the module is off.
     var ipcCommands: [IPCCommandHandler] {
         modules.flatMap { module in
@@ -96,7 +113,9 @@ final class ModuleRegistry {
 
     private func activate(_ id: ModuleID) async {
         guard !active.contains(id), let module = module(id) else { return }
-        let context = ModuleContext(services: services, settings: settings, log: Log.logger(id.rawValue))
+        let context = ModuleContext(services: services, settings: settings, log: Log.logger(id.rawValue)) { [weak self] in
+            self?.openSettings?(id)
+        }
         await module.activate(context: context)
         active.insert(id)
     }

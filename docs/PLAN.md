@@ -1304,6 +1304,11 @@ packages:
   OrielTranslation: { path: Packages/OrielTranslation }   # not "Translation": the SDK's Translation.framework owns that module name
   Upload:           { path: Packages/Upload }
   ClipboardHistory: { path: Packages/ClipboardHistory }
+  DiskAnalyzer:     { path: Packages/DiskAnalyzer }
+  ActivityMonitor:  { path: Packages/ActivityMonitor }
+  ColorPicker:      { path: Packages/ColorPicker }
+  ScreenRuler:      { path: Packages/ScreenRuler }
+  WindowTiling:     { path: Packages/WindowTiling }
 
 settings:
   base:
@@ -1396,6 +1401,11 @@ targets:
       - package: OrielTranslation
       - package: Upload
       - package: ClipboardHistory
+      - package: DiskAnalyzer
+      - package: ActivityMonitor
+      - package: ColorPicker
+      - package: ScreenRuler
+      - package: WindowTiling
       - target: oriel-cli
         embed: true                  # copied into Oriel.app/Contents/Helpers/oriel
         codeSign: true

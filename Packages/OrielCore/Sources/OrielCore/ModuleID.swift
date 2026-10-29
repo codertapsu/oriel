@@ -20,4 +20,9 @@ public struct ModuleID: RawRepresentable, Hashable, Codable, Sendable, Expressib
     public static let translation: ModuleID = "translation"
     public static let editor: ModuleID = "editor"
     public static let clipboardHistory: ModuleID = "clipboard-history"
+    public static let diskAnalyzer: ModuleID = "disk-analyzer"
+    public static let activityMonitor: ModuleID = "activity-monitor"
+    public static let colorPicker: ModuleID = "color-picker"
+    public static let screenRuler: ModuleID = "screen-ruler"
+    public static let windowTiling: ModuleID = "window-tiling"
 }

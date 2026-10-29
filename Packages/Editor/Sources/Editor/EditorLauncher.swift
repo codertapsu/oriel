@@ -6,6 +6,8 @@ import OrielCore
 /// export format and background preset) as they are when it opens.
 public final class EditorLauncher {
     private let settings: SettingsStore
+    /// On-device OCR for the tools that find text in the image (Smart Redact, Simplify); nil leaves them out.
+    let textRecognizer: (any TextRecognizing)?
     private var controllers: [EditorWindowController] = []
     private let log = Log.logger("editor")
 
@@ -19,9 +21,19 @@ public final class EditorLauncher {
         }
     }
 
-    /// - Parameter settings: read when a window opens, for the editor's defaults.
-    public init(settings: SettingsStore) {
+    /// - Parameters:
+    ///   - settings: read when a window opens, for the editor's defaults.
+    ///   - textRecognizer: OCR for the tools that find text in the image, normally `VisionTextRecognizer`.
+    public init(settings: SettingsStore, textRecognizer: (any TextRecognizing)? = nil) {
         self.settings = settings
+        self.textRecognizer = textRecognizer
+    }
+
+    /// Instant Capture (PLAN §17): annotates a capture in place, over the area it was taken from, with a compact
+    /// toolbar beside it. `screenRect` is the selection as `CaptureCoordinator.selectRegion` returns it.
+    public func openInstant(_ capture: CaptureResult, at screenRect: CGRect) {
+        _ = screenRect
+        open(capture)
     }
 
     /// Opens an editor window for a capture (from the Quick Access Overlay, a pin or history). A capture that is

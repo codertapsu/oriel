@@ -15,7 +15,6 @@ struct AppActionTests {
         ("oriel://record/screen", "recordScreen"),
         ("oriel://record/stop", "stopRecording"),
         ("oriel://settings", "showSettings"),
-        ("oriel://clipboard", "showClipboardHistory"),
     ])
     func urlsNameTheirActions(_ address: String, _ action: String) throws {
         #expect(try AppAction(url: #require(URL(string: address)))?.rawValue == action)
@@ -35,14 +34,12 @@ struct AppActionTests {
         }
     }
 
-    /// ⌥V, as asked for, and only while Clipboard History is on.
-    @Test func clipboardHistoryOpensWithOptionVAndBelongsToItsModule() {
-        let action = AppAction.showClipboardHistory
-        #expect(AppAction.shortcutActions.contains(action))
-        #expect(action.defaultShortcut == KeyCombo(keyCode: KeyCode.ansiV, modifiers: .option))
-        #expect(action.defaultShortcut?.description == "⌥V")
-        #expect(action.module == .clipboardHistory)
-        #expect(AppAction.captureArea.module == nil)
+    /// A tool's command names its URL by the same route, which the app's own table does not claim.
+    @Test func toolRoutesComeFromTheURLsPath() throws {
+        #expect(try AppAction.route(of: #require(URL(string: "oriel://clipboard"))) == "clipboard")
+        #expect(try AppAction.route(of: #require(URL(string: "oriel://capture/instant"))) == "capture/instant")
+        #expect(try AppAction.route(of: #require(URL(string: "https://clipboard"))) == nil)
+        #expect(try AppAction(url: #require(URL(string: "oriel://clipboard"))) == nil)
     }
 
     /// Every default shortcut is different, so none of them fails to register because of another.
