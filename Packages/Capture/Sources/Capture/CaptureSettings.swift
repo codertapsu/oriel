@@ -31,6 +31,8 @@ nonisolated enum CaptureSettings {
     static let quickAccessCorner = SettingKey("capture.quickAccessCorner", default: ScreenCorner.bottomRight)
     /// Capture Text opens the text for editing instead of copying it; ⇧ held while selecting does the other.
     static let textOpensPanel = SettingKey("capture.textOpensPanel", default: false)
+    /// Step Capture marks where the user clicked last before each step (its palette's Mark Clicks).
+    static let stepsMarkClicks = SettingKey("capture.steps.marksClicks", default: true)
     static let historyEnabled = SettingKey("capture.historyEnabled", default: true)
     /// Days to keep history; 0 keeps everything.
     static let historyRetentionDays = SettingKey("capture.historyRetentionDays", default: 30)

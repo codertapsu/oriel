@@ -29,6 +29,10 @@ public final class CaptureCoordinator {
     var historyModel: HistoryModel?
     var indexing: Task<Void, Never>?
     var isBusy = false
+    /// The running Step Capture, which every capture joins as its next step.
+    var stepCapture: StepCaptureController?
+    /// Finished step sequences, one window each, until closed.
+    var stepWindows: [StepSequenceWindowController] = []
     /// HDR versions of the latest captures, kept only when HEIC with HDR is on; everything else uses SDR.
     var hdrImages: [UUID: CGImage] = [:]
     var hdrOrder: [UUID] = []

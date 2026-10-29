@@ -21,6 +21,17 @@ extension CaptureCoordinator {
         }
         // Onto the clipboard before anything else, so the capture is in Clipboard History however the card is closed.
         let copied = settings[CaptureSettings.copiesToClipboard] && Pasteboard.copy(result.image, label: Self.clipboardLabel)
+        // During Step Capture every capture is the next step, and Quick Access stays closed; ⌘C and ⌘S still work.
+        if let steps = stepCapture {
+            steps.add(result)
+            switch captured.intent {
+            case .copy: copy(result, alreadyCopied: copied)
+            case .save: saveShowingToast(result)
+            case .capture, .alternate: break
+            }
+            addToHistory(result)
+            return
+        }
         switch captured.intent {
         case .copy:
             copy(result, alreadyCopied: copied)
