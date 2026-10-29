@@ -1,0 +1,65 @@
+# Pull-request checks (PLAN §15.7): lint, the Debug build, the app and package tests, and the Universal Release build
+# with its lipo check and the native and Rosetta self-tests. CI holds no signing secrets and signs ad hoc; installers
+# are built, notarized and verified on the maintainer's Mac (docs/RELEASING.md). Tests that need Accessibility or
+# Screen Recording grants (ORIEL_TCC_TESTS) or macOS Automation Mode (ORIEL_UI_TESTS) never run here.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Xcode 27.1 or later: Swift 6.4 and the macOS 27 SDK (PLAN §2.3). "Select Xcode" fails, listing what the runner
+  # image has, when this version is missing; a newer image or a self-hosted runner can be chosen with the repository
+  # variable ORIEL_CI_RUNNER, and another Xcode with ORIEL_CI_XCODE.
+  XCODE_VERSION: ${{ vars.ORIEL_CI_XCODE || '27.1' }}
+  # Ad hoc signing: the project signs with the team's certificates, which CI does not have.
+  XCODEBUILD_FLAGS: CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=
+
+jobs:
+  check:
+    name: Lint, build, test, universal check
+    runs-on: ${{ vars.ORIEL_CI_RUNNER || 'macos-26' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          app="/Applications/Xcode_${XCODE_VERSION}.app"
+          if [ ! -d "$app" ]; then
+            echo "::error::Xcode ${XCODE_VERSION} is not on this runner image."
+            ls -d /Applications/Xcode*.app
+            exit 1
+          fi
+          sudo xcode-select --switch "$app/Contents/Developer"
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
+
+      - name: Install XcodeGen, SwiftLint and SwiftFormat
+        run: brew install xcodegen swiftlint swiftformat
+
+      # make universal-check runs the x86_64 slice's self-test (PLAN Appendix F, item 7).
+      - name: Install Rosetta
+        run: softwareupdate --install-rosetta --agree-to-license
+
+      - name: Lint
+        run: make lint
+
+      - name: Build (Debug)
+        run: make build XCODEBUILD_FLAGS="$XCODEBUILD_FLAGS"
+
+      - name: Test
+        run: make test XCODEBUILD_FLAGS="$XCODEBUILD_FLAGS"
+
+      - name: Universal Release build, lipo check, native and Rosetta self-test
+        run: make universal-check XCODEBUILD_FLAGS="$XCODEBUILD_FLAGS"
