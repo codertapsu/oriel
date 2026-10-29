@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Settings → Translation (PLAN §7.7.5, §17): languages, default provider, every provider's endpoint, model, key and
-/// options with "Test connection", the language-pack sheet, glossary projects and history.
+/// options with "Test connection", the language-pack sheet, glossary projects, Translate Under Cursor and history.
 struct TranslationSettingsView: View {
     @Bindable var model: TranslationSettingsModel
 
@@ -12,6 +12,7 @@ struct TranslationSettingsView: View {
             languages
             providers
             glossary
+            underCursor
             history
         }
         .formStyle(.grouped)
@@ -127,6 +128,24 @@ struct TranslationSettingsView: View {
     glossary named in the project, language models get the terms that occur in the text, and Apple Translation keeps \
     them with placeholders.
     """
+
+    private var underCursor: some View {
+        Section {
+            Picker("Translate", selection: model.settings.binding(TranslationKeys.cursorUnit)) {
+                Text("The line under the pointer").tag(CursorTextUnit.line)
+                Text("The whole paragraph").tag(CursorTextUnit.paragraph)
+            }
+        } header: {
+            Text("Translate Under Cursor")
+        } footer: {
+            Text(
+                "Turn it on in the menu or with its shortcut, then rest the pointer on text. Esc or the shortcut turns it off. "
+                    + "It reads the screen, so it needs Screen & System Audio Recording."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+    }
 
     private var history: some View {
         Section("History") {

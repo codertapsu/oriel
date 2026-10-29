@@ -17,6 +17,8 @@ enum TranslationKeys {
     static let activeGlossary = SettingKey("translation.glossary.activeProject", default: "")
     /// DeepL glossaries Oriel created, by provider, project and language pair (`DeepLGlossaryBook`).
     static let deepLGlossaries = SettingKey("translation.deepl.glossaries", default: [String: DeepLGlossaryRecord]())
+    /// What Translate Under Cursor translates: the line under the pointer or its whole paragraph.
+    static let cursorUnit = SettingKey("translation.cursor.unit", default: CursorTextUnit.paragraph)
     /// History is opt-in (PLAN §7.7.6).
     static let historyEnabled = SettingKey("translation.history.enabled", default: false)
     /// Days to keep history entries; 0 keeps them until deleted.

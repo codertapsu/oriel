@@ -44,6 +44,14 @@ public final class TranslationCoordinator {
     /// Numbers file translations, so only the latest one changes the window.
     var fileGeneration = 0
 
+    /// Translate Under Cursor (PLAN §17), all nil while it is off.
+    var cursorController: CursorTranslationController?
+    var cursorMonitor: CursorEventMonitor?
+    var cursorStatusItem: CursorStatusItem?
+    var cursorPermissions = CursorPermissions()
+    /// Language pairs whose download was offered while translating under the cursor, so it is offered once.
+    var offeredCursorLanguagePacks = Set<String>()
+
     /// - Parameters:
     ///   - settings: where provider settings, languages, usage counters and history preferences live.
     ///   - keychain: where API keys live (service `provider.<id>`).
