@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Keyboard and toolbar commands: selection, background, crop and output.
+/// Keyboard and toolbar commands: selection, crop and output.
 extension EditorSession {
     // MARK: - Selection
 
@@ -34,7 +34,7 @@ extension EditorSession {
     func selectAll() {
         guard tool != .crop else { return }
         endEditingText()
-        selection = Set(document.items.map(\.id))
+        selection = Set(document.items.filter(\.isSelectable).map(\.id))
         notify()
     }
 
@@ -60,42 +60,6 @@ extension EditorSession {
         } else if selection.count == 1, let id = selection.first, case .text = document.item(withID: id) {
             beginEditingText(id)
         }
-    }
-
-    // MARK: - Background and padding
-
-    /// Applies a preset's fill; keeps the current shadow and corner radius, adds padding if there is none.
-    /// `.none` removes the background and the padding.
-    func applyBackground(_ preset: BackgroundPreset) {
-        commit("Background") { document in
-            guard var style = preset.style else {
-                document.background = nil
-                document.canvasPadding = nil
-                return
-            }
-            if let current = document.background {
-                style.shadow = current.shadow
-                style.cornerRadius = current.cornerRadius
-            }
-            document.background = style
-            if document.canvasPadding == nil {
-                document.canvasPadding = Padding(all: BackgroundPreset.defaultPadding(for: document.visibleImageRect.size))
-            }
-        }
-    }
-
-    func setPadding(_ value: CGFloat) {
-        commit("Padding", coalescing: "padding") { $0.canvasPadding = Padding(all: max(0, value.rounded())) }
-    }
-
-    func setCornerRadius(_ value: CGFloat) {
-        guard document.background != nil else { return }
-        commit("Corner Radius", coalescing: "cornerRadius") { $0.background?.cornerRadius = max(0, value.rounded()) }
-    }
-
-    func setShadow(_ enabled: Bool) {
-        guard document.background != nil else { return }
-        commit("Shadow") { $0.background?.shadow = enabled }
     }
 
     // MARK: - Crop

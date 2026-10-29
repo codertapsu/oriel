@@ -13,21 +13,25 @@ nonisolated struct EditorDocument: Codable, Sendable, Equatable {
     /// Space around the image, filled by `background`.
     var canvasPadding: Padding?
     var background: BackgroundStyle?
-    /// Z-ordered: later items draw on top (but see `AnnotationItem.isImageEffect`).
+    /// Z-ordered: later items draw on top (but see `AnnotationItem.isImageLayer`).
     var items: [AnnotationItem]
+    /// How much the image is washed out behind the annotations (0…1), Simplify's "tone down". Nil leaves it as is.
+    var tone: Double?
 
     init(
         base: ImageRef,
         crop: CGRect? = nil,
         canvasPadding: Padding? = nil,
         background: BackgroundStyle? = nil,
-        items: [AnnotationItem] = []
+        items: [AnnotationItem] = [],
+        tone: Double? = nil
     ) {
         self.base = base
         self.crop = crop
         self.canvasPadding = canvasPadding
         self.background = background
         self.items = items
+        self.tone = tone
     }
 
     /// The part of the base image the canvas shows: the crop clamped to the image, or the whole image.
@@ -45,15 +49,43 @@ nonisolated struct EditorDocument: Codable, Sendable, Equatable {
         items.firstIndex { $0.id == id }
     }
 
-    /// The number the next step marker gets: one more than the highest so far.
-    var nextCounterNumber: Int {
-        let numbers = items.compactMap { item -> Int? in
-            if case let .counter(counter) = item {
-                return counter.number
+    /// The pixels the document carries besides the base image, each once: a saved bundle keeps them as files.
+    var assets: [ImageAsset] {
+        var seen = Set<UUID>()
+        var assets: [ImageAsset] = []
+        let candidates = [background?.image?.asset] + items.map(\.asset)
+        for case let asset? in candidates where seen.insert(asset.id).inserted {
+            assets.append(asset)
+        }
+        return assets
+    }
+
+    // MARK: - Steps
+
+    /// The step markers with their index in `items`.
+    private var counters: [(index: Int, counter: Counter)] {
+        items.indices.compactMap { index in
+            if case let .counter(counter) = items[index] {
+                return (index, counter)
             }
             return nil
         }
+    }
+
+    /// The sequence the next step joins unless the numbering restarts: the newest one.
+    var latestStepSequence: Int {
+        counters.map(\.counter.sequence).max() ?? 0
+    }
+
+    /// The number the next step in `sequence` gets: one more than its highest so far, or 1.
+    func nextStepNumber(inSequence sequence: Int) -> Int {
+        let numbers = counters.filter { $0.counter.sequence == sequence }.map(\.counter.number)
         return (numbers.max() ?? 0) + 1
+    }
+
+    /// The number the next step marker gets: one more than the highest in the newest sequence.
+    var nextCounterNumber: Int {
+        nextStepNumber(inSequence: latestStepSequence)
     }
 
     /// Replaces the item with the same id, if there is one.
@@ -62,30 +94,40 @@ nonisolated struct EditorDocument: Codable, Sendable, Equatable {
         items[index] = item
     }
 
-    /// Removes the items and closes the gaps in the step numbers, so the steps left read 1, 2, 3…
+    /// Removes the items and closes the gaps in the step numbers, so each sequence left reads on from where it
+    /// started (1, 2, 3…, or 5, 6, 7… for one that started at 5).
     mutating func remove(_ ids: Set<UUID>) {
-        let hadCounters = items.contains { ids.contains($0.id) && $0.kind == .counter }
+        let affected = Set(counters.filter { ids.contains($0.counter.id) }.map(\.counter.sequence))
+        var starts: [Int: Int] = [:]
+        for (_, counter) in counters where affected.contains(counter.sequence) {
+            starts[counter.sequence] = min(starts[counter.sequence] ?? counter.number, counter.number)
+        }
         items.removeAll { ids.contains($0.id) }
-        if hadCounters {
-            renumberCounters()
+        for (sequence, start) in starts {
+            renumber(sequence: sequence, from: start)
         }
     }
 
-    /// Numbers the step markers 1…n in their current order (number first, then z-order).
+    /// Numbers every sequence's markers consecutively from its lowest number, in their current order (number first,
+    /// then z-order).
     mutating func renumberCounters() {
-        let order = items.indices
-            .compactMap { index -> (index: Int, number: Int)? in
-                if case let .counter(counter) = items[index] {
-                    return (index, counter.number)
-                }
-                return nil
-            }
-            .sorted { $0.number == $1.number ? $0.index < $1.index : $0.number < $1.number }
+        var starts: [Int: Int] = [:]
+        for (_, counter) in counters {
+            starts[counter.sequence] = min(starts[counter.sequence] ?? counter.number, counter.number)
+        }
+        for (sequence, start) in starts {
+            renumber(sequence: sequence, from: start)
+        }
+    }
+
+    private mutating func renumber(sequence: Int, from start: Int) {
+        let order = counters
+            .filter { $0.counter.sequence == sequence }
+            .sorted { $0.counter.number == $1.counter.number ? $0.index < $1.index : $0.counter.number < $1.counter.number }
         for (position, entry) in order.enumerated() {
-            if case var .counter(counter) = items[entry.index] {
-                counter.number = position + 1
-                items[entry.index] = .counter(counter)
-            }
+            var counter = entry.counter
+            counter.number = start + position
+            items[entry.index] = .counter(counter)
         }
     }
 }

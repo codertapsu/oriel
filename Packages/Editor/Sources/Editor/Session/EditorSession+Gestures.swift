@@ -43,6 +43,13 @@ extension EditorSession {
                 updated.replace(item.offsetBy(dx: dx, dy: dy))
             }
             preview(updated)
+        case let .placingStep(id, tip):
+            guard case var .counter(counter) = document.item(withID: id) else { return }
+            counter.center = point
+            counter.pointer = tip
+            var updated = document
+            updated.replace(.counter(counter))
+            preview(updated)
         case let .resizing(original, handle):
             var updated = document
             updated.replace(original.resized(moving: handle, to: point, constrained: constrained))
@@ -50,7 +57,7 @@ extension EditorSession {
         case let .marquee(start, base):
             let rect = Geometry.rect(through: start, point)
             marquee = rect
-            selection = base.union(document.items.filter { $0.bounds.intersects(rect) }.map(\.id))
+            selection = base.union(document.items.filter { $0.isSelectable && $0.bounds.intersects(rect) }.map(\.id))
             notify()
         case let .cropNew(start, _):
             cropDraft = clampedCrop(Geometry.rect(from: start, to: point, square: constrained))
@@ -81,7 +88,21 @@ extension EditorSession {
             finish(from: snapshot, actionName: kind?.actionName ?? "Draw")
         case let .moving(originals, _):
             let placedNew = originals.keys.contains { snapshot.item(withID: $0) == nil }
+            if placedNew {
+                pendingStepStart = nil
+            }
             finish(from: snapshot, actionName: placedNew ? AnnotationKind.counter.actionName : "Move")
+        case let .placingStep(id, tip):
+            // A click, or a drag too short to say where the marker goes: it sits beside the point, towards the
+            // middle of the image.
+            if case var .counter(counter) = document.item(withID: id), !counter.showsPointer(farther: 1.5) {
+                counter.center = StepGeometry.defaultCenter(pointingAt: tip, radius: counter.radius, in: document.visibleImageRect)
+                var updated = document
+                updated.replace(.counter(counter))
+                preview(updated)
+            }
+            pendingStepStart = nil
+            finish(from: snapshot, actionName: AnnotationKind.counter.actionName)
         case .resizing:
             finish(from: snapshot, actionName: "Resize")
         case .marquee:
@@ -203,22 +224,50 @@ extension EditorSession {
         beginEditingText(box.id, snapshot: snapshot)
     }
 
-    /// Step tool: drag an existing marker to move it, click anywhere else to place the next number.
+    /// Step tool: drag the selected marker's pointer tip to aim it, drag an existing marker to move it, click anywhere
+    /// else to place the next number. With the pointer style, the press marks what the step points at and the drag
+    /// carries the marker to where it should sit.
     private func beginCounter(at point: CGPoint) {
+        if let resize = handleGesture(at: point) {
+            gesture = resize
+            return
+        }
         if let hit = item(at: point, tolerance: gestureTolerance), case .counter = hit {
             selection = [hit.id]
+            adoptStyle(of: hit)
             gesture = .moving(originals: [hit.id: hit], start: point)
             notify()
             return
         }
+        let (sequence, number) = nextStepPlacement
         let counter = Counter(
-            center: point, number: document.nextCounterNumber, color: color, radius: ToolStyle.counterRadius(strokeWidth)
+            center: point,
+            number: number,
+            color: color,
+            radius: ToolStyle.counterRadius(strokeWidth),
+            shape: stepStyle.shape,
+            label: stepStyle.label,
+            pointer: stepStyle.pointer ? point : nil,
+            sequence: sequence
         )
         var updated = document
         updated.items.append(.counter(counter))
         selection = [counter.id]
-        gesture = .moving(originals: [counter.id: .counter(counter)], start: point)
+        gesture = stepStyle.pointer
+            ? .placingStep(id: counter.id, tip: point)
+            : .moving(originals: [counter.id: .counter(counter)], start: point)
         preview(updated)
+    }
+
+    /// The sequence and number the next step marker gets: the newest sequence's next number, or a new sequence at
+    /// the start number Restart Numbering asked for.
+    var nextStepPlacement: (sequence: Int, number: Int) {
+        let latest = document.latestStepSequence
+        guard let start = pendingStepStart else {
+            return (latest, document.nextStepNumber(inSequence: latest))
+        }
+        let hasSteps = document.items.contains { $0.kind == .counter }
+        return (hasSteps ? latest + 1 : latest, start)
     }
 
     /// Crop tool: drag a handle to resize, inside a crop to move it, anywhere else (or anywhere, while nothing is
@@ -260,7 +309,7 @@ extension EditorSession {
         case .blur: .blur(Region(rect: rect, amount: amount))
         case .pixelate: .pixelate(Region(rect: rect, amount: amount))
         case .spotlight: .spotlight(Region(rect: rect, amount: 0))
-        case .text, .counter: nil
+        case .text, .counter, .image, .patch, .bar: nil
         }
     }
 
@@ -313,7 +362,7 @@ extension EditorSession {
         case let .arrow(arrow): return hypot(arrow.end.x - arrow.start.x, arrow.end.y - arrow.start.y) < minimum
         case let .line(line): return hypot(line.end.x - line.start.x, line.end.y - line.start.y) < minimum
         case .rect, .ellipse, .blur, .pixelate, .spotlight: return item.frame.width < minimum || item.frame.height < minimum
-        case .freehand, .highlighter, .text, .counter: return false
+        case .freehand, .highlighter, .text, .counter, .image, .patch, .bar: return false
         }
     }
 

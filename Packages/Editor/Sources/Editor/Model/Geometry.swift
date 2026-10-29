@@ -90,4 +90,33 @@ nonisolated enum Geometry {
         let maxY = (rect.maxY * scale).rounded() / scale
         return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
+
+    /// `rect` with the corner `handle` dragged to `point` while the opposite corner stays put and the proportions
+    /// are kept, so a lifted object never stretches. Edge and line handles leave `rect` unchanged.
+    static func resizePreservingAspect(_ rect: CGRect, moving handle: SelectionHandle, to point: CGPoint) -> CGRect {
+        let anchor: CGPoint
+        switch handle {
+        case .topLeft: anchor = CGPoint(x: rect.maxX, y: rect.maxY)
+        case .topRight: anchor = CGPoint(x: rect.minX, y: rect.maxY)
+        case .bottomRight: anchor = CGPoint(x: rect.minX, y: rect.minY)
+        case .bottomLeft: anchor = CGPoint(x: rect.maxX, y: rect.minY)
+        default: return rect
+        }
+        guard rect.width > 0, rect.height > 0 else { return rect }
+        let factor = max(abs(point.x - anchor.x) / rect.width, abs(point.y - anchor.y) / rect.height, 0.01)
+        let width = rect.width * factor
+        let height = rect.height * factor
+        let x = point.x < anchor.x ? anchor.x - width : anchor.x
+        let y = point.y < anchor.y ? anchor.y - height : anchor.y
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// The rect a picture of `size` covers when it fills `rect` without distortion: centred, cropped on the
+    /// longer side.
+    static func aspectFill(_ size: CGSize, in rect: CGRect) -> CGRect {
+        guard size.width > 0, size.height > 0, rect.width > 0, rect.height > 0 else { return rect }
+        let factor = max(rect.width / size.width, rect.height / size.height)
+        let filled = CGSize(width: size.width * factor, height: size.height * factor)
+        return CGRect(x: rect.midX - filled.width / 2, y: rect.midY - filled.height / 2, width: filled.width, height: filled.height)
+    }
 }

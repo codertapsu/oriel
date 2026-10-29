@@ -3,8 +3,9 @@ import CoreGraphics
 /// The one renderer (PLAN §7.5): the canvas view, the clipboard, every export format and drag-out all draw
 /// through `draw(_:in:options:effects:)`, so what you see is what you export.
 ///
-/// Order: background fill, drop shadow, then the image layer (base pixels, blur and pixelate, spotlight dimming)
-/// clipped to the rounded image card, then the vector annotations in z-order.
+/// Order: background fill, drop shadow, the card (inset and window frame), then the image layer (base pixels,
+/// patches, blur and pixelate, the tone-down, spotlight dimming) clipped to the image's rounded corners, then the
+/// vector annotations in z-order.
 enum EditorRenderer {
     /// Renders into a bitmap or PDF context in its native coordinate space (origin bottom-left, y up), at
     /// `scale` device units per point. The context should be the canvas size times `scale`.
@@ -51,15 +52,22 @@ enum EditorRenderer {
             context.fill(layout.canvasBounds)
         }
         if let background {
-            fill(background, in: layout.canvasBounds, context: context)
+            BackgroundPainter.fill(background, in: layout.canvasBounds, effects: effects, context: context)
             if background.shadow {
-                drawShadow(layout: layout, cornerRadius: background.cornerRadius, effects: effects, context: context)
+                drawShadow(
+                    background.resolvedShadow(padding: layout.padding),
+                    layout: layout,
+                    cornerRadius: background.cornerRadius,
+                    effects: effects,
+                    context: context
+                )
             }
+            BackgroundPainter.drawCard(background, document: document, layout: layout, effects: effects, context: context)
         }
         drawImageLayer(
             document,
             layout: layout,
-            cornerRadius: background?.cornerRadius ?? 0,
+            clip: BackgroundPainter.imageClip(background, layout: layout),
             options: options,
             effects: effects,
             context: context
@@ -71,10 +79,26 @@ enum EditorRenderer {
     }
 
     /// A rounded-rect path whose radius never exceeds half the shorter side (CGPath requires that).
-    static func roundedRectPath(_ rect: CGRect, radius: CGFloat) -> CGPath {
+    nonisolated static func roundedRectPath(_ rect: CGRect, radius: CGFloat) -> CGPath {
         let radius = min(max(radius, 0), rect.width / 2, rect.height / 2)
         guard radius > 0, rect.width > 0, rect.height > 0 else { return CGPath(rect: rect, transform: nil) }
         return CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+    }
+
+    /// A rect with one radius for its top corners (the `minY` side, in a y-down space) and another for its bottom
+    /// corners, each kept within half the shorter side.
+    nonisolated static func roundedRectPath(_ rect: CGRect, top: CGFloat, bottom: CGFloat) -> CGPath {
+        let limit = max(0, min(rect.width, rect.height) / 2)
+        let top = min(max(top, 0), limit), bottom = min(max(bottom, 0), limit)
+        guard top != bottom else { return roundedRectPath(rect, radius: top) }
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: rect.minX + top, y: rect.minY))
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.maxY), radius: top)
+        path.addArc(tangent1End: CGPoint(x: rect.maxX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.maxY), radius: bottom)
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.maxY), tangent2End: CGPoint(x: rect.minX, y: rect.minY), radius: bottom)
+        path.addArc(tangent1End: CGPoint(x: rect.minX, y: rect.minY), tangent2End: CGPoint(x: rect.maxX, y: rect.minY), radius: top)
+        path.closeSubpath()
+        return path
     }
 
     /// An 8-bit RGBA bitmap in `preferred` space when it is an RGB space that can be drawn into, else sRGB.
@@ -92,7 +116,7 @@ enum EditorRenderer {
     }
 
     /// Draws `image` upright into `rect` of a y-down user space.
-    static func drawImage(_ image: CGImage, in rect: CGRect, context: CGContext) {
+    nonisolated static func drawImage(_ image: CGImage, in rect: CGRect, context: CGContext) {
         context.saveGState()
         context.translateBy(x: rect.minX, y: rect.maxY)
         context.scaleBy(x: 1, y: -1)
@@ -102,53 +126,35 @@ enum EditorRenderer {
 
     // MARK: - Layers
 
-    private static func fill(_ style: BackgroundStyle, in rect: CGRect, context: CGContext) {
-        switch style.fill {
-        case .none:
-            return
-        case .solid:
-            guard let color = style.colors.first else { return }
-            context.setFillColor(color.cgColor)
-            context.fill(rect)
-        case .gradient:
-            guard style.colors.count > 1 else {
-                if let color = style.colors.first {
-                    context.setFillColor(color.cgColor)
-                    context.fill(rect)
-                }
-                return
-            }
-            guard let space = CGColorSpace(name: CGColorSpace.sRGB),
-                  let gradient = CGGradient(colorsSpace: space, colors: style.colors.map(\.cgColor) as CFArray, locations: nil)
-            else { return }
-            let radians = style.angle * .pi / 180
-            let direction = CGVector(dx: cos(radians), dy: sin(radians))
-            let reach = abs(direction.dx) * rect.width / 2 + abs(direction.dy) * rect.height / 2
-            let start = CGPoint(x: rect.midX - direction.dx * reach, y: rect.midY - direction.dy * reach)
-            let end = CGPoint(x: rect.midX + direction.dx * reach, y: rect.midY + direction.dy * reach)
-            context.drawLinearGradient(gradient, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        }
-    }
-
     /// A soft shadow under the card, kept outside it so a transparent image never shows a shadow through itself.
-    private static func drawShadow(layout: CanvasLayout, cornerRadius: CGFloat, effects: EffectCache, context: CGContext) {
+    private static func drawShadow(
+        _ shadow: ShadowStyle,
+        layout: CanvasLayout,
+        cornerRadius: CGFloat,
+        effects: EffectCache,
+        context: CGContext
+    ) {
+        guard shadow.opacity > 0 else { return }
         let card = layout.cardRect
-        let padding = layout.padding
-        let blur = min(28, max(4, min(padding.top, padding.left, padding.bottom, padding.right) * 0.4))
-        guard let shadow = effects.shadow(size: card.size, cornerRadius: cornerRadius, blur: blur) else { return }
+        guard let image = effects.shadow(size: card.size, cornerRadius: cornerRadius, blur: shadow.radius) else { return }
         context.saveGState()
         context.addRect(layout.canvasBounds)
         context.addPath(roundedRectPath(card, radius: cornerRadius))
         context.clip(using: .evenOdd)
-        context.setAlpha(0.38)
-        drawImage(shadow.image, in: shadow.rect.offsetBy(dx: card.minX, dy: card.minY + blur * 0.35), context: context)
+        context.setAlpha(shadow.opacity)
+        context.interpolationQuality = .high
+        drawImage(
+            image.image,
+            in: image.rect.offsetBy(dx: card.minX + shadow.offset.width, dy: card.minY + shadow.offset.height),
+            context: context
+        )
         context.restoreGState()
     }
 
     private static func drawImageLayer(
         _ document: EditorDocument,
         layout: CanvasLayout,
-        cornerRadius: CGFloat,
+        clip: CGPath,
         options: RenderOptions,
         effects: EffectCache,
         context: CGContext
@@ -156,7 +162,7 @@ enum EditorRenderer {
         let base = document.base
         context.saveGState()
         defer { context.restoreGState() }
-        context.addPath(roundedRectPath(layout.cardRect, radius: cornerRadius))
+        context.addPath(clip)
         context.clip()
         context.translateBy(x: layout.offset.dx, y: layout.offset.dy)
         // Device pixels per base pixel: at 1:1 or larger, draw pixels as they are; smaller, filter well.
@@ -164,8 +170,12 @@ enum EditorRenderer {
         let deviceScale = hypot(transform.a, transform.b)
         context.interpolationQuality = deviceScale >= base.scale * 0.999 ? .none : .high
         drawImage(base.image, in: base.bounds, context: context)
+        let visible = document.items.filter { !options.hiddenItems.contains($0.id) }
+        for case let .patch(layer) in visible {
+            drawImage(layer.asset.image, in: layer.rect.standardized, context: context)
+        }
         var spotlights: [Region] = []
-        for item in document.items where !options.hiddenItems.contains(item.id) {
+        for item in visible {
             switch item {
             case let .blur(region):
                 drawEffect(.blur, region: region, base: base, effects: effects, context: context)
@@ -176,6 +186,9 @@ enum EditorRenderer {
             default:
                 break
             }
+        }
+        if let tone = document.tone {
+            toneDown(layout.contentRect, amount: tone, context: context)
         }
         dim(around: spotlights, covering: layout.contentRect, context: context)
     }
@@ -188,6 +201,21 @@ enum EditorRenderer {
             context.interpolationQuality = .none
         }
         drawImage(output.image, in: output.rect, context: context)
+        context.restoreGState()
+    }
+
+    /// Washes the image out behind the annotations: takes away colour, then lightens, both by `amount` (0…1). Drawn
+    /// with blend modes over what is already there, so it works the same on screen, in bitmaps and in PDFs.
+    private static func toneDown(_ area: CGRect, amount: Double, context: CGContext) {
+        let amount = min(max(amount, 0), 1)
+        guard amount > 0 else { return }
+        context.saveGState()
+        context.setBlendMode(.saturation)
+        context.setFillColor(CGColor(gray: 0.5, alpha: amount))
+        context.fill(area)
+        context.setBlendMode(.normal)
+        context.setFillColor(CGColor(gray: 1, alpha: amount * 0.6))
+        context.fill(area)
         context.restoreGState()
     }
 

@@ -5,7 +5,8 @@ import SwiftUI
 
 /// One editor window: the tool strip, the zoomable canvas and the action bar around an `EditorSession`.
 final class EditorWindowController: NSWindowController, NSWindowDelegate {
-    static let minimumContentSize = CGSize(width: 680, height: 420)
+    /// Wide enough for the whole tool strip, with the step options and the smart tools.
+    static let minimumContentSize = CGSize(width: 780, height: 420)
     static let toolbarHeight: CGFloat = 44
     static let actionBarHeight: CGFloat = 40
     static let zoomSteps: [CGFloat] = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 3, 4, 6, 8]
@@ -21,6 +22,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     var onClose: ((EditorWindowController) -> Void)?
 
     let canvas: EditorCanvasView
+    /// The background panel's model: pictures and saved presets.
+    let backgroundTool: BackgroundTool
     let log = Log.logger("editor")
     /// The format picked in this window's last export panel.
     var exportFormat: EditorExportFormat
@@ -34,11 +37,13 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private let scrollView = NSScrollView()
     private var displayedCanvasSize: CGSize = .zero
 
-    init(session: EditorSession, captureID: UUID? = nil) {
+    /// - Parameter library: the saved backgrounds; nil hides them.
+    init(session: EditorSession, captureID: UUID? = nil, library: BackgroundLibrary? = nil) {
         self.session = session
         self.captureID = captureID
         exportFormat = session.defaults.exportFormat
         canvas = EditorCanvasView(session: session)
+        backgroundTool = BackgroundTool(session: session, library: library)
         container = CanvasContainerView(canvas: canvas)
         let size = Self.initialContentSize(for: session.layout.canvasSize, on: ScreenLocator.screenUnderMouse)
         let window = EditorWindow(
@@ -49,6 +54,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         )
         super.init(window: window)
         window.delegate = self
+        backgroundTool.window = window
         configure(window)
         let handler: (EditorCommand) -> Bool = { [weak self] command in self?.perform(command) ?? false }
         canvas.commandHandler = handler
@@ -225,7 +231,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .underPageBackgroundColor
 
-        let toolbar = NSHostingView(rootView: EditorToolbar(session: session))
+        let toolbar = NSHostingView(rootView: EditorToolbar(session: session, background: backgroundTool))
         let actionBar = NSHostingView(rootView: EditorActionBar(session: session, actions: makeActions()))
         toolbar.sizingOptions = []
         actionBar.sizingOptions = []

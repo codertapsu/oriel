@@ -5,15 +5,23 @@ import SharedUI
 /// Turns a document into output: a flattened bitmap, an encoded PNG/JPEG/HEIC (through SharedUI's `ImageFile`,
 /// with the capture's DPI) or a vector PDF. Everything goes through `EditorRenderer`.
 enum EditorExporter {
-    /// The flattened document at the base image's own resolution.
+    /// The flattened document at the base image's own resolution, or at exactly the pixel size the background's
+    /// aspect asks for (X, LinkedIn, Instagram, a custom size).
     static func image(_ document: EditorDocument, matte: RGBAColor? = nil, effects: EffectCache? = nil) -> CGImage? {
-        EditorRenderer.makeImage(document, scale: document.base.scale, options: RenderOptions(matte: matte), effects: effects)
+        let scale = CanvasLayout(document: document).exportScale(baseScale: document.base.scale)
+        return EditorRenderer.makeImage(document, scale: scale, options: RenderOptions(matte: matte), effects: effects)
     }
 
     static func data(for document: EditorDocument, format: EditorExportFormat, effects: EffectCache? = nil) -> Data? {
         guard let imageFormat = format.imageFormat else { return pdfData(document, effects: effects) }
         guard let image = image(document, matte: format.needsMatte ? .white : nil, effects: effects) else { return nil }
-        return ImageFile.data(for: image, format: imageFormat, scale: document.base.scale)
+        return ImageFile.data(for: image, format: imageFormat, scale: dpiScale(of: document))
+    }
+
+    /// Pixels per point the file records as its DPI: the capture's, or 1 (72 DPI) for a fixed pixel size, which is
+    /// what social networks expect.
+    static func dpiScale(of document: EditorDocument) -> CGFloat {
+        CanvasLayout(document: document).fixedPixelSize == nil ? document.base.scale : 1
     }
 
     /// A one-page PDF the size of the canvas in points. Annotations and text stay vectors; the base image and the

@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// The strip above the canvas: the tools, the colour, the width and the background.
+/// The strip above the canvas: the tools, the colour, the width, the step options while steps are in use, and the
+/// background.
 struct EditorToolbar: View {
     let session: EditorSession
+    let background: BackgroundTool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -15,8 +17,11 @@ struct EditorToolbar: View {
             Divider().frame(height: 22).padding(.horizontal, 6)
             ColorButton(session: session)
             WidthControl(session: session)
+            if session.showsStepOptions {
+                StepStyleButton(session: session)
+            }
             Divider().frame(height: 22).padding(.horizontal, 6)
-            BackgroundButton(session: session)
+            BackgroundButton(tool: background)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 10)

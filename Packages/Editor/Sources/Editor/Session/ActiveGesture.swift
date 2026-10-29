@@ -9,6 +9,8 @@ nonisolated enum ActiveGesture: Sendable {
     case drawing(id: UUID)
     /// Dragging items (the selection, or a step marker just placed) from where they were.
     case moving(originals: [UUID: AnnotationItem], start: CGPoint)
+    /// Placing a step marker with a pointer: the press marked `tip`, the drag carries the marker.
+    case placingStep(id: UUID, tip: CGPoint)
     /// Dragging one handle of `original`.
     case resizing(original: AnnotationItem, handle: SelectionHandle)
     /// Rubber-band selection; `base` was selected before (Shift adds to it).

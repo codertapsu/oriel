@@ -18,9 +18,13 @@ extension AnnotationItem {
         case let .text(text):
             return text.frame
         case let .counter(counter):
-            return counter.circleRect.insetBy(dx: -counter.radius * 0.12, dy: -counter.radius * 0.12)
+            return StepGeometry.bounds(counter)
         case let .blur(region), let .pixelate(region), let .spotlight(region):
             return region.rect.standardized
+        case let .image(layer), let .patch(layer):
+            return layer.rect.standardized
+        case let .bar(bar):
+            return bar.rect.standardized
         }
     }
 
@@ -34,16 +38,25 @@ extension AnnotationItem {
         case let .text(text): text.frame
         case let .counter(counter): counter.circleRect
         case let .blur(region), let .pixelate(region), let .spotlight(region): region.rect.standardized
+        case let .image(layer), let .patch(layer): layer.rect.standardized
+        case let .bar(bar): bar.rect.standardized
         }
     }
 
-    /// The handles a single selected item shows. Labels and step markers only move.
+    /// Whether a click, the rubber band or Select All can pick the item. Patches are part of the image: they stay
+    /// where the object they replace was, and only Undo takes them back.
+    nonisolated var isSelectable: Bool {
+        kind != .patch
+    }
+
+    /// The handles a single selected item shows. Labels only move; a step marker with a pointer shows its tip.
     nonisolated var handles: [SelectionHandle] {
         switch self {
         case .arrow, .line: [.start, .end]
-        case .rect, .ellipse, .blur, .pixelate, .spotlight: SelectionHandle.boxHandles
-        case .freehand, .highlighter: SelectionHandle.cornerHandles
-        case .text, .counter: []
+        case .rect, .ellipse, .blur, .pixelate, .spotlight, .bar: SelectionHandle.boxHandles
+        case .freehand, .highlighter, .image: SelectionHandle.cornerHandles
+        case let .counter(counter): counter.pointer == nil ? [] : [.end]
+        case .text, .patch: []
         }
     }
 
@@ -53,6 +66,7 @@ extension AnnotationItem {
         case let (.arrow(arrow), .end): arrow.end
         case let (.line(line), .start): line.start
         case let (.line(line), .end): line.end
+        case let (.counter(counter), .end): counter.pointer ?? counter.center
         default: handle.point(in: frame)
         }
     }
@@ -75,10 +89,15 @@ extension AnnotationItem {
         case let .ellipse(box): Self.hitTestEllipse(box, point, tolerance)
         case let .freehand(path), let .highlighter(path): Self.hitTest(path, point, tolerance)
         case let .text(text): text.frame.insetBy(dx: -tolerance, dy: -tolerance).contains(point) ? .precise : nil
-        case let .counter(counter):
-            hypot(point.x - counter.center.x, point.y - counter.center.y) <= counter.radius + tolerance ? .precise : nil
+        case let .counter(counter): StepGeometry.contains(counter, point, tolerance: tolerance) ? .precise : nil
         case let .blur(region), let .pixelate(region), let .spotlight(region):
             region.rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) ? .precise : nil
+        case let .image(layer):
+            layer.rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) ? .precise : nil
+        case let .bar(bar):
+            bar.rect.standardized.insetBy(dx: -tolerance, dy: -tolerance).contains(point) ? .precise : nil
+        case .patch:
+            nil
         }
     }
 
@@ -95,12 +114,6 @@ extension AnnotationItem {
             line.start = moved(line.start)
             line.end = moved(line.end)
             return .line(line)
-        case var .rect(box):
-            box.rect = box.rect.offsetBy(dx: dx, dy: dy)
-            return .rect(box)
-        case var .ellipse(box):
-            box.rect = box.rect.offsetBy(dx: dx, dy: dy)
-            return .ellipse(box)
         case var .freehand(path):
             path.points = path.points.map(moved)
             return .freehand(path)
@@ -112,9 +125,10 @@ extension AnnotationItem {
             return .text(text)
         case var .counter(counter):
             counter.center = moved(counter.center)
+            counter.pointer = counter.pointer.map(moved)
             return .counter(counter)
-        case let .blur(region), let .pixelate(region), let .spotlight(region):
-            return withRegionRect(region.rect.offsetBy(dx: dx, dy: dy))
+        default:
+            return withRect(frame.offsetBy(dx: dx, dy: dy))
         }
     }
 
@@ -135,20 +149,21 @@ extension AnnotationItem {
                 line.end = constrained ? Geometry.snappedEnd(from: line.start, to: point) : point
             }
             return .line(line)
-        case var .rect(box):
-            box.rect = Geometry.resize(box.rect.standardized, moving: handle, to: point)
-            return .rect(box)
-        case var .ellipse(box):
-            box.rect = Geometry.resize(box.rect.standardized, moving: handle, to: point)
-            return .ellipse(box)
         case let .freehand(path):
             return .freehand(Self.scaled(path, moving: handle, to: point))
         case let .highlighter(path):
             return .highlighter(Self.scaled(path, moving: handle, to: point))
-        case .text, .counter:
+        case var .counter(counter):
+            if handle == .end, counter.pointer != nil {
+                counter.pointer = point
+            }
+            return .counter(counter)
+        case .text, .patch:
             return self
-        case let .blur(region), let .pixelate(region), let .spotlight(region):
-            return withRegionRect(Geometry.resize(region.rect.standardized, moving: handle, to: point))
+        case .image:
+            return withRect(Geometry.resizePreservingAspect(frame, moving: handle, to: point))
+        default:
+            return withRect(Geometry.resize(frame, moving: handle, to: point))
         }
     }
 
@@ -184,6 +199,23 @@ extension AnnotationItem {
         }
     }
 
+    /// A step marker in a new shape, label style or with the pointer shown or hidden; other kinds are returned
+    /// unchanged. `pointer` true gives a marker without one a pointer towards the middle of `bounds` (the image),
+    /// and the marker stays where it is.
+    nonisolated func styledStep(shape: StepShape?, label: StepLabel?, pointer: Bool?, in bounds: CGRect) -> AnnotationItem {
+        guard case var .counter(counter) = self else { return self }
+        counter.shape = shape ?? counter.shape
+        counter.label = label ?? counter.label
+        if let pointer {
+            if !pointer {
+                counter.pointer = nil
+            } else if counter.pointer == nil {
+                counter.pointer = StepGeometry.defaultCenter(pointingAt: counter.center, radius: counter.radius, in: bounds)
+            }
+        }
+        return .counter(counter)
+    }
+
     // MARK: - Helpers
 
     private nonisolated func styledLabelOrEffect(color: RGBAColor?, width: CGFloat?) -> AnnotationItem {
@@ -202,12 +234,15 @@ extension AnnotationItem {
         case var .pixelate(region):
             region.amount = width.map(ToolStyle.effectAmount) ?? region.amount
             return .pixelate(region)
+        case var .bar(bar):
+            bar.color = color ?? bar.color
+            return .bar(bar)
         default:
             return self
         }
     }
 
-    /// A box or region item with a new rect; other kinds are returned unchanged.
+    /// A box, region, layer or bar item with a new rect; other kinds are returned unchanged.
     nonisolated func withRect(_ rect: CGRect) -> AnnotationItem {
         switch self {
         case var .rect(box):
@@ -216,6 +251,15 @@ extension AnnotationItem {
         case var .ellipse(box):
             box.rect = rect
             return .ellipse(box)
+        case var .image(layer):
+            layer.rect = rect
+            return .image(layer)
+        case var .patch(layer):
+            layer.rect = rect
+            return .patch(layer)
+        case var .bar(bar):
+            bar.rect = rect
+            return .bar(bar)
         default:
             return withRegionRect(rect)
         }

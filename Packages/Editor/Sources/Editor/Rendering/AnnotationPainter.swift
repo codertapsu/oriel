@@ -1,7 +1,7 @@
 import CoreGraphics
 
 /// Draws one vector annotation into a context whose user space is image space (points, y down). Effects
-/// (blur, pixelate, spotlight) are part of the image layer and drawn by `EditorRenderer`.
+/// (blur, pixelate, spotlight) and patches are part of the image layer and drawn by `EditorRenderer`.
 nonisolated enum AnnotationPainter {
     /// Highlighter ink is translucent, so the text under it stays readable.
     static let highlighterOpacity = 0.4
@@ -35,8 +35,20 @@ nonisolated enum AnnotationPainter {
         case let .text(text):
             TextLayout.draw(text.text, at: text.origin, color: text.color, fontSize: text.fontSize, in: context)
         case let .counter(counter):
-            drawCounter(counter, in: context)
-        case .blur, .pixelate, .spotlight:
+            StepMarkerPainter.draw(counter, in: context)
+        case let .image(layer):
+            context.interpolationQuality = .high
+            EditorRenderer.drawImage(layer.asset.image, in: layer.rect.standardized, context: context)
+        case let .bar(bar):
+            context.setFillColor(bar.color.cgColor)
+            context.addPath(CGPath(
+                roundedRect: bar.rect.standardized,
+                cornerWidth: bar.cornerRadius,
+                cornerHeight: bar.cornerRadius,
+                transform: nil
+            ))
+            context.fillPath()
+        case .blur, .pixelate, .spotlight, .patch:
             break
         }
     }
@@ -103,18 +115,5 @@ nonisolated enum AnnotationPainter {
         context.setLineWidth(path.width)
         context.addPath(smoothedPath(path.points))
         context.strokePath()
-    }
-
-    private static func drawCounter(_ counter: Counter, in context: CGContext) {
-        let ring = counter.radius * 0.12
-        context.setFillColor(counter.color.cgColor)
-        context.fillEllipse(in: counter.circleRect)
-        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
-        context.setLineWidth(ring)
-        context.strokeEllipse(in: counter.circleRect)
-        let label = String(counter.number)
-        let fontSize = counter.radius * (label.count > 2 ? 0.75 : label.count == 2 ? 0.95 : 1.15)
-        let textColor: RGBAColor = counter.color.luminance > 0.7 ? .black : .white
-        TextLayout.draw(label, centeredOn: counter.center, color: textColor, fontSize: fontSize, in: context)
     }
 }

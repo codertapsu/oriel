@@ -10,4 +10,6 @@ enum EditorSettings {
     static let strokeWidth = SettingKey("editor.strokeWidth", default: Double(ToolStyle.defaultWidth))
     static let exportFormat = SettingKey("editor.exportFormat", default: EditorExportFormat.png)
     static let backgroundPreset = SettingKey("editor.backgroundPreset", default: BackgroundPreset.none)
+    /// The backgrounds the user saved from the background tool, oldest first.
+    static let savedBackgrounds = SettingKey("editor.savedBackgrounds", default: [SavedBackground]())
 }

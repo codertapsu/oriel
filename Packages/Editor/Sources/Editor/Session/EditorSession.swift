@@ -22,6 +22,10 @@ final class EditorSession {
     private(set) var undoRevision = 0
     /// The exported image's size in pixels. Set only when it changes, so observers do not update on every drag.
     private(set) var outputPixelSize: CGSize = .zero
+    /// What the step tool puts down next.
+    var stepStyle = StepStyle()
+    /// Set by Restart Numbering (or a chosen start number): the next step begins a new sequence at this number.
+    var pendingStepStart: Int?
 
     /// Selected item ids. Transient view state, not part of the document or of undo.
     var selection: Set<UUID> = []
@@ -177,13 +181,17 @@ final class EditorSession {
         applyStyle(color: nil, width: strokeWidth, actionName: "Width", coalescing: "width")
     }
 
-    /// Shows `item`'s colour and width in the toolbar without changing anything.
+    /// Shows `item`'s colour and width in the toolbar (and a step marker's shape, label and pointer in the step
+    /// style) without changing anything.
     func adoptStyle(of item: AnnotationItem) {
         if let itemColor = item.color {
             color = itemColor
         }
         if let width = ToolStyle.width(of: item) {
             strokeWidth = width
+        }
+        if case let .counter(counter) = item {
+            stepStyle = StepStyle(shape: counter.shape, label: counter.label, pointer: counter.pointer != nil)
         }
     }
 
@@ -291,7 +299,7 @@ final class EditorSession {
     }
 
     private func updateOutputPixelSize() {
-        let pixels = CanvasLayout(document: document).pixelSize(scale: document.base.scale)
+        let pixels = CanvasLayout(document: document).exportPixelSize(baseScale: document.base.scale)
         let size = CGSize(width: pixels.width, height: pixels.height)
         if size != outputPixelSize {
             outputPixelSize = size

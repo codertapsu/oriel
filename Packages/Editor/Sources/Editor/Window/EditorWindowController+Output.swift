@@ -6,7 +6,7 @@ import SharedUI
 /// a window with undelivered edits closes.
 extension EditorWindowController {
     func copyImage() {
-        guard let image = session.flattenedImage(), Pasteboard.copy(image) else {
+        guard let image = session.flattenedImage(), Pasteboard.copy(image, label: EditorLauncher.clipboardLabel) else {
             NSSound.beep()
             return
         }
@@ -111,7 +111,7 @@ extension EditorWindowController {
     /// The drag's file is in the default export format; the PNG rides along for apps that want image data.
     func makeDragPayload() -> DragPayload? {
         guard let image = session.flattenedImage() else { return nil }
-        let scale = session.document.base.scale
+        let scale = EditorExporter.dpiScale(of: session.document)
         let format = session.defaults.exportFormat
         guard let png = ImageFile.data(for: image, format: .png, scale: scale) else { return nil }
         let data = format == .png ? png : session.encodedData(for: format)

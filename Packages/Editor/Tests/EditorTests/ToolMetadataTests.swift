@@ -12,9 +12,11 @@ struct ToolMetadataTests {
         #expect(NSImage(systemSymbolName: tool.symbolName, accessibilityDescription: tool.title) != nil)
     }
 
-    @Test func drawingToolsDrawEveryKind() {
+    /// Every kind is drawn by a tool, except the ones only the smart tools make.
+    @Test func drawingToolsDrawEveryKindButTheSmartToolsOwn() {
         let drawn = Set(EditorTool.allCases.compactMap(\.drawsKind))
-        #expect(drawn == Set(AnnotationKind.allCases))
+        #expect(drawn == Set(AnnotationKind.allCases).subtracting(AnnotationKind.madeBySmartTools))
+        #expect(drawn.isDisjoint(with: AnnotationKind.madeBySmartTools))
         #expect(EditorTool.select.drawsKind == nil && EditorTool.crop.drawsKind == nil)
     }
 

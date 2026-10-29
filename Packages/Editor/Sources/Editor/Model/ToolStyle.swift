@@ -38,7 +38,7 @@ nonisolated enum ToolStyle {
         case let .text(text): text.fontSize / 5
         case let .counter(counter): (counter.radius - 8) / 2
         case let .blur(region), let .pixelate(region): (region.amount - 4) / 2
-        case .spotlight: nil
+        case .spotlight, .image, .patch, .bar: nil
         }
         return width.map(clampedWidth)
     }

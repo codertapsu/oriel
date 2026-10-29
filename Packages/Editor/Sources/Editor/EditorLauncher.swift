@@ -5,9 +5,14 @@ import OrielCore
 /// Overlay, pins, history and file opening. Each window starts from the editor settings (default colour, width,
 /// export format and background preset) as they are when it opens.
 public final class EditorLauncher {
+    /// What the editor's copies are called in Clipboard History.
+    static let clipboardLabel = "Screenshot"
+
     private let settings: SettingsStore
     /// On-device OCR for the tools that find text in the image (Smart Redact, Simplify); nil leaves them out.
     let textRecognizer: (any TextRecognizing)?
+    /// The user's saved backgrounds.
+    let library: BackgroundLibrary
     private var controllers: [EditorWindowController] = []
     private let log = Log.logger("editor")
 
@@ -22,11 +27,12 @@ public final class EditorLauncher {
     }
 
     /// - Parameters:
-    ///   - settings: read when a window opens, for the editor's defaults.
+    ///   - settings: read when a window opens, for the editor's defaults; it also keeps the saved backgrounds.
     ///   - textRecognizer: OCR for the tools that find text in the image, normally `VisionTextRecognizer`.
     public init(settings: SettingsStore, textRecognizer: (any TextRecognizing)? = nil) {
         self.settings = settings
         self.textRecognizer = textRecognizer
+        library = BackgroundLibrary(settings: settings)
     }
 
     /// Instant Capture (PLAN §17): annotates a capture in place, over the area it was taken from, with a compact
@@ -101,7 +107,7 @@ public final class EditorLauncher {
     }
 
     private func present(_ session: EditorSession, captureID: UUID?) {
-        let controller = EditorWindowController(session: session, captureID: captureID)
+        let controller = EditorWindowController(session: session, captureID: captureID, library: library)
         controller.onUpload = onUpload
         controller.onClose = { [weak self] closed in
             self?.controllers.removeAll { $0 === closed }

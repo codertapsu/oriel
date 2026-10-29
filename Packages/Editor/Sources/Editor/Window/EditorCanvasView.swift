@@ -66,7 +66,8 @@ final class EditorCanvasView: NSView {
     func sessionDidChange() {
         needsDisplay = true
         textOverlay.sync()
-        let count = session.document.items.count
+        // Fills are part of the image, not annotations of their own.
+        let count = session.document.items.count(where: \.isSelectable)
         setAccessibilityValue(count == 1 ? "1 annotation" : "\(count) annotations")
         window?.invalidateCursorRects(for: self)
     }

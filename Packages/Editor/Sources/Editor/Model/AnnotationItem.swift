@@ -2,8 +2,8 @@ import Foundation
 
 /// One annotation on the canvas. `EditorDocument.items` is z-ordered: later items draw on top.
 ///
-/// Blur and pixelate belong to the image: they are drawn over the base image, under the spotlight dimming and
-/// every other annotation, so an arrow on top of a blurred area stays sharp.
+/// Blur, pixelate and patches belong to the image: they are drawn over the base image, under the spotlight dimming
+/// and every other annotation, so an arrow on top of a blurred area stays sharp.
 nonisolated enum AnnotationItem: Sendable, Equatable, Identifiable {
     case arrow(Arrow)
     case line(Line)
@@ -16,6 +16,9 @@ nonisolated enum AnnotationItem: Sendable, Equatable, Identifiable {
     case blur(Region)
     case pixelate(Region)
     case spotlight(Region)
+    case image(ImageLayer)
+    case patch(ImageLayer)
+    case bar(Bar)
 
     var id: UUID {
         switch self {
@@ -26,6 +29,8 @@ nonisolated enum AnnotationItem: Sendable, Equatable, Identifiable {
         case let .text(text): text.id
         case let .counter(counter): counter.id
         case let .blur(region), let .pixelate(region), let .spotlight(region): region.id
+        case let .image(layer), let .patch(layer): layer.id
+        case let .bar(bar): bar.id
         }
     }
 
@@ -42,6 +47,9 @@ nonisolated enum AnnotationItem: Sendable, Equatable, Identifiable {
         case .blur: .blur
         case .pixelate: .pixelate
         case .spotlight: .spotlight
+        case .image: .image
+        case .patch: .patch
+        case .bar: .bar
         }
     }
 
@@ -53,11 +61,11 @@ nonisolated enum AnnotationItem: Sendable, Equatable, Identifiable {
         }
     }
 
-    /// Blur, pixelate and spotlight: drawn as part of the image, under every vector annotation, whatever their
-    /// place in `items`. Hit-testing follows the same visual order.
+    /// Patches, blur, pixelate and spotlight: drawn as part of the image, under every vector annotation, whatever
+    /// their place in `items`. Hit-testing follows the same visual order.
     var isImageLayer: Bool {
         switch self {
-        case .blur, .pixelate, .spotlight: true
+        case .blur, .pixelate, .spotlight, .patch: true
         default: false
         }
     }
@@ -71,7 +79,16 @@ nonisolated enum AnnotationItem: Sendable, Equatable, Identifiable {
         case let .freehand(path), let .highlighter(path): path.color
         case let .text(text): text.color
         case let .counter(counter): counter.color
-        case .blur, .pixelate, .spotlight: nil
+        case let .bar(bar): bar.color
+        case .blur, .pixelate, .spotlight, .image, .patch: nil
+        }
+    }
+
+    /// The pixels the item carries, which a saved document keeps as files of their own.
+    var asset: ImageAsset? {
+        switch self {
+        case let .image(layer), let .patch(layer): layer.asset
+        default: nil
         }
     }
 }
@@ -96,6 +113,9 @@ extension AnnotationItem: Codable {
         case .blur: self = try .blur(Region(from: decoder))
         case .pixelate: self = try .pixelate(Region(from: decoder))
         case .spotlight: self = try .spotlight(Region(from: decoder))
+        case .image: self = try .image(ImageLayer(from: decoder))
+        case .patch: self = try .patch(ImageLayer(from: decoder))
+        case .bar: self = try .bar(Bar(from: decoder))
         }
     }
 
@@ -111,6 +131,8 @@ extension AnnotationItem: Codable {
         case let .text(text): try text.encode(to: encoder)
         case let .counter(counter): try counter.encode(to: encoder)
         case let .blur(region), let .pixelate(region), let .spotlight(region): try region.encode(to: encoder)
+        case let .image(layer), let .patch(layer): try layer.encode(to: encoder)
+        case let .bar(bar): try bar.encode(to: encoder)
         }
     }
 }
