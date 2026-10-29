@@ -18,7 +18,7 @@ public enum CommandParser {
     /// The commands the app answers, by noun.
     public static let commands: [String: Set<String>] = [
         "windows": ["list", "focus", "close", "minimize"],
-        "capture": ["area", "window", "screen"],
+        "capture": ["area", "window", "screen", "text"],
         "translate": ["area"],
         "debug": ["capabilities", "open-switcher", "capture", "record", "perf-capture", "clipboard"],
     ]

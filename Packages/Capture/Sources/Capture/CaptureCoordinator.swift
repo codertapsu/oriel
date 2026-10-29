@@ -24,6 +24,8 @@ public final class CaptureCoordinator {
     let signposter = OSSignposter(subsystem: Log.subsystem, category: "capture")
     lazy var quickAccess = makeQuickAccess()
     lazy var pins = makePins()
+    lazy var textPanel = CapturedTextPanel()
+    lazy var textHUD = TextRecognitionHUD()
     var historyModel: HistoryModel?
     var indexing: Task<Void, Never>?
     var isBusy = false
@@ -175,6 +177,7 @@ public final class CaptureCoordinator {
     public var settingsPane: AnyView {
         AnyView(CaptureSettingsView(
             settings: settings,
+            showsTextCapture: textRecognizer != nil,
             onShowHistory: { [weak self] in self?.showHistory() },
             onClearHistory: { [weak self] in self?.clearHistory() }
         ))

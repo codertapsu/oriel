@@ -6,6 +6,8 @@ import SwiftUI
 /// capture options, the Quick Access Overlay, history and scrolling capture.
 struct CaptureSettingsView: View {
     let settings: SettingsStore
+    /// On-device OCR is there, so Capture Text is offered.
+    let showsTextCapture: Bool
     let onShowHistory: () -> Void
     let onClearHistory: () -> Void
     @State private var confirmsClear = false
@@ -58,6 +60,14 @@ struct CaptureSettingsView: View {
                     ForEach([5000, 10000, 20000, 30000], id: \.self) { Text("\($0.formatted()) pixels").tag($0) }
                 }
             }
+            if showsTextCapture {
+                Section("Capture Text") {
+                    Toggle("Open captured text for editing", isOn: settings.binding(CaptureSettings.textOpensPanel))
+                    Text(textNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             history
         }
         .formStyle(.grouped)
@@ -103,6 +113,12 @@ struct CaptureSettingsView: View {
                 Button("Clear History…") { confirmsClear = true }
             }
         }
+    }
+
+    private var textNote: String {
+        settings[CaptureSettings.textOpensPanel]
+            ? "Capture Text opens what it reads, to correct it before copying. Hold ⇧ while selecting to copy it at once."
+            : "Capture Text copies what it reads, keeping its lines. Hold ⇧ while selecting to edit it first."
     }
 
     private var folderName: String {

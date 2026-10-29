@@ -115,17 +115,12 @@ extension CaptureCoordinator {
         }
     }
 
-    /// "Copy Text": OCR in fast mode, lines joined, onto the clipboard.
+    /// "Copy Text" on a capture: read as Capture Text reads an area (`TextLayout`), onto the clipboard.
     func copyText(of result: CaptureResult) async {
         guard let textRecognizer else { return }
         do {
-            let blocks = try await textRecognizer.recognize(result.image, mode: .fast, languages: [])
-            let text = blocks.map(\.text).joined(separator: "\n")
-            if text.isEmpty {
-                Toast.show("No text found", symbol: "text.viewfinder")
-            } else if Pasteboard.copy(text) {
-                Toast.show("Copied the text", symbol: "text.viewfinder")
-            }
+            let text = try await readText(in: result.image, using: textRecognizer)
+            deliver(text: text, editing: false)
         } catch {
             log.error("Text recognition failed: \(error.localizedDescription, privacy: .private)")
             Toast.show("The text could not be read", symbol: "exclamationmark.triangle")

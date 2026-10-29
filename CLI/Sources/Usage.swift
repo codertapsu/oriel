@@ -11,6 +11,7 @@ enum Usage {
 
     Capture and translate
       oriel capture area|window|screen [--rect x,y,w,h] [--delay <seconds>] [--to clipboard|file|editor] [--path <file>]
+      oriel capture text [--rect x,y,w,h] [--json]       The text in an area, on stdout
       oriel translate area [--rect x,y,w,h] [--to <language>] [--provider <id>] [--json]
 
     Diagnostics

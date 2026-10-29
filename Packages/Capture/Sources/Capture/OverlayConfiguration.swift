@@ -8,6 +8,9 @@ nonisolated struct OverlayConfiguration: Sendable, Equatable {
     /// The toolbar next to an area selection.
     var tools: [OverlayTool] = OverlayTool.captureTools
     var showsMagnifier = true
+    /// An area is confirmed as soon as the mouse goes up after drawing it, or after a click picks a window, as Capture
+    /// Text does; otherwise it can be adjusted first and is confirmed with Return.
+    var confirmsOnRelease = false
 
     /// The line of help at the top of the screen in `mode` (Space can change the mode while the overlay is up).
     func hint(for mode: OverlayMode) -> String {

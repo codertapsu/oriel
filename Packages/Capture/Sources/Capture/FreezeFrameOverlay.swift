@@ -248,6 +248,9 @@ final class FreezeFrameOverlay: OverlayEventHandling {
                 }
             }
             self.editor = editor
+            if configuration.confirmsOnRelease, editor.rect != nil {
+                confirm(.capture)
+            }
         case .window:
             if let target = WindowTarget.topmost(at: point, in: windowTargets) {
                 finish(.window(target, intent: .capture))

@@ -29,6 +29,8 @@ nonisolated enum CaptureSettings {
     /// Seconds before a Quick Access card goes away by itself; 0 keeps it until closed.
     static let quickAccessSeconds = SettingKey("capture.quickAccessSeconds", default: 10)
     static let quickAccessCorner = SettingKey("capture.quickAccessCorner", default: ScreenCorner.bottomRight)
+    /// Capture Text opens the text for editing instead of copying it; ⇧ held while selecting does the other.
+    static let textOpensPanel = SettingKey("capture.textOpensPanel", default: false)
     static let historyEnabled = SettingKey("capture.historyEnabled", default: true)
     /// Days to keep history; 0 keeps everything.
     static let historyRetentionDays = SettingKey("capture.historyRetentionDays", default: 30)

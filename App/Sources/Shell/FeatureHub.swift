@@ -267,7 +267,8 @@ final class FeatureHub: CaptureActionHandling {
     // MARK: CLI
 
     var ipcCommands: [IPCCommandHandler] {
-        ["area", "window", "screen"].map(captureCommand) + [translateCommand, fixtureCommand, recordCommand, perfCaptureCommand]
+        ["area", "window", "screen"].map(captureCommand) + capture.ipcCommands
+            + [translateCommand, fixtureCommand, recordCommand, perfCaptureCommand]
     }
 
     private func captureCommand(_ kind: String) -> IPCCommandHandler {
