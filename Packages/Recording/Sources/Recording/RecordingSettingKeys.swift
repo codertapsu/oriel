@@ -32,4 +32,15 @@ public nonisolated enum RecordingSettingKeys {
     public static let gifMaxWidth = SettingKey("recording.gifMaxWidth", default: 800)
     /// Frames per second of a GIF export (10–15).
     public static let gifFrameRate = SettingKey("recording.gifFrameRate", default: 10)
+    /// Whether clicks are kept next to each recording (`<name>.oriel-clicks.json`) for the video editor's Auto
+    /// Zoom.
+    static let remembersClicks = SettingKey("recording.remembersClicks", default: true)
+    /// Auto Zoom's zoom level in the video editor (1.5–3).
+    static let autoZoomLevel = SettingKey("recording.autoZoomLevel", default: 2.0)
+    /// How long Auto Zoom holds after a click, in seconds (0.5–5).
+    static let autoZoomHold = SettingKey("recording.autoZoomHold", default: 1.5)
+    /// The video editor's last export choices.
+    static let editorExportFormat = SettingKey("recording.editorExportFormat", default: VideoExportFormat.mp4)
+    static let editorExportCodec = SettingKey<VideoCodec?>("recording.editorExportCodec", default: nil)
+    static let editorExportSize = SettingKey("recording.editorExportSize", default: VideoExportSize.original)
 }

@@ -4,14 +4,21 @@ import os
 
 /// The on-screen extras a recording shows and records: the camera bubble, click rings and the keystroke HUD
 /// (PLAN §7.4). They are ordinary windows, so the stream's filter, which excludes only the control bar, keeps them.
+///
+/// One `ClickMonitor` serves the click rings and Auto Zoom's click log (PLAN §17): it runs when either is on.
 final class RecordingOverlays {
+    /// Called with every click outside the control bar while the monitor runs, for the click log.
+    var onClick: ((ClickMonitor.Click) -> Void)?
+
     private var camera: CameraBubble?
-    private var clicks: ClickRingOverlay?
+    private var clickMonitor: ClickMonitor?
+    private var rings: ClickRingOverlay?
     private var keys: KeystrokeHUD?
     private let log = Log.logger("recording")
 
     /// Shows what `features` asks for around `captureRect` (Cocoa screen coordinates) on `screen`. Clicks on
-    /// `unrecordedWindows` (the control bar) get no click ring, since the video does not show them.
+    /// `unrecordedWindows` (the control bar) get no click ring and are not logged, since the video does not show
+    /// them.
     func show(
         _ features: RecordingFeatures,
         captureRect: CGRect,
@@ -34,9 +41,21 @@ final class RecordingOverlays {
             if let screen {
                 area = area.intersection(screen.frame)
             }
-            let overlay = ClickRingOverlay(frame: area, ignoring: unrecordedWindows)
+            let overlay = ClickRingOverlay(frame: area)
             overlay.start()
-            clicks = overlay
+            rings = overlay
+        }
+        if features.clickRings || features.clickLog {
+            let monitor = ClickMonitor(ignoring: unrecordedWindows)
+            let logsClicks = features.clickLog
+            monitor.onClick = { [weak self] click in
+                self?.rings?.show(click)
+                if logsClicks {
+                    self?.onClick?(click)
+                }
+            }
+            monitor.start()
+            clickMonitor = monitor
         }
         if features.keystrokes {
             let hud = KeystrokeHUD(captureRect: placement)
@@ -47,10 +66,12 @@ final class RecordingOverlays {
 
     func hide() {
         camera?.hide()
-        clicks?.stop()
+        clickMonitor?.stop()
+        rings?.stop()
         keys?.stop()
         camera = nil
-        clicks = nil
+        clickMonitor = nil
+        rings = nil
         keys = nil
     }
 }

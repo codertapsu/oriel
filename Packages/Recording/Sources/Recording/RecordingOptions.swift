@@ -19,6 +19,8 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
     var cameraBubble: Bool
     var clickRings: Bool
     var keystrokes: Bool
+    /// Whether clicks are kept for Auto Zoom (PLAN §17).
+    var remembersClicks: Bool
     var outputFolder: URL
     var gif: GIFExportOptions
 
@@ -33,6 +35,7 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
         cameraBubble: Bool = false,
         clickRings: Bool = false,
         keystrokes: Bool = false,
+        remembersClicks: Bool = true,
         outputFolder: URL = AppPaths.recordings,
         gif: GIFExportOptions = GIFExportOptions()
     ) {
@@ -50,6 +53,7 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
         self.cameraBubble = cameraBubble
         self.clickRings = clickRings
         self.keystrokes = keystrokes
+        self.remembersClicks = remembersClicks
         self.outputFolder = outputFolder
         self.gif = gif
     }
@@ -68,6 +72,7 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
             cameraBubble: settings[Keys.cameraBubble],
             clickRings: settings[Keys.clickRings],
             keystrokes: settings[Keys.keystrokes],
+            remembersClicks: settings[Keys.remembersClicks],
             outputFolder: Self.folder(fromPath: settings[Keys.outputFolder]),
             gif: GIFExportOptions(frameRate: settings[Keys.gifFrameRate], maxWidth: settings[Keys.gifMaxWidth])
         )

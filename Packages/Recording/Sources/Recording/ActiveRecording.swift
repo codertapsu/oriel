@@ -15,4 +15,6 @@ struct ActiveRecording {
     let screen: NSScreen?
     /// The movie's frame size in pixels.
     let videoSize: CGSize
+    /// The clicks seen so far, for Auto Zoom; nil when they are not kept.
+    var clickLog: ClickLog?
 }

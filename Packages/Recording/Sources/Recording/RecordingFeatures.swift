@@ -4,4 +4,6 @@ nonisolated struct RecordingFeatures: Equatable, Sendable {
     var cameraBubble = false
     var clickRings = false
     var keystrokes = false
+    /// Whether clicks are logged for Auto Zoom.
+    var clickLog = false
 }

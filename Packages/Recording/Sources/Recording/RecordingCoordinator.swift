@@ -8,7 +8,9 @@ import SwiftUI
 
 /// Screen recording (PLAN §7.4, D8). Each recording is one `SCStream` writing through `SCRecordingOutput`, one
 /// file per stretch between pauses; stopping joins the files and opens the finished-recording panel, which plays,
-/// trims and exports the movie.
+/// trims and exports the movie, and opens it in the video editor (PLAN §17).
+///
+/// The clicks of a recording are kept next to the movie (`<name>.oriel-clicks.json`) for the editor's Auto Zoom.
 ///
 /// While recording, a control bar shows the time. Oriel's overlays (camera bubble, click rings, keystroke HUD) are
 /// recorded; the control bar is excluded from the stream's filter.
@@ -38,7 +40,7 @@ public final class RecordingCoordinator {
         AnyView(RecordingSettingsView(settings: settings, permissions: permissions))
     }
 
-    private let settings: SettingsStore
+    let settings: SettingsStore
     private let permissions: PermissionCenter
     /// On-device OCR for reading text off a video frame; nil leaves that out.
     let textRecognizer: (any TextRecognizing)?
@@ -47,7 +49,10 @@ public final class RecordingCoordinator {
     /// Why capture ended early, shown once the movie is saved.
     private var interruption: String?
     private var panels: [ObjectIdentifier: FinishedRecordingPanel] = [:]
-    private let log = Log.logger("recording")
+    /// Open video editor windows (PLAN §17).
+    var editors: [VideoEditorWindowController] = []
+    private let clock = ContinuousClock()
+    let log = Log.logger("recording")
 
     /// Creating the coordinator starts nothing and asks for no permission.
     public init(settings: SettingsStore, permissions: PermissionCenter, textRecognizer: (any TextRecognizing)? = nil) {
@@ -150,6 +155,9 @@ public final class RecordingCoordinator {
         let screen = ScreenLocator.screen(for: resolved.display.displayID)
         let controlBar = RecordingControlBar(microphoneOn: options.microphone)
         let overlays = RecordingOverlays()
+        overlays.onClick = { [weak self] click in
+            self?.logClick(click)
+        }
         // On screen before the filter is built, so the control bar's window can be found and excluded.
         controlBar.show(near: captureRect, on: screen)
         overlays.show(features, captureRect: captureRect, on: screen, unrecordedWindows: [controlBar.windowID])
@@ -171,7 +179,10 @@ public final class RecordingCoordinator {
                 scratchFolder: folder,
                 startedAt: Date(),
                 screen: screen,
-                videoSize: CGSize(width: configuration.width, height: configuration.height)
+                videoSize: CGSize(width: configuration.width, height: configuration.height),
+                clickLog: features.clickLog
+                    ? ClickLog(area: captureRect, pixelWidth: configuration.width, pixelHeight: configuration.height)
+                    : nil
             )
         } catch {
             controlBar.close()
@@ -202,6 +213,7 @@ public final class RecordingCoordinator {
             options.microphone = false
         }
         var features = RecordingFeatures(microphone: options.microphone, clickRings: options.clickRings)
+        features.clickLog = options.remembersClicks
         if options.cameraBubble {
             features.cameraBubble = await allows(.camera)
         }
@@ -288,12 +300,40 @@ public final class RecordingCoordinator {
 
     private func save(_ segments: [URL], of recording: ActiveRecording) async -> Result<[URL], any Error> {
         do {
-            return try await .success([recording.storage.finalize(segments, startedAt: recording.startedAt)])
+            // Measured before joining, which moves or merges the segment files.
+            let durations = recording.clickLog == nil ? [:] : await recording.storage.durations(of: segments)
+            let movie = try await recording.storage.finalize(segments, startedAt: recording.startedAt)
+            if let clicks = recording.clickLog {
+                await saveClicks(clicks, durations: durations, of: recording, nextTo: movie)
+            }
+            return .success([movie])
         } catch {
             log.error("saving the recording failed: \(error.localizedDescription, privacy: .public)")
             guard segments.count > 1 else { return .failure(error) }
             let parts = await recording.storage.salvage(segments, startedAt: recording.startedAt)
             return parts.isEmpty ? .failure(error) : .success(parts)
+        }
+    }
+
+    /// Keeps a click that happened while frames were being written, on the open segment's clock.
+    private func logClick(_ click: ClickMonitor.Click) {
+        guard state == .recording, current?.clickLog != nil, let segment = current?.session.ledger.openSegment else { return }
+        let offset = (clock.now - segment.openedAt) / .seconds(1)
+        current?.clickLog?.record(click.location, button: click.button, segment: segment.index, offset: offset)
+    }
+
+    /// Writes the recording's clicks next to the finished movie, on its timeline: each segment starts where the
+    /// joined movie has it. A recording without clicks writes nothing.
+    private func saveClicks(_ clicks: ClickLog, durations: [URL: Double], of recording: ActiveRecording, nextTo movie: URL) async {
+        guard !clicks.entries.isEmpty else { return }
+        let order = recording.session.ledger.segments.map { (segment: $0.index, duration: durations[$0.url]) }
+        let total = durations.values.reduce(0, +)
+        let sidecar = clicks.sidecar(segmentStarts: ClickLog.segmentStarts(durations: order), duration: total)
+        do {
+            try await sidecar.save(nextTo: movie)
+            log.info("saved \(sidecar.clicks.count) clicks for Auto Zoom")
+        } catch {
+            log.error("the clicks could not be saved: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -325,11 +365,15 @@ public final class RecordingCoordinator {
             movie: movie,
             frameRate: recording.options.frameRate,
             videoSize: recording.videoSize,
-            settings: settings
+            settings: settings,
+            textRecognizer: textRecognizer
         )
         let key = ObjectIdentifier(panel)
         panel.onClose = { [weak self] in
             self?.panels[key] = nil
+        }
+        panel.onEdit = { [weak self] movie in
+            self?.openVideo(at: movie)
         }
         panels[key] = panel
         panel.show(on: recording.screen)

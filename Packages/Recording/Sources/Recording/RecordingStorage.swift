@@ -72,14 +72,32 @@ nonisolated struct RecordingStorage: Sendable {
         try? FileManager.default.removeItem(at: folder)
     }
 
+    /// The duration in seconds of each segment that `finalize` keeps, by URL, so clicks can be placed on the
+    /// finished movie's timeline (PLAN §17).
+    @concurrent
+    func durations(of segments: [URL]) async -> [URL: Double] {
+        var durations: [URL: Double] = [:]
+        for url in segments {
+            if let duration = await Self.playableDuration(of: url) {
+                durations[url] = duration
+            }
+        }
+        return durations
+    }
+
     /// Whether the file is a movie with a video track and a duration.
     private static func hasFrames(_ url: URL) async -> Bool {
+        await playableDuration(of: url) != nil
+    }
+
+    /// The duration in seconds of a movie with a video track, or nil when the file is not one.
+    private static func playableDuration(of url: URL) async -> Double? {
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration), duration.isNumeric, duration > .zero,
-              let tracks = try? await asset.loadTracks(withMediaType: .video)
+              let tracks = try? await asset.loadTracks(withMediaType: .video), !tracks.isEmpty
         else {
-            return false
+            return nil
         }
-        return !tracks.isEmpty
+        return duration.seconds
     }
 }

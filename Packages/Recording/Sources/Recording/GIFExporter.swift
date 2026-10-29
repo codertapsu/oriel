@@ -5,6 +5,8 @@ import UniformTypeIdentifiers
 
 /// Renders a finished movie as a looping GIF: `AVAssetImageGenerator` samples it at 10–15 fps and
 /// `CGImageDestination` writes `UTType.gif`, at most `maxWidth` pixels wide (PLAN §7.4). Runs off the main actor.
+///
+/// The video editor's GIF export samples its trimmed, zoomed composition the same way (PLAN §17).
 nonisolated enum GIFExporter {
     /// Writes `movie` as a GIF to `output` and returns the number of frames written. A failed or cancelled export
     /// leaves no file behind.
@@ -25,8 +27,23 @@ nonisolated enum GIFExporter {
             sourceHeight: Int(abs(size.height).rounded()),
             maxWidth: options.maxWidth
         )
+        return try await export(asset, videoComposition: nil, plan: plan, to: output, options: options)
+    }
+
+    /// Writes the frames of `asset` at the times of `plan` as a GIF, drawn through `videoComposition` when there
+    /// is one (whose render size should be the plan's), reporting progress from 0 to 1.
+    @discardableResult
+    static func export(
+        _ asset: AVAsset,
+        videoComposition: AVVideoComposition?,
+        plan: GIFFramePlan,
+        to output: URL,
+        options: GIFExportOptions,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> Int {
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
+        generator.videoComposition = videoComposition
         generator.maximumSize = CGSize(width: plan.width, height: plan.height)
         // Screen recordings hold a frame until the screen changes, so the nearest frame within half a GIF frame
         // is the right one, and decoding to the exact time would only cost time.
@@ -49,7 +66,13 @@ nonisolated enum GIFExporter {
         ]
         CGImageDestinationSetProperties(destination, fileProperties as CFDictionary)
         do {
-            let written = try await addFrames(from: generator, plan: plan, frameRate: options.frameRate, to: destination)
+            let written = try await addFrames(
+                from: generator,
+                plan: plan,
+                frameRate: options.frameRate,
+                to: destination,
+                progress: progress
+            )
             guard written > 0, CGImageDestinationFinalize(destination) else {
                 throw RecordingError.exportFailed("No frame of the movie could be read.")
             }
@@ -66,14 +89,18 @@ nonisolated enum GIFExporter {
         from generator: AVAssetImageGenerator,
         plan: GIFFramePlan,
         frameRate: Int,
-        to destination: CGImageDestination
+        to destination: CGImageDestination,
+        progress: (@Sendable (Double) -> Void)?
     ) async throws -> Int {
         let times = plan.times.map { CMTime(seconds: $0, preferredTimescale: 6000) }
         var written = 0
+        var handled = 0
         var previous: CGImage?
         var carried = 0.0
         for await result in generator.images(for: times) {
             try Task.checkCancellation()
+            handled += 1
+            progress?(Double(handled) / Double(max(times.count, 1)) * 0.99)
             let index = min(max(Int((result.requestedTime.seconds * Double(frameRate)).rounded()), 0), plan.delays.count - 1)
             let delay = plan.delays[index] + carried
             guard let image = (try? result.image).map({ fitted($0, plan: plan) }) ?? previous else {

@@ -5,17 +5,21 @@ import OrielCore
 import os
 import SharedUI
 
-/// The window shown after a recording is saved (PLAN §7.4): it plays the movie and offers Trim, Export GIF,
-/// Export CFR, Show in Finder and Copy. Trimming uses `AVPlayerView`'s trimming UI and a passthrough export that
-/// replaces the file in place.
+/// The window shown after a recording is saved (PLAN §7.4): it plays the movie and offers Edit… (the video editor,
+/// PLAN §17), Trim, Export (GIF or constant frame rate), Copy Text from the frame shown, Show in Finder and Copy.
+/// Trimming uses `AVPlayerView`'s trimming UI and a passthrough export that replaces the file in place; the
+/// recording's saved clicks are trimmed with it.
 final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
     /// Called when the window has closed.
     var onClose: (() -> Void)?
+    /// Edit… was chosen: open the movie in the video editor. The panel closes.
+    var onEdit: ((URL) -> Void)?
 
     /// The movie shown. Trimming replaces the file at this URL.
     let movie: URL
     private let frameRate: Int
     private let settings: SettingsStore
+    private let textRecognizer: (any TextRecognizing)?
     private let window: NSPanel
     private let player: AVPlayer
     private let playerView = AVPlayerView()
@@ -23,14 +27,17 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
     private let status = NSTextField(labelWithString: "")
     private var buttons: [NSButton] = []
     private var job: Task<Void, Never>?
+    private var textTask: Task<Void, Never>?
+    private var textPanel: FrameTextPanel?
     private let log = Log.logger("recording")
 
     /// `frameRate` is what "Export CFR" converts to; `videoSize` (pixels) sets the window's aspect ratio. The GIF
-    /// options are read from `settings` when the GIF is made.
-    init(movie: URL, frameRate: Int, videoSize: CGSize, settings: SettingsStore) {
+    /// options are read from `settings` when the GIF is made. Without `textRecognizer` there is no Copy Text.
+    init(movie: URL, frameRate: Int, videoSize: CGSize, settings: SettingsStore, textRecognizer: (any TextRecognizing)? = nil) {
         self.movie = movie
         self.frameRate = frameRate
         self.settings = settings
+        self.textRecognizer = textRecognizer
         player = AVPlayer(url: movie)
         window = NSPanel(
             contentRect: CGRect(origin: .zero, size: Self.contentSize(for: videoSize)),
@@ -56,6 +63,8 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
 
     func windowWillClose(_: Notification) {
         job?.cancel()
+        textTask?.cancel()
+        textPanel?.close()
         player.pause()
         playerView.player = nil
         // The owner releases this object in `onClose`; doing that after AppKit has finished closing the window
@@ -85,8 +94,8 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.hidesOnDeactivate = false
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        // Wide enough for the toolbar's five buttons.
-        window.contentMinSize = CGSize(width: 640, height: 320)
+        // Wide enough for the toolbar's buttons.
+        window.contentMinSize = CGSize(width: 680, height: 320)
         window.delegate = self
 
         playerView.player = player
@@ -95,20 +104,32 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
         playerView.showsFullScreenToggleButton = true
         playerView.translatesAutoresizingMaskIntoConstraints = false
 
+        let edit = makeButton("Edit…", symbol: "slider.horizontal.below.rectangle", action: #selector(edit(_:)))
+        edit.toolTip = "Open in the video editor: trim, zoom to clicks, chapters, export"
+        edit.keyEquivalent = "e"
+        edit.keyEquivalentModifierMask = [.command]
+        let copyText = makeButton("Copy Text", symbol: "text.viewfinder", action: #selector(copyText(_:)))
+        copyText.toolTip = "Copy the text in the frame shown"
+        copyText.isHidden = textRecognizer == nil
         buttons = [
+            edit,
             makeButton("Trim", symbol: "scissors", action: #selector(trim(_:))),
-            makeButton("Export GIF", symbol: "photo.on.rectangle.angled", action: #selector(exportGIF(_:))),
-            makeButton("Export CFR", symbol: "film", action: #selector(exportConstantFrameRate(_:))),
+            makeExportMenu(),
+            copyText,
             makeButton("Show in Finder", symbol: "folder", action: #selector(reveal(_:))),
             makeButton("Copy", symbol: "doc.on.doc", action: #selector(copyFile(_:))),
         ]
-        buttons[2].toolTip = "Re-encode at a constant \(frameRate) fps for video editors"
         spinner.style = .spinning
         spinner.controlSize = .small
         spinner.isDisplayedWhenStopped = false
         status.textColor = .secondaryLabelColor
         status.lineBreakMode = .byTruncatingTail
         status.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        // The status takes the room the buttons leave.
+        status.setContentHuggingPriority(.defaultLow - 1, for: .horizontal)
+        for button in buttons {
+            button.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        }
 
         let toolbar = NSStackView(views: buttons + [status, spinner])
         toolbar.spacing = 8
@@ -138,6 +159,54 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
         return button
     }
 
+    /// Export ▾: a GIF, or a constant-frame-rate copy for video editors.
+    private func makeExportMenu() -> NSPopUpButton {
+        let menu = NSPopUpButton(frame: .zero, pullsDown: true)
+        menu.addItem(withTitle: "Export")
+        menu.item(at: 0)?.image = NSImage(systemSymbolName: "square.and.arrow.up", accessibilityDescription: nil)
+        menu.addItem(withTitle: "GIF")
+        menu.lastItem?.target = self
+        menu.lastItem?.action = #selector(exportGIF(_:))
+        menu.lastItem?.image = NSImage(systemSymbolName: "photo.on.rectangle.angled", accessibilityDescription: nil)
+        menu.addItem(withTitle: "Constant Frame Rate (\(frameRate) fps)")
+        menu.lastItem?.target = self
+        menu.lastItem?.action = #selector(exportConstantFrameRate(_:))
+        menu.lastItem?.image = NSImage(systemSymbolName: "film", accessibilityDescription: nil)
+        menu.lastItem?.toolTip = "Re-encode at a constant \(frameRate) fps for video editors"
+        menu.setAccessibilityLabel("Export")
+        return menu
+    }
+
+    @objc private func edit(_: Any?) {
+        guard job == nil else { return }
+        let onEdit = onEdit
+        let movie = movie
+        window.close()
+        onEdit?(movie)
+    }
+
+    @objc private func copyText(_: Any?) {
+        guard let textRecognizer else { return }
+        player.pause()
+        let time = player.currentTime().seconds
+        let movie = movie
+        textTask?.cancel()
+        textTask = Task { [weak self] in
+            let panel = await FrameTextPanel.copyText(
+                of: movie,
+                at: time.isFinite ? time : 0,
+                recognizer: textRecognizer,
+                near: self?.window
+            )
+            guard let self, !Task.isCancelled else {
+                panel?.close()
+                return
+            }
+            textPanel?.close()
+            textPanel = panel
+        }
+    }
+
     @objc private func trim(_: Any?) {
         guard job == nil, playerView.canBeginTrimming else { return }
         job = Task { [weak self] in
@@ -158,6 +227,7 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
         do {
             try await MovieExporter.trim(movie, range: range, to: trimmed)
             _ = try FileManager.default.replaceItemAt(movie, withItemAt: trimmed)
+            await Self.trimClicks(of: movie, to: range.start.seconds ... range.end.seconds)
             player.replaceCurrentItem(with: AVPlayerItem(url: movie))
             setBusy(nil)
             Toast.show("Trimmed", symbol: "scissors")
@@ -166,6 +236,13 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
             setBusy(nil)
             report(error)
         }
+    }
+
+    /// Moves the saved clicks to the trimmed movie's timeline, so Auto Zoom still finds them.
+    @concurrent
+    private static func trimClicks(of movie: URL, to range: ClosedRange<Double>) async {
+        guard let clicks = try? ClickSidecar.load(for: movie) else { return }
+        try? clicks.trimmed(to: range).write(nextTo: movie)
     }
 
     @objc private func exportGIF(_: Any?) {
