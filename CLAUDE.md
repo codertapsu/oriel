@@ -24,7 +24,7 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
 6. Never call AX on the main thread in hot paths; use the AX actor with messaging timeout 0.25 s.
 7. Secrets only in the Keychain. Logs use `privacy: .private` for user content.
 8. Never read or write TCC.db. Permissions are checked only through AXIsProcessTrusted,
-   CGPreflightScreenCaptureAccess and AVCaptureDevice.
+   CGPreflightScreenCaptureAccess, AVCaptureDevice and NSPasteboard.accessBehavior (Paste from Other Apps).
 9. Keep ARCHS = "arm64 x86_64" explicit. Run `make universal-check` before finishing any task that touches
    build settings. Never pass -ld_classic.
 10. No new SwiftPM dependencies, deployment-target changes or ARCHS changes without an explicit instruction.

@@ -18,4 +18,12 @@ struct PermissionKindTests {
     @Test func theScreenRecordingHintMentionsQuitAndReopen() {
         #expect(PermissionKind.screenRecording.grantHint(macOSMajorVersion: 27).contains("Quit & Reopen"))
     }
+
+    @Test func pasteFromOtherAppsIsOptionalAndExplainsWhereOrielAppears() {
+        #expect(!PermissionKind.pasteboard.isRequired)
+        #expect(PermissionKind.pasteboard.settingsPaneName(macOSMajorVersion: 27) == "Paste from Other Apps")
+        let hint = PermissionKind.pasteboard.grantHint(macOSMajorVersion: 27)
+        #expect(hint.contains("Privacy & Security → Paste from Other Apps"))
+        #expect(hint.contains("after macOS has asked"))
+    }
 }

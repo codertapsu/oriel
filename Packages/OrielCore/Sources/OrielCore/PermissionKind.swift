@@ -1,11 +1,14 @@
 import Foundation
 
-/// A TCC permission Oriel can use (PLAN §8.1).
+/// A permission Oriel can use (PLAN §8.1): the TCC services, plus macOS's pasteboard privacy, which decides whether
+/// Oriel may read what other apps copy.
 public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiable {
     case accessibility
     case screenRecording
     case microphone
     case camera
+    /// Privacy & Security → Paste from Other Apps (`NSPasteboard.accessBehavior`), for Clipboard History.
+    case pasteboard
 
     public var id: String {
         rawValue
@@ -18,6 +21,7 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
         case .screenRecording: "Screen & System Audio Recording"
         case .microphone: "Microphone"
         case .camera: "Camera"
+        case .pasteboard: "Paste from Other Apps"
         }
     }
 
@@ -32,6 +36,8 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
             "Adds your voice to screen recordings you start."
         case .camera:
             "Shows the camera bubble in screen recordings you start."
+        case .pasteboard:
+            "Lets Clipboard History keep what you copy in other apps, not only Oriel's own copies."
         }
     }
 
@@ -48,6 +54,7 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
         case .screenRecording: "Screen & System Audio Recording"
         case .microphone: "Microphone"
         case .camera: "Camera"
+        case .pasteboard: "Paste from Other Apps"
         }
     }
 
@@ -62,6 +69,9 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
             return "Switch Oriel on in \(pane), then choose Quit & Reopen when macOS offers it."
         case .microphone, .camera:
             return "Switch Oriel on in \(pane)."
+        case .pasteboard:
+            // macOS lists an app there only once it has asked about that app.
+            return "Set Oriel to Allow in \(pane). Oriel is listed there after macOS has asked about it once."
         }
     }
 }

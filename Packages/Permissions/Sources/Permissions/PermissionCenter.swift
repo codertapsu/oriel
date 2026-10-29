@@ -101,9 +101,20 @@ public final class PermissionCenter: PermissionChecking {
             _ = await AVCaptureDevice.requestAccess(for: .audio)
         case .camera:
             _ = await AVCaptureDevice.requestAccess(for: .video)
+        case .pasteboard:
+            await Self.readPasteboardOnce()
         }
         refresh()
         return status(of: kind)
+    }
+
+    /// Reads what is on the clipboard, which makes macOS ask whether Oriel may paste from the app that copied it and
+    /// lists Oriel in Paste from Other Apps. Off the main thread: macOS holds the read while it asks. Nothing is kept.
+    private static func readPasteboardOnce() async {
+        await Task.detached(priority: .userInitiated) {
+            guard let item = NSPasteboard.general.pasteboardItems?.first, let type = item.types.first else { return }
+            _ = item.data(forType: type)
+        }.value
     }
 
     public func openSystemSettings(for kind: PermissionKind) {
@@ -112,6 +123,7 @@ public final class PermissionCenter: PermissionChecking {
         case .screenRecording: "Privacy_ScreenCapture"
         case .microphone: "Privacy_Microphone"
         case .camera: "Privacy_Camera"
+        case .pasteboard: "Privacy_Pasteboard"
         }
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
             NSWorkspace.shared.open(url)
@@ -123,7 +135,8 @@ public final class PermissionCenter: PermissionChecking {
         Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0.rawValue, status(of: $0).rawValue) })
     }
 
-    /// Reads the state through the public APIs only; Oriel never touches the TCC database (PLAN §8.2).
+    /// Reads the state through the public APIs only; Oriel never touches the TCC database (PLAN §8.2). Paste from Other
+    /// Apps counts as granted only when set to Allow: while macOS asks each time, Clipboard History cannot read.
     public nonisolated static func currentStatus(of kind: PermissionKind) -> PermissionStatus {
         switch kind {
         case .accessibility:
@@ -134,6 +147,17 @@ public final class PermissionCenter: PermissionChecking {
             map(AVCaptureDevice.authorizationStatus(for: .audio))
         case .camera:
             map(AVCaptureDevice.authorizationStatus(for: .video))
+        case .pasteboard:
+            map(NSPasteboard.general.accessBehavior)
+        }
+    }
+
+    private nonisolated static func map(_ behavior: NSPasteboard.AccessBehavior) -> PermissionStatus {
+        switch behavior {
+        case .alwaysAllow: .granted
+        case .alwaysDeny: .denied
+        case .default, .ask: .notDetermined
+        @unknown default: .notDetermined
         }
     }
 
