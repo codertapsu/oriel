@@ -3,7 +3,7 @@ import Foundation
 
 /// AWS Signature Version 4 for S3-compatible services (AWS, MinIO, Cloudflare R2, Backblaze B2). Pure, so it
 /// is tested against AWS's published examples.
-public struct SigV4Signer: Sendable {
+public nonisolated struct SigV4Signer: Sendable {
     public let accessKey: String
     public let secretKey: String
     public let region: String

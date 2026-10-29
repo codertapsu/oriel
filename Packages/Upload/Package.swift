@@ -15,7 +15,8 @@ let package = Package(
             dependencies: [
                 .product(name: "OrielCore", package: "OrielCore"),
                 .product(name: "SharedUI", package: "SharedUI"),
-            ]
+            ],
+            swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         .testTarget(
             name: "UploadTests",
