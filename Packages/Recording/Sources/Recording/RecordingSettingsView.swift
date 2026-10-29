@@ -4,8 +4,8 @@ import Permissions
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The Recording pane of Settings (PLAN §10.1): quality, audio, overlays (with the clicks kept for Auto Zoom,
-/// PLAN §17), where movies go and GIF export.
+/// The Recording pane of Settings (PLAN §10.1): quality, audio, overlays (with the camera background and the
+/// clicks kept for Auto Zoom, PLAN §17), where movies go and GIF export.
 struct RecordingSettingsView: View {
     private typealias Keys = RecordingSettingKeys
 
@@ -75,6 +75,7 @@ struct RecordingSettingsView: View {
             Toggle("Camera bubble", isOn: settings.binding(Keys.cameraBubble))
             if settings[Keys.cameraBubble] {
                 permissionNote(.camera, "Oriel may not use the camera, so no camera bubble is shown.")
+                CameraEffectSettingsView(settings: settings)
             }
             Toggle("Highlight clicks", isOn: settings.binding(Keys.clickRings))
             Toggle("Remember clicks for Auto Zoom", isOn: settings.binding(Keys.remembersClicks))

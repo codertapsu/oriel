@@ -29,7 +29,10 @@ final class RecordingOverlays {
         let visible = screen.map { captureRect.intersection($0.visibleFrame) } ?? captureRect
         let placement = visible.isEmpty ? captureRect : visible
         if features.cameraBubble {
-            if let bubble = CameraBubble(frame: OverlayLayout.cameraBubbleFrame(captureRect: placement)) {
+            if let bubble = CameraBubble(
+                frame: OverlayLayout.cameraBubbleFrame(captureRect: placement),
+                background: features.cameraBackground
+            ) {
                 bubble.show()
                 camera = bubble
             } else {

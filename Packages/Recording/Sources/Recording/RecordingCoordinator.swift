@@ -216,6 +216,7 @@ public final class RecordingCoordinator {
         features.clickLog = options.remembersClicks
         if options.cameraBubble {
             features.cameraBubble = await allows(.camera)
+            features.cameraBackground = options.cameraBackground
         }
         // A key monitor without Accessibility receives nothing, so the HUD is not shown at all.
         features.keystrokes = options.keystrokes && permissions.status(of: .accessibility) == .granted

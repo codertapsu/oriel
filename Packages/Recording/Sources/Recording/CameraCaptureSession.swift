@@ -23,6 +23,26 @@ final nonisolated class CameraCaptureSession: @unchecked Sendable {
         }
     }
 
+    /// Adds a frame output, for the camera background effect (PLAN §17). Returns whether the session took it.
+    @discardableResult
+    func attach(_ output: AVCaptureVideoDataOutput) -> Bool {
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        guard session.canAddOutput(output) else { return false }
+        session.addOutput(output)
+        return true
+    }
+
+    /// Removes a frame output added with `attach(_:)`, on the session's queue.
+    func detach(_ output: AVCaptureVideoDataOutput) {
+        nonisolated(unsafe) let output = output
+        queue.async {
+            self.session.beginConfiguration()
+            self.session.removeOutput(output)
+            self.session.commitConfiguration()
+        }
+    }
+
     func start() {
         queue.async { self.session.startRunning() }
     }

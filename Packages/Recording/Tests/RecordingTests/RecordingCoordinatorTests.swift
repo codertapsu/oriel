@@ -52,6 +52,7 @@ struct RecordingCoordinatorTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let settings = SettingsStore(defaults: defaults)
         #expect(RecordingOptions(settings: settings).remembersClicks)
+        #expect(RecordingOptions(settings: settings).cameraBackground == .unchanged)
         settings[RecordingSettingKeys.remembersClicks] = false
         #expect(!RecordingOptions(settings: settings).remembersClicks)
     }

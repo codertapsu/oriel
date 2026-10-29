@@ -21,6 +21,8 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
     var keystrokes: Bool
     /// Whether clicks are kept for Auto Zoom (PLAN §17).
     var remembersClicks: Bool
+    /// What the camera bubble shows behind the person; `.unchanged` when the Mac cannot run the effect.
+    var cameraBackground: CameraBackground
     var outputFolder: URL
     var gif: GIFExportOptions
 
@@ -36,6 +38,7 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
         clickRings: Bool = false,
         keystrokes: Bool = false,
         remembersClicks: Bool = true,
+        cameraBackground: CameraBackground = .unchanged,
         outputFolder: URL = AppPaths.recordings,
         gif: GIFExportOptions = GIFExportOptions()
     ) {
@@ -54,6 +57,7 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
         self.clickRings = clickRings
         self.keystrokes = keystrokes
         self.remembersClicks = remembersClicks
+        self.cameraBackground = cameraBackground
         self.outputFolder = outputFolder
         self.gif = gif
     }
@@ -73,6 +77,12 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
             clickRings: settings[Keys.clickRings],
             keystrokes: settings[Keys.keystrokes],
             remembersClicks: settings[Keys.remembersClicks],
+            cameraBackground: CameraBackground.resolve(
+                blurs: settings[Keys.blursCameraBackground],
+                style: settings[Keys.cameraBackgroundStyle],
+                colorHex: settings[Keys.cameraBackgroundColor],
+                gate: CameraBackground.gate
+            ),
             outputFolder: Self.folder(fromPath: settings[Keys.outputFolder]),
             gif: GIFExportOptions(frameRate: settings[Keys.gifFrameRate], maxWidth: settings[Keys.gifMaxWidth])
         )

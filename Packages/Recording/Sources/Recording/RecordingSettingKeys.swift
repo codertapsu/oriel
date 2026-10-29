@@ -35,6 +35,12 @@ public nonisolated enum RecordingSettingKeys {
     /// Whether clicks are kept next to each recording (`<name>.oriel-clicks.json`) for the video editor's Auto
     /// Zoom.
     static let remembersClicks = SettingKey("recording.remembersClicks", default: true)
+    /// Whether the camera bubble blurs or replaces the background behind the person (Apple silicon only).
+    static let blursCameraBackground = SettingKey("recording.blursCameraBackground", default: false)
+    /// How the camera background is treated when `blursCameraBackground` is on.
+    static let cameraBackgroundStyle = SettingKey("recording.cameraBackgroundStyle", default: CameraBackgroundStyle.blur)
+    /// The color behind the person when `cameraBackgroundStyle` is `.color`, as `#RRGGBB`.
+    static let cameraBackgroundColor = SettingKey("recording.cameraBackgroundColor", default: CameraBackgroundStyle.defaultColorHex)
     /// Auto Zoom's zoom level in the video editor (1.5–3).
     static let autoZoomLevel = SettingKey("recording.autoZoomLevel", default: 2.0)
     /// How long Auto Zoom holds after a click, in seconds (0.5–5).
