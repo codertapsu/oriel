@@ -125,4 +125,4 @@ An audit of PLAN §1, §7, §10 and §15 against the code, requirement by requir
 
 ## Review outcome
 
-(to be filled in at the review)
+2026-10-29. You reviewed 0.1.0 and asked for two additions, Clipboard History and the automatic copy of every capture (`docs/reports/02-clipboard-history.md`), which ship in 0.1.0 too. After testing the installed build 26 you confirmed the seven checklist items that needed a person: in 13.1 the live permission state and Open at login, in 13.2 `oriel windows list`, focusing a window on another Space and ⌘⇥ coming back, in 13.5 offline English → Japanese, and 13.8 Clipboard History. This review closes the Phase 3 and Phase 6 checkpoints. The tests and measurements still open (the image-diff helper, recorded gestures, UI tests, the §9 budgets and the spike trials) wait until you have used 0.1.0 for a while.

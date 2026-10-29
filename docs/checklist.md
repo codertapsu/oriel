@@ -22,8 +22,8 @@ make release-dry-run               # after `source scripts/apple-credentials.env
 - [x] `Info.plist`: `LSUIElement`, `LSMinimumSystemVersion = 26.0`, mic/camera usage strings, `oriel` URL scheme. **Verify:** `plutil -lint App/Info.plist` and a unit test reading the built bundle.
 - [x] `--self-test` loads every module, prints capability flags, exits 0. **Verify:** `build/Release/Oriel.app/Contents/MacOS/Oriel --self-test`
 - [x] `PrivateAPIs` resolves symbols via `dlsym` and never crashes when one is missing. **Verify:** unit test with an injected resolver returning nil for each symbol.
-- [ ] Permissions center reflects live state without timers. **Verify:** `rg "Timer\.scheduledTimer|DispatchSource\.makeTimerSource" Packages/Permissions` returns nothing; manual toggle test.
-- [ ] Launch at login via `SMAppService`. **Verify:** `SMAppService.mainApp.status == .enabled` after toggling; visible in System Settings → Login Items.
+- [x] Permissions center reflects live state without timers. **Verify:** `rg "Timer\.scheduledTimer|DispatchSource\.makeTimerSource" Packages/Permissions` returns nothing; manual toggle test. Checked by you on the installed 0.1.0 (build 26), 2026-10-29.
+- [x] Launch at login via `SMAppService`. **Verify:** `SMAppService.mainApp.status == .enabled` after toggling; visible in System Settings → Login Items. Checked by you on the installed 0.1.0 (build 26), 2026-10-29.
 - [x] Bootstrap import populates Settings and the Keychain and deletes the file. **Verify:** `--filter BootstrapImportTests`
 - [x] Diagnostics shows arch, Rosetta, Apple Intelligence, packs, private symbols, permissions. **Verify:** `oriel debug capabilities --json` lists all six keys.
 - [x] No dependencies. **Verify:** `rg -n "dependencies:" Packages/*/Package.swift` shows only local `path:` entries; `rg -n "url:" Packages/*/Package.swift` returns nothing.
@@ -32,9 +32,9 @@ make release-dry-run               # after `source scripts/apple-credentials.env
 - [x] `WindowStore` builds the list from AX + CGWindowList + SkyLight with a fake `WindowSource` in tests. **Verify:** `swift test --package-path Packages/WindowSwitcher --filter WindowStoreTests`
 - [x] Filter, ordering, search and layout are pure functions with table tests. **Verify:** `--filter 'LayoutTests|SearchTests|FilterTests'`
 - [x] State machine covers hold/release, keep-open, cancel, Sticky Keys. **Verify:** `--filter SwitcherStateMachineTests`
-- [ ] `oriel windows list --json` matches the fixture set. **Verify:** `ORIEL_TCC_TESTS=1 scripts/verify-windows.sh`
-- [ ] `oriel windows focus <id>` focuses the right window on another Space. **Verify:** the script reads the frontmost window via AX afterwards.
-- [ ] Cmd-Tab takeover is restored after quit and after `kill -9`. **Verify:** `scripts/verify-cmdtab-restore.sh` (TCC)
+- [x] `oriel windows list --json` matches the fixture set. **Verify:** `ORIEL_TCC_TESTS=1 scripts/verify-windows.sh` Checked by you on the installed 0.1.0 (build 26), 2026-10-29.
+- [x] `oriel windows focus <id>` focuses the right window on another Space. **Verify:** the script reads the frontmost window via AX afterwards. Checked by you on the installed 0.1.0 (build 26), 2026-10-29.
+- [x] Cmd-Tab takeover is restored after quit and after `kill -9`. **Verify:** `scripts/verify-cmdtab-restore.sh` (TCC) Checked by you on the installed 0.1.0 (build 26), 2026-10-29.
 - [x] Idle: 10 minutes at 0.0 % CPU. **Verify:** `scripts/idle-cpu.sh` (uses `top -l 600 -s 1 -pid $PID -stats cpu,idlew`)
 - [ ] Reduce Transparency switches to opaque live. **Verify:** image-diff test with forced accessibility flags + manual.
 - [x] Exceptions exclude apps by bundle ID. **Verify:** unit test.
@@ -60,7 +60,7 @@ make release-dry-run               # after `source scripts/apple-credentials.env
 - [x] Keychain round-trip; keys never logged. **Verify:** unit test + `rg -n "apiKey" Packages | rg -v Keychain` review.
 - [x] Apple provider availability states map to UI. **Verify:** unit test with a fake availability adapter.
 - [x] Font fitting never overflows at ≥ minimum size. **Verify:** `--filter FontFitTests`
-- [ ] Offline EN→JA works with packs installed and Wi-Fi off. **Verify:** `oriel translate area --rect … --to ja --provider apple --json` (TCC, manual).
+- [x] Offline EN→JA works with packs installed and Wi-Fi off. **Verify:** `oriel translate area --rect … --to ja --provider apple --json` (TCC, manual). Checked by you on the installed 0.1.0 (build 26), 2026-10-29.
 
 ## 13.6 Recording
 - [x] 10 s recording has duration ±0.2 s and the audio tracks enabled. **Verify:** `scripts/verify-recording.sh` (TCC)
@@ -83,4 +83,4 @@ spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.
 - [x] Classification, colors, the index (repeat copies, pins, reordering, Undo, limits), search, paste composition and the panel model are pure and tested. **Verify:** `swift test --package-path Packages/ClipboardHistory`
 - [x] The store is encrypted at rest, survives a restart and sets an unreadable history aside. **Verify:** `swift test --package-path Packages/ClipboardHistory --filter ClipboardStoreTests`
 - [x] No polling and no concealed reads. **Verify:** `make lint` (the `no_polling` rule covers the package); `swift test --package-path Packages/ClipboardHistory --filter 'PasteboardWatcherTests|PasteboardReaderTests'`
-- [ ] Copies in other apps appear once Paste from Other Apps allows it; ⌥V opens the panel over the app in front; Return pastes into VS Code, Chrome and Messages. **Verify:** manual (`docs/qa-checklists.md`), with Accessibility and Paste from Other Apps.
+- [x] Copies in other apps appear once Paste from Other Apps allows it; ⌥V opens the panel over the app in front; Return pastes into VS Code, Chrome and Messages. **Verify:** manual (`docs/qa-checklists.md`), with Accessibility and Paste from Other Apps. Checked by you on the installed 0.1.0 (build 26), 2026-10-29.

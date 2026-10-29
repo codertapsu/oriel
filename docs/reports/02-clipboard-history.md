@@ -55,3 +55,7 @@ Nothing that reads the real clipboard or posts ⌘V was run here. Reading would 
 ## What you need to do
 
 Install `dist/Oriel-0.1.0.dmg` and run `docs/qa-checklists.md` item 14. Settings → About shows build 26; build 20 is the first 0.1.0 build, without these changes.
+
+## Review outcome
+
+2026-10-29. You tested build 26 and kept everything as built: ⌥V stays the shortcut, the limits stay 500 items, 30 days and 500 MB, and Remove items after pasting still leaves pinned items alone. Item 13.8 is ticked.
