@@ -1,0 +1,204 @@
+import Darwin
+@testable import DiskAnalyzer
+import Foundation
+import Testing
+
+/// The scanner on folders it creates in the temporary directory.
+struct ScanEngineTests {
+    private func allocated(_ url: URL) -> Int64 {
+        var info = stat()
+        return lstat(url.path, &info) == 0 ? Int64(info.st_blocks) * 512 : 0
+    }
+
+    private func scan(
+        _ folder: TemporaryFolder,
+        options: ScanOptions = ScanOptions(),
+        mode: DirectoryReader.Mode = .automatic,
+        cancellation: CancellationFlag = CancellationFlag(),
+        progress: @escaping @Sendable (ScanProgress) -> Void = { _ in }
+    ) async -> ScanEngine.Outcome {
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        return await ScanEngine.scan(target, options: options, cancellation: cancellation, readerMode: mode, progress: progress)
+    }
+
+    @Test func nestedFoldersAddUpToTheAllocatedSizes() async throws {
+        let folder = try TemporaryFolder()
+        let big = try folder.file("Movies/Trips/trip.mov", size: 3_000_000)
+        let medium = try folder.file("Movies/clip.mov", size: 1_500_000)
+        let smalls = try (0 ..< 5).map { try folder.file("Docs/note\($0).txt", size: 5000) }
+        try folder.folder("Empty")
+        let outcome = await scan(folder)
+        let tree = outcome.tree
+        let expected = allocated(big) + allocated(medium) + smalls.reduce(0) { $0 + allocated($1) }
+        #expect(tree.root.size == expected)
+        #expect(tree.root.fileCount == 7)
+        #expect(tree.root.folderCount == 4)
+        let trip = try #require(tree.index(ofPath: big.path))
+        #expect(tree[trip].kind == .file)
+        #expect(tree[trip].category == .video)
+        #expect(tree[trip].logicalSize == 3_000_000)
+        let docs = try #require(tree.index(ofPath: folder.path + "/Docs"))
+        let aggregate = try #require(tree.children(of: docs).first)
+        #expect(tree[aggregate].kind == .smallFiles)
+        #expect(tree[aggregate].fileCount == 5)
+        #expect(outcome.summary.files == 7)
+        #expect(outcome.summary.categories.count(of: .document) == 5)
+        #expect(!outcome.summary.wasCancelled)
+    }
+
+    @Test func aHardLinkedFileIsCountedOnce() async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("a/original.bin", size: 4_000_000)
+        try folder.folder("b")
+        #expect(link(original.path, folder.path + "/b/link.bin") == 0)
+        let outcome = await scan(folder)
+        #expect(outcome.tree.root.size == allocated(original))
+        #expect(outcome.summary.duplicateLinks == 1)
+        #expect(outcome.tree.root.fileCount == 2)
+    }
+
+    @Test func symbolicLinksAreNeverFollowed() async throws {
+        let outside = try TemporaryFolder()
+        try outside.file("huge.bin", size: 5_000_000)
+        let folder = try TemporaryFolder()
+        let inside = try folder.file("Real/data.bin", size: 2_000_000)
+        try FileManager.default.createSymbolicLink(atPath: folder.path + "/ToOutside", withDestinationPath: outside.path)
+        try FileManager.default.createSymbolicLink(atPath: folder.path + "/ToReal", withDestinationPath: folder.path + "/Real")
+        let outcome = await scan(folder)
+        // The links themselves take no blocks; neither target is counted again through them.
+        #expect(outcome.tree.root.size == allocated(inside))
+        #expect(outcome.tree.root.folderCount == 1)
+        #expect(outcome.tree.index(ofPath: folder.path + "/ToOutside/huge.bin") == nil)
+    }
+
+    @Test func foldersThatCannotBeReadAreCountedAndMarked() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("Open/a.bin", size: 2_000_000)
+        try folder.file("Locked/secret.bin", size: 2_000_000)
+        #expect(chmod(folder.path + "/Locked", 0) == 0)
+        defer { chmod(folder.path + "/Locked", 0o755) }
+        let outcome = await scan(folder)
+        #expect(outcome.summary.unreadableFolders == 1)
+        #expect(outcome.summary.unreadableSamples == [folder.path + "/Locked"])
+        let locked = try #require(outcome.tree.index(ofPath: folder.path + "/Locked"))
+        #expect(outcome.tree[locked].flags.contains(.unreadable))
+        #expect(outcome.tree[locked].size == 0)
+    }
+
+    @Test func aCancelledScanStopsAndSaysSo() async throws {
+        let folder = try TemporaryFolder()
+        for number in 0 ..< 300 {
+            try folder.folder("f\(number)/inner")
+        }
+        let flag = CancellationFlag()
+        flag.cancel()
+        let before = await scan(folder, cancellation: flag)
+        #expect(before.summary.wasCancelled)
+        #expect(before.tree.count == 1)
+
+        var options = ScanOptions()
+        options.workerCount = 2
+        options.progressInterval = .zero
+        let midway = CancellationFlag()
+        let outcome = await scan(folder, options: options, cancellation: midway) { _ in midway.cancel() }
+        #expect(outcome.summary.wasCancelled)
+        #expect(outcome.tree.root.folderCount < 600)
+    }
+
+    @Test func progressIsReportedWhileScanning() async throws {
+        let folder = try TemporaryFolder()
+        for number in 0 ..< 50 {
+            try folder.file("f\(number)/a.bin", size: 2000)
+        }
+        var options = ScanOptions()
+        options.progressInterval = .zero
+        let reports = ProgressLog()
+        _ = await scan(folder, options: options) { reports.add($0) }
+        let last = try #require(reports.all.last)
+        #expect(reports.all.count > 1)
+        #expect(last.folders > 1)
+        #expect(last.currentPath.hasPrefix(folder.path))
+    }
+
+    @Test func bothReadersSeeTheSameTree() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("A/big.bin", size: 2_500_000)
+        try folder.file("A/B/small.txt", size: 300)
+        try folder.file(".hidden/cache.db", size: 1_200_000)
+        try folder.file("Tool.app/Contents/MacOS/Tool", size: 1_100_000)
+        let original = try folder.file("C/linked.bin", size: 1_300_000)
+        #expect(link(original.path, folder.path + "/A/linked-again.bin") == 0)
+        let bulk = await scan(folder)
+        let fallback = await scan(folder, mode: .foundationOnly)
+        #expect(bulk.tree.root.size == fallback.tree.root.size)
+        #expect(bulk.tree.root.fileCount == fallback.tree.root.fileCount)
+        #expect(bulk.tree.root.folderCount == fallback.tree.root.folderCount)
+        // Of the two links, the one a thread happens to read first is counted; the other falls into its folder's smaller
+        // files. So the links and the aggregates are compared apart.
+        let links: Set<String> = [folder.path + "/C/linked.bin", folder.path + "/A/linked-again.bin"]
+        let names = { (tree: ScanTree) in
+            tree.descendants(of: ScanTree.rootIndex) { _ in true }.filter { tree[$0].kind != .smallFiles }
+                .map { tree.displayPath(of: $0) }.filter { !links.contains($0) }.sorted()
+        }
+        #expect(names(bulk.tree) == names(fallback.tree))
+        for tree in [bulk.tree, fallback.tree] {
+            #expect(links.count { tree.index(ofPath: $0) != nil } == 1)
+        }
+        let tool = try #require(bulk.tree.index(ofPath: folder.path + "/Tool.app/Contents/MacOS/Tool"))
+        #expect(bulk.tree[tool].category == .application)
+        #expect(try bulk.tree[#require(bulk.tree.index(ofPath: folder.path + "/Tool.app"))].kind == .package)
+    }
+
+    @Test func exclusionsAndHiddenFilesFollowTheSettings() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("node_modules/pkg/index.js", size: 2_000_000)
+        try folder.file(".cache/blob", size: 2_000_000)
+        let kept = try folder.file("src/app.bin", size: 2_000_000)
+        var options = ScanOptions()
+        options.exclusions = ExclusionRules(["node_modules"], home: NSHomeDirectory())
+        options.includesHiddenFiles = false
+        let outcome = await scan(folder, options: options)
+        #expect(outcome.tree.root.size == allocated(kept))
+        let modules = try #require(outcome.tree.index(ofPath: folder.path + "/node_modules"))
+        #expect(outcome.tree[modules].flags.contains(.excluded))
+        #expect(outcome.tree.index(ofPath: folder.path + "/.cache") == nil)
+    }
+
+    @Test func aRefreshPicksUpWhatChanged() async throws {
+        let folder = try TemporaryFolder()
+        let stays = try folder.file("Work/stays.bin", size: 2_000_000)
+        let goes = try folder.file("Work/goes.bin", size: 3_000_000)
+        try folder.file("Work/Deep/deep.bin", size: 1_000_000)
+        let first = await scan(folder)
+        let work = try #require(first.tree.index(ofPath: folder.path + "/Work"))
+        try FileManager.default.removeItem(at: goes)
+        let added = try folder.file("Work/New/added.bin", size: 4_000_000)
+        let refreshed = await ScanEngine.refresh(
+            first.tree,
+            folders: [work],
+            recursive: [],
+            options: ScanOptions(),
+            cancellation: CancellationFlag()
+        )
+        let tree = refreshed.tree
+        let deep = try #require(tree.index(ofPath: folder.path + "/Work/Deep/deep.bin"))
+        #expect(tree.index(ofPath: goes.path) == nil)
+        #expect(tree.index(ofPath: added.path) != nil)
+        #expect(tree.root.size == allocated(stays) + allocated(added) + tree[deep].size)
+        #expect(tree.root.fileCount == 3)
+    }
+}
+
+/// Collects progress reports from the scanning threads.
+private final class ProgressLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var reports: [ScanProgress] = []
+
+    func add(_ report: ScanProgress) {
+        lock.withLock { reports.append(report) }
+    }
+
+    var all: [ScanProgress] {
+        lock.withLock { reports }
+    }
+}
