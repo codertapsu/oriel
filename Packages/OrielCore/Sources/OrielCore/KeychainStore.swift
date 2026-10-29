@@ -14,20 +14,31 @@ public struct KeychainStore: Sendable {
     }
 
     public func string(service: String, account: String = "default") -> String? {
+        (try? data(service: service, account: account)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// The item's bytes; nil only when there is no such item. A locked keychain, or access refused, throws, so a
+    /// caller never mistakes it for a missing item and replaces a key it could not read.
+    public func data(service: String, account: String = "default") throws -> Data? {
         var query = baseQuery(service: service, account: account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data
-        else {
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
             return nil
         }
-        return String(data: data, encoding: .utf8)
+        guard status == errSecSuccess, let data = result as? Data else { throw OrielError.keychain(status) }
+        return data
     }
 
     /// Stores `value`, or deletes the item when `value` is nil or empty.
     public func setString(_ value: String?, service: String, account: String = "default") throws {
+        try setData(value.map { Data($0.utf8) }, service: service, account: account)
+    }
+
+    /// Stores `value`, or deletes the item when `value` is nil or empty.
+    public func setData(_ value: Data?, service: String, account: String = "default") throws {
         let query = baseQuery(service: service, account: account)
         guard let value, !value.isEmpty else {
             let status = SecItemDelete(query as CFDictionary)
@@ -35,7 +46,7 @@ public struct KeychainStore: Sendable {
             return
         }
         let attributes: [String: Any] = [
-            kSecValueData as String: Data(value.utf8),
+            kSecValueData as String: value,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         var status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)

@@ -29,6 +29,13 @@ public enum AppPaths {
         applicationSupport.appending(path: "Recordings", directoryHint: .isDirectory)
     }
 
+    /// Clipboard History's encrypted store, one per bundle ID, because the Debug and release builds keep their keys
+    /// in separate keychain items (PLAN §7.9).
+    public static var clipboardHistory: URL {
+        applicationSupport.appending(path: "ClipboardHistory", directoryHint: .isDirectory)
+            .appending(path: Bundle.main.bundleIdentifier ?? "default", directoryHint: .isDirectory)
+    }
+
     /// Creates `url` (and its parents) if needed and returns it.
     @discardableResult
     public static func ensureDirectory(_ url: URL) throws -> URL {

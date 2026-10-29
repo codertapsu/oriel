@@ -19,4 +19,5 @@ public struct ModuleID: RawRepresentable, Hashable, Codable, Sendable, Expressib
     public static let recording: ModuleID = "recording"
     public static let translation: ModuleID = "translation"
     public static let editor: ModuleID = "editor"
+    public static let clipboardHistory: ModuleID = "clipboard-history"
 }
