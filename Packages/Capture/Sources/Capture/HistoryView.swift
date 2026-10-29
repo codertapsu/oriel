@@ -38,7 +38,9 @@ struct HistoryView: View {
 
     private var status: String {
         let shown = model.query.isEmpty ? "\(model.entries.count) captures" : "\(model.filtered.count) of \(model.entries.count)"
-        return model.isIndexing ? "\(shown) · reading text…" : shown
+        let pending = model.pendingCount
+        guard model.isIndexing, pending > 0 else { return shown }
+        return "\(shown) · reading text, \(pending) left"
     }
 
     @ViewBuilder private var content: some View {
@@ -54,7 +56,7 @@ struct HistoryView: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 180, maximum: 260), spacing: 14)], spacing: 14) {
                     ForEach(model.filtered) { entry in
-                        HistoryItemView(entry: entry, thumbnailURL: model.thumbnailURL(for: entry))
+                        HistoryItemView(entry: entry, thumbnailURL: model.thumbnailURL(for: entry), query: model.query)
                             .onTapGesture(count: 2) { model.perform?(.open, entry) }
                             .contextMenu { menu(for: entry) }
                             .onDrag { NSItemProvider(contentsOf: model.imageURL(for: entry)) ?? NSItemProvider() }

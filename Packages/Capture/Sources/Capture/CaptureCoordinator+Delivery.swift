@@ -150,7 +150,10 @@ extension CaptureCoordinator {
     }
 
     /// Reads the text of every capture history has not indexed yet, one at a time at utility QoS, so history can be
-    /// searched by it. One run at a time; a capture added meanwhile is picked up by the same run.
+    /// searched by it (PLAN §17). It runs after each capture and when the history window opens, which is how
+    /// captures kept before indexing existed are read: lazily, and once, since the text is stored with the entry
+    /// (empty when there is none, or when OCR failed). One run at a time; a capture added meanwhile is picked up by
+    /// the same run.
     func indexPendingHistory() {
         guard indexing == nil, let recognizer = textRecognizer else { return }
         let store = history
@@ -160,12 +163,25 @@ extension CaptureCoordinator {
             while !Task.isCancelled, let entry = await store.unindexed().first(where: { !tried.contains($0.id) }) {
                 tried.insert(entry.id)
                 guard let image = store.loadImage(for: entry) else { continue }
-                let blocks = await (try? recognizer.recognize(image, mode: .document, languages: [])) ?? []
-                try? await store.setRecognizedText(blocks.map(\.text).joined(separator: "\n"), for: entry.id)
+                let text = await Self.searchableText(in: image, using: recognizer)
+                try? await store.setRecognizedText(text, for: entry.id)
                 await self?.historyModel?.reload()
             }
             await self?.indexingFinished()
         }
+    }
+
+    /// The text of a capture for search: paragraphs (`OCRMode.document`), a tall or wide capture tile by tile.
+    nonisolated static func searchableText(in image: CGImage, using recognizer: any TextRecognizing) async -> String {
+        var texts: [String] = []
+        for tile in TextTiles.rects(width: image.width, height: image.height) {
+            guard let part = tile.size == CGSize(width: image.width, height: image.height) ? image : image.cropping(to: tile) else {
+                continue
+            }
+            let blocks = await (try? recognizer.recognize(part, mode: .document, languages: [])) ?? []
+            texts += blocks.map(\.text)
+        }
+        return texts.joined(separator: "\n")
     }
 
     func clearHistory() {
