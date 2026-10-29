@@ -20,6 +20,22 @@ struct ToolMetadataTests {
         #expect(EditorTool.select.drawsKind == nil && EditorTool.crop.drawsKind == nil)
     }
 
+    /// The symbols of the new chrome exist on this system.
+    @Test(arguments: [
+        "eye.slash", "text.redaction", "wand.and.stars", "photo.on.rectangle", "menubar.dock.rectangle", "photo.badge.plus",
+        "text.alignleft", "cube",
+        "square.dashed", "1.circle.fill", "1.square.fill", "slash.circle",
+    ])
+    func chromeSymbolsExist(_ name: String) {
+        #expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil)
+    }
+
+    @Test func categorySymbolsExist() {
+        for category in RedactionCategory.allCases {
+            #expect(NSImage(systemSymbolName: category.symbolName, accessibilityDescription: nil) != nil, "\(category)")
+        }
+    }
+
     @Test func paletteColoursHaveNames() {
         for entry in RGBAColor.palette {
             #expect(entry.color.paletteName == entry.name)

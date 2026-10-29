@@ -24,6 +24,8 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     let canvas: EditorCanvasView
     /// The background panel's model: pictures and saved presets.
     let backgroundTool: BackgroundTool
+    /// Smart Redact, Simplify and Smart Move; nil without an analyzer (tests).
+    let smartTools: SmartTools?
     let log = Log.logger("editor")
     /// The format picked in this window's last export panel.
     var exportFormat: EditorExportFormat
@@ -37,13 +39,16 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private let scrollView = NSScrollView()
     private var displayedCanvasSize: CGSize = .zero
 
-    /// - Parameter library: the saved backgrounds; nil hides them.
-    init(session: EditorSession, captureID: UUID? = nil, library: BackgroundLibrary? = nil) {
+    /// - Parameters:
+    ///   - library: the saved backgrounds; nil hides them.
+    ///   - analyzer: the smart tools' OCR and detection; nil hides the smart tools.
+    init(session: EditorSession, captureID: UUID? = nil, library: BackgroundLibrary? = nil, analyzer: SmartAnalyzer? = nil) {
         self.session = session
         self.captureID = captureID
         exportFormat = session.defaults.exportFormat
         canvas = EditorCanvasView(session: session)
         backgroundTool = BackgroundTool(session: session, library: library)
+        smartTools = analyzer.map { SmartTools(session: session, analyzer: $0) }
         container = CanvasContainerView(canvas: canvas)
         let size = Self.initialContentSize(for: session.layout.canvasSize, on: ScreenLocator.screenUnderMouse)
         let window = EditorWindow(
@@ -126,6 +131,10 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         case .zoomToFit: zoomToFit()
         case .actualSize: setZoom(1, anchor: nil)
         case .close: window?.performClose(nil)
+        case .smartRedact:
+            guard let smartTools, smartTools.canReadText else { return false }
+            session.commitPendingEdits()
+            smartTools.isRedactPresented = true
         }
         return true
     }
@@ -205,6 +214,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     func windowWillClose(_: Notification) {
+        smartTools?.endReview()
         removeQuickLookFile()
         session.onChange = nil
         session.effects.removeAll()
@@ -231,7 +241,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .underPageBackgroundColor
 
-        let toolbar = NSHostingView(rootView: EditorToolbar(session: session, background: backgroundTool))
+        let toolbar = NSHostingView(rootView: EditorToolbar(session: session, background: backgroundTool, smart: smartTools))
         let actionBar = NSHostingView(rootView: EditorActionBar(session: session, actions: makeActions()))
         toolbar.sizingOptions = []
         actionBar.sizingOptions = []

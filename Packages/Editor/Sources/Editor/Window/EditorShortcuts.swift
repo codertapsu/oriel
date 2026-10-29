@@ -5,7 +5,7 @@ import OrielCore
 ///
 /// Tool letters follow the characters typed (so they work on any layout); Delete, Escape, Return and the arrows
 /// follow key codes. ⌘-shortcuts: ⌘Z undo, ⇧⌘Z redo, ⌘C copy image, ⌘S save `.oriel`, ⌘E export, ⌘Y Quick Look,
-/// ⌘A select all, ⌘W close, ⌘= / ⌘- zoom, ⌘0 actual size, ⌘9 zoom to fit.
+/// ⌘A select all, ⌘W close, ⌘= / ⌘- zoom, ⌘0 actual size, ⌘9 zoom to fit, ⇧⌘R Smart Redact.
 nonisolated enum EditorShortcuts {
     /// Points an arrow key moves the selection, and with Shift.
     static let nudgeStep: CGFloat = 1
@@ -54,6 +54,7 @@ nonisolated enum EditorShortcuts {
         case "z": return shift ? .redo : .undo
         case "=", "+": return .zoomIn
         case "-": return .zoomOut
+        case "r" where shift: return .smartRedact
         default: break
         }
         guard !shift else { return nil }

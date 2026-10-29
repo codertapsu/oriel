@@ -46,6 +46,8 @@ final class EditorSession {
 
     @ObservationIgnored let undoManager: UndoManager
     @ObservationIgnored let effects = EffectCache()
+    /// What a smart tool's review panel would change, outlined on the canvas while it is open.
+    @ObservationIgnored var smartPreview: [SmartPreviewBox] = []
     /// Called after every change the canvas has to redraw for.
     @ObservationIgnored var onChange: (() -> Void)?
     @ObservationIgnored var gesture: ActiveGesture?

@@ -11,6 +11,8 @@ public final class EditorLauncher {
     private let settings: SettingsStore
     /// On-device OCR for the tools that find text in the image (Smart Redact, Simplify); nil leaves them out.
     let textRecognizer: (any TextRecognizing)?
+    /// The smart tools' OCR and detection, shared by every window so the text of an image is read once.
+    let analyzer: SmartAnalyzer
     /// The user's saved backgrounds.
     let library: BackgroundLibrary
     private var controllers: [EditorWindowController] = []
@@ -32,6 +34,7 @@ public final class EditorLauncher {
     public init(settings: SettingsStore, textRecognizer: (any TextRecognizing)? = nil) {
         self.settings = settings
         self.textRecognizer = textRecognizer
+        analyzer = SmartAnalyzer(recognizer: textRecognizer)
         library = BackgroundLibrary(settings: settings)
     }
 
@@ -107,7 +110,7 @@ public final class EditorLauncher {
     }
 
     private func present(_ session: EditorSession, captureID: UUID?) {
-        let controller = EditorWindowController(session: session, captureID: captureID, library: library)
+        let controller = EditorWindowController(session: session, captureID: captureID, library: library, analyzer: analyzer)
         controller.onUpload = onUpload
         controller.onClose = { [weak self] closed in
             self?.controllers.removeAll { $0 === closed }

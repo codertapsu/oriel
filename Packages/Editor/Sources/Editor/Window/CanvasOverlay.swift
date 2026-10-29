@@ -45,6 +45,39 @@ enum CanvasOverlay {
             context.fill(rect)
             context.stroke(rect.insetBy(dx: 0.5, dy: 0.5))
         }
+        drawSmartPreview(session.smartPreview.map { ($0, toView($0.rect)) }, context: context)
+    }
+
+    /// What a smart tool's review would change: tinted and outlined in the accent colour when it is included, a
+    /// dashed outline with a light halo (visible on any screenshot) when its category is switched off.
+    private static func drawSmartPreview(_ boxes: [(box: SmartPreviewBox, rect: CGRect)], context: CGContext) {
+        guard !boxes.isEmpty else { return }
+        context.saveGState()
+        defer { context.restoreGState() }
+        let accent = NSColor.controlAccentColor
+        for (box, rect) in boxes {
+            let outline = rect.insetBy(dx: -1.5, dy: -1.5)
+            let path = EditorRenderer.roundedRectPath(outline, radius: 3)
+            if box.isIncluded {
+                context.setFillColor(accent.withAlphaComponent(0.16).cgColor)
+                context.addPath(path)
+                context.fillPath()
+                context.setStrokeColor(accent.cgColor)
+                context.setLineWidth(1.5)
+                context.setLineDash(phase: 0, lengths: [])
+            } else {
+                context.setStrokeColor(CGColor(gray: 1, alpha: 0.85))
+                context.setLineWidth(3)
+                context.setLineDash(phase: 0, lengths: [])
+                context.addPath(path)
+                context.strokePath()
+                context.setStrokeColor(CGColor(gray: 0.25, alpha: 0.9))
+                context.setLineWidth(1)
+                context.setLineDash(phase: 0, lengths: [4, 3])
+            }
+            context.addPath(path)
+            context.strokePath()
+        }
     }
 
     private static func drawHandle(at point: CGPoint, color: CGColor, context: CGContext) {

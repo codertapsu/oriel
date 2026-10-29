@@ -24,4 +24,6 @@ nonisolated enum EditorCommand: Equatable, Sendable {
     case zoomToFit
     case actualSize
     case close
+    /// Opens Smart Redact's review.
+    case smartRedact
 }
