@@ -6,6 +6,9 @@ nonisolated enum CaptureSettings {
     static let prefix = "capture."
 
     static let afterCapture = SettingKey("capture.afterCapture", default: AfterCaptureAction.quickAccess)
+    /// Every interactive capture goes to the clipboard as well, whatever the after-capture action, so it is in
+    /// Clipboard History even when Quick Access is closed with Esc.
+    static let copiesToClipboard = SettingKey("capture.copiesToClipboard", default: true)
     /// A folder path; nil means the Desktop.
     static let saveFolder = SettingKey<String?>("capture.saveFolder", default: nil)
     static let filenameTemplate = SettingKey("capture.filenameTemplate", default: FilenameTemplate.defaultTemplate)

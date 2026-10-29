@@ -22,6 +22,10 @@ struct CaptureSettingsView: View {
                 Picker("After a capture", selection: settings.binding(CaptureSettings.afterCapture)) {
                     ForEach(AfterCaptureAction.allCases) { Text($0.title).tag($0) }
                 }
+                Toggle("Copy every capture to the clipboard", isOn: settings.binding(CaptureSettings.copiesToClipboard))
+                Text("It is also kept in Clipboard History, even when you close Quick Access with Esc.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker("Quick Access closes after", selection: settings.binding(CaptureSettings.quickAccessSeconds)) {
                     ForEach(CaptureSettings.quickAccessChoices, id: \.self) { seconds in
                         Text(seconds == 0 ? "Never" : "\(seconds) seconds").tag(seconds)

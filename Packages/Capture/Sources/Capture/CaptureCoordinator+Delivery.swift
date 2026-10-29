@@ -7,6 +7,8 @@ import SharedUI
 extension CaptureCoordinator {
     /// How many HDR images are kept for saving as HEIC.
     private static let hdrLimit = 4
+    /// What Clipboard History calls a capture.
+    private static let clipboardLabel = "Screenshot"
 
     func deliver(_ captured: CapturedImage) {
         let result = captured.result
@@ -17,15 +19,17 @@ extension CaptureCoordinator {
         if settings[CaptureSettings.flashes] {
             CaptureFeedback.flash(result.rect)
         }
+        // Onto the clipboard before anything else, so the capture is in Clipboard History however the card is closed.
+        let copied = settings[CaptureSettings.copiesToClipboard] && Pasteboard.copy(result.image, label: Self.clipboardLabel)
         switch captured.intent {
         case .copy:
-            copy(result)
+            copy(result, alreadyCopied: copied)
         case .save:
             saveShowingToast(result)
         case .capture, .alternate:
             switch settings[CaptureSettings.afterCapture] {
             case .quickAccess: present(result)
-            case .copy: copy(result)
+            case .copy: copy(result, alreadyCopied: copied)
             case .save: saveShowingToast(result)
             case .annotate: annotate(result)
             }
@@ -84,8 +88,9 @@ extension CaptureCoordinator {
         }
     }
 
-    func copy(_ result: CaptureResult) {
-        if Pasteboard.copy(result.image) {
+    /// Copies the capture and says so; `alreadyCopied` only says so, for a capture `deliver` has just copied.
+    func copy(_ result: CaptureResult, alreadyCopied: Bool = false) {
+        if alreadyCopied || Pasteboard.copy(result.image, label: Self.clipboardLabel) {
             Toast.show("Copied", symbol: "doc.on.doc")
         }
     }
