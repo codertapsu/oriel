@@ -228,9 +228,11 @@ final class SwitcherController {
             shortcutIndex: shortcutIndex,
             style: style,
             filter: shortcut.filter,
+            grouping: shortcut.grouping,
             context: context,
             screen: screen,
             windows: shortcut.filter.apply(to: entries, context: context),
+            hints: configuration.showsKeyHints ? KeyHint.windowActions(holding: shortcut.holdModifiers) : [],
             layout: LayoutCalculator.layout(
                 count: 0, style: style, metrics: .forStyle(style, thumbnailWidth: configuration.thumbnailWidth),
                 maximumSize: .zero, showsSearchBar: false
@@ -250,19 +252,26 @@ final class SwitcherController {
             style: session.style,
             query: session.query,
             displayNumbers: session.displayNumbers,
-            panelDisplayID: session.context.screenDisplayID
+            panelDisplayID: session.context.screenDisplayID,
+            grouping: session.grouping
         )
+        session.groups = session.isGrouped ? SwitcherItemBuilder.groups(of: session.items) : []
         session.layout = LayoutCalculator.layout(
             count: session.items.count,
             style: session.style,
             metrics: .forStyle(session.style, thumbnailWidth: configuration.thumbnailWidth),
             maximumSize: LayoutCalculator.maximumPanelSize(forVisibleFrame: session.screen.visibleFrame.size),
-            showsSearchBar: !session.query.isEmpty
+            showsSearchBar: !session.query.isEmpty,
+            groupStarts: session.isGrouped ? session.groups.map(\.items.lowerBound) : nil,
+            showsHints: !session.hints.isEmpty
         )
         session.version += 1
         self.session = session
         let preferred = windowID.flatMap { id in session.items.firstIndex { $0.id == id } } ?? selectingIndex
-        for effect in machine.setItems(count: session.items.count, columns: session.layout.columns, selecting: preferred) {
+        // Grouping moves the previous window away from the second place; the first selection follows it.
+        let initial = session.isGrouped ? SwitcherItemBuilder.initialSelection(in: session.items, windows: session.windows) : nil
+        let effects = machine.setItems(count: session.items.count, columns: session.layout.columns, selecting: preferred, initial: initial)
+        for effect in effects {
             applyModel(effect)
         }
     }

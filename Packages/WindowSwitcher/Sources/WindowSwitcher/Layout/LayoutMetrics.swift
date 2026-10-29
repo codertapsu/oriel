@@ -16,6 +16,10 @@ nonisolated struct LayoutMetrics: Sendable, Equatable {
     var searchBarHeight: CGFloat
     /// The panel when nothing matches.
     var emptySize: CGSize
+    /// An app's name in a grouped switcher: the band above each row of tiles, or the row above each group of titles.
+    var groupHeaderHeight: CGFloat = 22
+    /// The line of key hints under the tiles.
+    var footerHeight: CGFloat = 26
 
     func tileHeight(forWidth width: CGFloat) -> CGFloat {
         (width / imageAspectRatio).rounded(.down) + captionHeight
@@ -56,7 +60,9 @@ nonisolated struct LayoutMetrics: Sendable, Equatable {
         imageAspectRatio: 1,
         captionHeight: 30,
         searchBarHeight: 36,
-        emptySize: CGSize(width: 360, height: 120)
+        emptySize: CGSize(width: 360, height: 120),
+        // A little taller than a grid's band: the header also separates one group's rows from the last.
+        groupHeaderHeight: 26
     )
 
     static func forStyle(_ style: DisplayStyle, thumbnailWidth: CGFloat) -> LayoutMetrics {

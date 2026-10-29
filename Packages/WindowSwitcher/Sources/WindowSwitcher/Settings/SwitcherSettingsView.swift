@@ -37,6 +37,7 @@ struct SwitcherSettingsView: View {
                         .frame(maxWidth: 240)
                 }
                 Toggle("Show a full-size preview of the selected window", isOn: settings.binding(SwitcherSettingKeys.showsPreview))
+                Toggle("Show the keys that close, minimize and quit", isOn: settings.binding(SwitcherSettingKeys.showsKeyHints))
                 Picker("Show on", selection: settings.binding(SwitcherSettingKeys.placement)) {
                     ForEach(PanelPlacement.allCases) { placement in
                         Text(placement.title).tag(placement)

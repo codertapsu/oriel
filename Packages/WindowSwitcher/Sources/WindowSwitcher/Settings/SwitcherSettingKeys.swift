@@ -10,6 +10,8 @@ nonisolated enum SwitcherSettingKeys {
     /// The largest thumbnail tile, in points.
     static let thumbnailWidth = SettingKey("switcher.thumbnailWidth", default: 220.0)
     static let showsPreview = SettingKey("switcher.showsPreview", default: true)
+    /// The line under the tiles naming the keys that close, minimize, full-screen or quit (PLAN §7.1.4).
+    static let showsKeyHints = SettingKey("switcher.showsKeyHints", default: true)
     /// Which display the panel opens on (PLAN §7.1.3).
     static let placement = SettingKey("switcher.placement", default: PanelPlacement.pointer)
     static let gesturesEnabled = SettingKey("switcher.gesturesEnabled", default: false)

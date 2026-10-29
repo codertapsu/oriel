@@ -22,6 +22,13 @@ nonisolated struct SwitcherStateMachine: Sendable {
         case cancelled
     }
 
+    /// Where the selection starts in a list that is not in most-recent order (grouped by app): the indexes of the
+    /// window used before the current one, for forward, and of the least recent one, for backward.
+    nonisolated struct InitialSelection: Sendable, Equatable {
+        var forward: Int
+        var backward: Int
+    }
+
     /// kVK_ANSI_KeypadEnter.
     private static let keypadEnter: UInt16 = 76
 
@@ -88,13 +95,20 @@ nonisolated struct SwitcherStateMachine: Sendable {
     }
 
     /// The controller's answer to `.show` and `.search`, and to window changes while open. `preferred`
-    /// keeps a window selected across a re-rank; without it the selection is clamped.
-    mutating func setItems(count: Int, columns: Int, selecting preferred: Int? = nil) -> [SwitcherEffect] {
+    /// keeps a window selected across a re-rank; without it the selection is clamped. `initial` places the first
+    /// selection in a list that is not most recent first; without it the second item (or the last) is selected.
+    mutating func setItems(
+        count: Int,
+        columns: Int,
+        selecting preferred: Int? = nil,
+        initial: InitialSelection? = nil
+    ) -> [SwitcherEffect] {
         itemCount = max(0, count)
         self.columns = max(1, columns)
         guard phase == .open, var session else { return [] }
         if let direction = session.initialDirection {
-            session.selection = Self.initialSelection(count: itemCount, direction: direction)
+            let start = initial.map { direction == .forward ? $0.forward : $0.backward }
+            session.selection = start.map(clamp) ?? Self.initialSelection(count: itemCount, direction: direction)
             session.initialDirection = nil
         } else {
             session.selection = clamp(preferred ?? session.selection)

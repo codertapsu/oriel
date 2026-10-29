@@ -8,6 +8,7 @@ nonisolated struct SwitcherConfiguration: Sendable, Equatable {
     var style: DisplayStyle = .thumbnails
     var thumbnailWidth: CGFloat = 220
     var showsPreview = true
+    var showsKeyHints = true
     var placement: PanelPlacement = .pointer
     var gesturesEnabled = false
     var exceptions = AppException.defaults
@@ -26,6 +27,7 @@ nonisolated struct SwitcherConfiguration: Sendable, Equatable {
             style: settings[SwitcherSettingKeys.style],
             thumbnailWidth: CGFloat(settings[SwitcherSettingKeys.thumbnailWidth]),
             showsPreview: settings[SwitcherSettingKeys.showsPreview],
+            showsKeyHints: settings[SwitcherSettingKeys.showsKeyHints],
             placement: settings[SwitcherSettingKeys.placement],
             gesturesEnabled: settings[SwitcherSettingKeys.gesturesEnabled],
             exceptions: settings[SwitcherSettingKeys.exceptions],

@@ -45,6 +45,19 @@ struct AccessibilityTests {
         #expect(clicks == 1)
     }
 
+    @Test func groupHeadersAreHeadingsAndTheHintsAreRead() {
+        let header = GroupHeaderView(frame: CGRect(x: 0, y: 0, width: 300, height: 22))
+        header.configure(name: "Safari", icon: nil)
+        #expect(header.isAccessibilityElement())
+        #expect(header.accessibilityRole()?.rawValue == "AXHeading")
+        #expect(header.accessibilityLabel() == "Safari")
+        let hints = KeyHintView(frame: CGRect(x: 0, y: 0, width: 400, height: 26))
+        hints.update(KeyHint.windowActions(holding: .option))
+        #expect(hints.accessibilityLabel() == "⌥W Close, ⌥M Minimize, ⌥F Full Screen, ⌥Q Quit App")
+        #expect(KeyHintView.text(for: KeyHint.windowActions(holding: .command))
+            .string == "⌘W Close    ⌘M Minimize    ⌘F Full Screen    ⌘Q Quit App")
+    }
+
     @Test func hoverButtonsMatchTheWindowsState() {
         #expect(TileAction.actions(isMinimized: false) == [.close, .minimize, .toggleFullScreen])
         #expect(TileAction.actions(isMinimized: true) == [.close, .restore, .toggleFullScreen])

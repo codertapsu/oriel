@@ -27,7 +27,8 @@ final class TitleRowView: TileView {
         let text = NSMutableAttributedString(attributedString: HighlightedText.make(
             info.title, matches: item.titleMatches, font: .systemFont(ofSize: 13), color: .labelColor
         ))
-        if info.title != info.appName {
+        // Under a group header the app's name is already there.
+        if info.title != info.appName, item.showsAppName {
             text.append(NSAttributedString(string: "  "))
             text.append(HighlightedText.make(
                 info.appName,

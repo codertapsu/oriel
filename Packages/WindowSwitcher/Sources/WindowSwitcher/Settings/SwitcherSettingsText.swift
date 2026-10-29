@@ -1,8 +1,10 @@
 /// The explanations in the Window Switcher pane.
 nonisolated enum SwitcherSettingsText {
-    static let shortcuts = "Hold the modifiers and press the key to open the switcher; press it again to move on, and add the "
-        + "step-back modifier to move back. While it is open: arrows move, typing searches, Return switches, Esc "
-        + "cancels, W, M, F or Q with a modifier close, minimize, toggle full screen or quit, and 1–9 jump."
+    static let shortcuts = "Each shortcut shows all windows, the active app's, every window grouped by app, or the windows "
+        + "of the display it opens on. Hold the modifiers and press the key to open the switcher; press it again to move "
+        + "on, and add the step-back modifier to move back. While it is open: arrows move, typing searches, Return "
+        + "switches, Esc cancels, W, M, F or Q with the modifier held close, minimize, toggle full screen or quit the "
+        + "app, and 1–9 jump."
 
     static let needsScreenRecording = "Thumbnails and the preview need Screen & System Audio Recording. Without it the "
         + "switcher shows app icons and titles."

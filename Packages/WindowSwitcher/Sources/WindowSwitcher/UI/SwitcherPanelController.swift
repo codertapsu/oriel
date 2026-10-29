@@ -4,7 +4,7 @@ import SharedUI
 /// The switcher panel (PLAN §7.1.10): a `FloatingPanel` at `.popUpMenu`, non-activating, on the screen under
 /// the pointer, with glass (or the opaque accessibility fill) from `Material` and tiles placed by
 /// `LayoutCalculator`. It renders a `SwitcherSessionModel` and reports hover, clicks and hover actions.
-/// Tile views are reused between sessions of the same style.
+/// Tile views are reused between sessions of the same style, and group headers between renders.
 final class SwitcherPanelController {
     var onHover: ((Int) -> Void)?
     var onClick: ((Int) -> Void)?
@@ -14,6 +14,7 @@ final class SwitcherPanelController {
     private let background = Material.make(cornerRadius: 20)
     private let content = SwitcherContentView()
     private var tiles: [TileView] = []
+    private var headers: [GroupHeaderView] = []
     private var tileStyle: DisplayStyle?
     private var renderedToken: Int?
     private var renderedVersion: Int?
@@ -99,8 +100,10 @@ final class SwitcherPanelController {
             tile.onClick = { [weak self] in self?.onClick?(index) }
             tile.onAction = { [weak self] action in self?.onAction?(index, action) }
         }
+        reloadHeaders(model, icons: icons)
         content.layoutModel = model.layout
         content.searchBar.update(query: model.query, resultCount: model.items.count)
+        content.hints.update(model.hints)
         content.showEmpty(query: model.query)
         place(model)
         content.layoutSubtreeIfNeeded()
@@ -108,12 +111,30 @@ final class SwitcherPanelController {
         renderedSelection = nil
     }
 
+    /// One label per group, or per group and row in a grid; none unless the shortcut groups by app.
+    private func reloadHeaders(_ model: SwitcherSessionModel, icons: AppIconCache) {
+        let placements = model.layout.headerPlacements(for: model.groups.map(\.items))
+        while headers.count < placements.count {
+            let header = GroupHeaderView()
+            content.grid.addSubview(header)
+            headers.append(header)
+        }
+        while headers.count > placements.count {
+            headers.removeLast().removeFromSuperview()
+        }
+        for (header, placement) in zip(headers, placements) {
+            let group = model.groups[placement.group]
+            header.frame = placement.frame
+            header.configure(name: group.appName, icon: icons.icon(for: group.pid, bundleID: group.bundleID))
+        }
+    }
+
     private func select(_ index: Int, in layout: SwitcherLayout) {
         for (position, tile) in tiles.enumerated() {
             tile.isSelected = position == index
         }
         if tiles.indices.contains(index) {
-            content.grid.scrollToVisible(layout.frame(ofItem: index).insetBy(dx: 0, dy: -layout.padding))
+            content.grid.scrollToVisible(layout.revealRect(ofItem: index))
             NSAccessibility.post(element: tiles[index], notification: .focusedUIElementChanged)
         }
         renderedSelection = index

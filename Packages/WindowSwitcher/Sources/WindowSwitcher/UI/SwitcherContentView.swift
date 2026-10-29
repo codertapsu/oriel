@@ -1,11 +1,12 @@
 import AppKit
 
-/// The panel's content inside the glass: the search bar, the scrolling tile grid and the empty-state label,
-/// laid out from a `SwitcherLayout`.
+/// The panel's content inside the glass: the search bar, the scrolling tile grid with its group headers, the key
+/// hints and the empty-state label, laid out from a `SwitcherLayout`.
 final class SwitcherContentView: NSView {
     let searchBar = SearchBarView()
     let scrollView = NSScrollView()
     let grid = TileGridView()
+    let hints = KeyHintView()
     private let emptyLabel = NSTextField(labelWithString: "")
 
     var layoutModel: SwitcherLayout? {
@@ -25,7 +26,7 @@ final class SwitcherContentView: NSView {
         emptyLabel.alignment = .center
         emptyLabel.textColor = .secondaryLabelColor
         emptyLabel.font = .systemFont(ofSize: 14)
-        for view in [searchBar, scrollView, emptyLabel] as [NSView] {
+        for view in [searchBar, scrollView, hints, emptyLabel] as [NSView] {
             addSubview(view)
         }
     }
@@ -48,10 +49,13 @@ final class SwitcherContentView: NSView {
         guard let model = layoutModel else { return }
         searchBar.isHidden = model.searchBarHeight == 0
         searchBar.frame = CGRect(x: 0, y: 0, width: bounds.width, height: model.searchBarHeight)
-        let viewport = CGRect(x: 0, y: model.searchBarHeight, width: bounds.width, height: max(bounds.height - model.searchBarHeight, 0))
+        let viewportHeight = max(bounds.height - model.searchBarHeight - model.footerHeight, 0)
+        let viewport = CGRect(x: 0, y: model.searchBarHeight, width: bounds.width, height: viewportHeight)
         scrollView.frame = viewport
         scrollView.hasVerticalScroller = model.isScrolling
         grid.frame = CGRect(x: 0, y: 0, width: viewport.width, height: max(model.contentSize.height, viewport.height))
+        hints.isHidden = model.footerHeight == 0
+        hints.frame = CGRect(x: 0, y: viewport.maxY, width: bounds.width, height: model.footerHeight)
         emptyLabel.isHidden = model.count > 0
         emptyLabel.frame = CGRect(x: 16, y: viewport.midY - 10, width: max(bounds.width - 32, 0), height: 20)
     }

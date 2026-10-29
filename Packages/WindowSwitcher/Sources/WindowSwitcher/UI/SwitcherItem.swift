@@ -10,6 +10,8 @@ nonisolated struct SwitcherItem: Sendable, Equatable, Identifiable {
     var appMatches: [Int]
     var badges: [WindowBadge]
     var accessibilityLabel: String
+    /// Whether a title row repeats the app's name; not under a group header that already shows it.
+    var showsAppName = true
 
     var id: UInt32 {
         entry.id
