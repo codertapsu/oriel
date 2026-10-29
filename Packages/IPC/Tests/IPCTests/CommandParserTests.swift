@@ -51,8 +51,20 @@ struct CommandParserTests {
         #expect(try request(["debug", "clipboard", "--json"]).0.verb == "debug.clipboard")
     }
 
+    @Test func topIsAOneWordCommand() throws {
+        let (top, timeout) = try request(["top", "--sort", "memory", "--limit", "5", "--json"])
+        #expect(top.verb == "top")
+        #expect(top.options == ["sort": "memory", "limit": "5", "json": "true"])
+        #expect(timeout == 30)
+        #expect(try request(["top"]).0.verb == "top")
+    }
+
     @Test(arguments: [
-        ["frobnicate"], ["windows"], ["windows", "explode"], ["windows", "list", "--bogus"], ["windows", "focus", "--title"],
+        ["frobnicate"], ["windows"], ["top", "--bogus"], ["top", "--limit"], ["windows", "explode"], ["windows", "list", "--bogus"], [
+            "windows",
+            "focus",
+            "--title",
+        ],
         ["capture", "area", "--rect", "1,2,3"], ["capture", "area", "--delay", "0"], ["capture", "area", "--delay", "61"],
         ["capture", "area", "--delay", "2.5"], ["capture", "screen", "--delay"],
     ])

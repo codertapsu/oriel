@@ -3,7 +3,8 @@ import OrielCore
 
 /// Turns `oriel` arguments into an `IPCRequest` (PLAN §7.1.8), by hand: no swift-argument-parser.
 ///
-/// `oriel <noun> <verb> [arguments] [--option value] [--flag]` becomes the verb `noun.verb`.
+/// `oriel <noun> <verb> [arguments] [--option value] [--flag]` becomes the verb `noun.verb`; a command that is one word,
+/// such as `oriel top`, is its own verb.
 public enum CommandParser {
     public enum Outcome: Equatable, Sendable {
         case request(IPCRequest, timeout: TimeInterval)
@@ -23,9 +24,12 @@ public enum CommandParser {
         "debug": ["capabilities", "open-switcher", "capture", "record", "perf-capture", "clipboard"],
     ]
 
+    /// Commands without a verb.
+    public static let singleWordCommands: Set<String> = ["top"]
+
     static let valueOptions: Set<String> = [
         "space", "app", "title", "rect", "to", "path", "provider", "shortcut", "fixture", "timeout",
-        "seconds", "pause-at", "resume-at", "runs", "delay",
+        "seconds", "pause-at", "resume-at", "runs", "delay", "sort", "limit",
     ]
     static let flagOptions: Set<String> = ["json"]
 
@@ -34,14 +38,17 @@ public enum CommandParser {
         if noun == "--version" || noun == "-v" {
             return .version
         }
-        guard let verbs = commands[noun] else { throw ParseError(message: "unknown command '\(noun)'") }
-        guard arguments.count > 1, let verb = Optional(arguments[1]), verbs.contains(verb) else {
+        let isSingleWord = singleWordCommands.contains(noun)
+        guard isSingleWord || commands[noun] != nil else { throw ParseError(message: "unknown command '\(noun)'") }
+        let verbs = commands[noun] ?? []
+        guard isSingleWord || (arguments.count > 1 && verbs.contains(arguments[1])) else {
             let expected = verbs.sorted().joined(separator: "|")
             throw ParseError(message: "'\(noun)' needs one of: \(expected)")
         }
+        let verb = isSingleWord ? noun : "\(noun).\(arguments[1])"
         var positional: [String] = []
         var options: [String: String] = [:]
-        var index = 2
+        var index = isSingleWord ? 1 : 2
         while index < arguments.count {
             let argument = arguments[index]
             if argument.hasPrefix("--") {
@@ -66,7 +73,7 @@ public enum CommandParser {
         if let delay = options["delay"], Int(delay).map(delayRange.contains) != true {
             throw ParseError(message: "--delay must be whole seconds from \(delayRange.lowerBound) to \(delayRange.upperBound)")
         }
-        let request = IPCRequest(verb: "\(noun).\(verb)", arguments: positional, options: options)
+        let request = IPCRequest(verb: verb, arguments: positional, options: options)
         return .request(request, timeout: timeout(for: request))
     }
 

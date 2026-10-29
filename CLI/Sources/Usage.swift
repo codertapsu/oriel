@@ -14,6 +14,9 @@ enum Usage {
       oriel capture text [--rect x,y,w,h] [--json]       The text in an area, on stdout
       oriel translate area [--rect x,y,w,h] [--to <language>] [--provider <id>] [--json]
 
+    Activity Monitor
+      oriel top [--sort cpu|memory|disk|network] [--limit <n>] [--json]   The busiest processes now
+
     Diagnostics
       oriel debug capabilities --json
       oriel debug clipboard [--json]               Clipboard History's state, never its contents
