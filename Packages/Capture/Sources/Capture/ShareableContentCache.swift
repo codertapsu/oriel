@@ -37,12 +37,14 @@ final class ShareableContentCache {
         isStale = true
     }
 
-    /// The cached content, fetched again first when it is stale or `refresh` is true.
+    /// The cached content, fetched again first when it is stale or `refresh` is true. It lists the desktop's windows
+    /// too, so that the desktop icons and widgets can be left out of a capture (`desktopClutter(in:)`); window mode
+    /// never offers them, because they sit below every app window.
     func current(refresh: Bool = false) async throws -> SCShareableContent {
         if !refresh, !isStale, let content {
             return content
         }
-        let fresh = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+        let fresh = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         content = fresh
         isStale = false
         return fresh
@@ -58,6 +60,23 @@ final class ShareableContentCache {
             window.owningApplication?.processID == pid
                 && !isStatusItem(layer: window.windowLayer, frame: window.frame, menuBarTops: menuBarTops)
         }
+    }
+
+    /// Finder's desktop-icon windows and the desktop widgets (Settings → Capture → Hide desktop icons and widgets).
+    static func desktopClutter(in content: SCShareableContent) -> [SCWindow] {
+        content.windows.filter { window in
+            DesktopClutter.isIconOrWidget(
+                bundleID: window.owningApplication?.bundleIdentifier,
+                ownerName: window.owningApplication?.applicationName,
+                layer: window.windowLayer
+            )
+        }
+    }
+
+    /// What a capture leaves out: Oriel's own windows, and the desktop icons and widgets when `hidesDesktop` is on.
+    static func excludedWindows(in content: SCShareableContent, hidesDesktop: Bool) -> [SCWindow] {
+        let own = ownWindows(in: content)
+        return hidesDesktop ? own + desktopClutter(in: content) : own
     }
 
     /// A status-bar-level window no taller than a menu bar, at the top edge of a display.

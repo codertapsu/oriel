@@ -18,26 +18,40 @@ extension CaptureCoordinator {
     }
 
     /// Fetches the shareable content again (the start of a capture is when window frames must be current) and
-    /// captures every display at once, leaving Oriel's own windows out (PLAN §7.2, item 2). With Settings → Capture
-    /// → Freeze the screen while selecting off, it captures nothing yet: the overlay is see-through and the pick is
-    /// captured once it has gone.
-    func prepareSelection(keepsHDR: Bool) async throws -> SelectionScreens {
+    /// captures every display at once, leaving Oriel's own windows out (PLAN §7.2, item 2), and the desktop icons and
+    /// widgets when `hidesDesktop` is on. With Settings → Capture → Freeze the screen while selecting off, it captures
+    /// nothing yet: the overlay is see-through and the pick is captured once it has gone.
+    func prepareSelection(keepsHDR: Bool, hidesDesktop: Bool = false) async throws -> SelectionScreens {
         let content = try await cache.current(refresh: true)
         let windows = ShareableContentCache.windowTargets(in: content)
         guard settings[CaptureSettings.freezesScreen] else {
             let displays = content.displays.map { ScreenshotEngine.frame(of: $0) }
             guard !displays.isEmpty else { throw CaptureError.displayNotFound }
-            return SelectionScreens(displays: displays, frozen: [], windows: windows, content: content)
+            return SelectionScreens(displays: displays, frozen: [], windows: windows, content: content, hidesDesktop: hidesDesktop)
         }
         let options = ScreenshotEngine.Options(showsCursor: settings[CaptureSettings.showsCursor], keepsHDR: keepsHDR)
-        let frozen = await engine.freeze(content.displays, excluding: ShareableContentCache.ownWindows(in: content), options: options)
+        let excluded = ShareableContentCache.excludedWindows(in: content, hidesDesktop: hidesDesktop)
+        let frozen = await engine.freeze(content.displays, excluding: excluded, options: options)
         guard !frozen.isEmpty else { throw CaptureError.displayNotFound }
-        return SelectionScreens(displays: frozen.map(\.display), frozen: frozen, windows: windows, content: content)
+        return SelectionScreens(
+            displays: frozen.map(\.display),
+            frozen: frozen,
+            windows: windows,
+            content: content,
+            hidesDesktop: hidesDesktop
+        )
+    }
+
+    /// Settings → Capture → Hide desktop icons and widgets, for the captures that show the desktop: area, screen,
+    /// all displays and previous area. Selections for recording, translation and Instant Capture keep them, because
+    /// what they capture afterwards does.
+    var hidesDesktop: Bool {
+        settings[CaptureSettings.hidesDesktopIcons]
     }
 
     private func overlayCapture(_ mode: OverlayMode) async throws -> CapturedImage? {
         let interval = signposter.beginInterval("Capture to overlay")
-        let screens = try await prepareSelection(keepsHDR: keepsHDR)
+        let screens = try await prepareSelection(keepsHDR: keepsHDR, hidesDesktop: hidesDesktop)
         var configuration = OverlayConfiguration(mode: mode)
         configuration.showsMagnifier = settings[CaptureSettings.showsMagnifier]
         let overlay = FreezeFrameOverlay(backdrops: screens.backdrops, windows: screens.windows, configuration: configuration)
@@ -60,7 +74,7 @@ extension CaptureCoordinator {
 
     /// The display's frozen picture or, while the screen stays live, the display as it is now. The overlay has gone
     /// by then, and the content is fetched again so that every window of Oriel's, the overlay's included, is left out.
-    private func picture(of displayID: CGDirectDisplayID, in screens: SelectionScreens) async throws -> FrozenDisplay {
+    func picture(of displayID: CGDirectDisplayID, in screens: SelectionScreens) async throws -> FrozenDisplay {
         if let frozen = screens.frozenDisplay(displayID) {
             return frozen
         }
@@ -68,7 +82,8 @@ extension CaptureCoordinator {
         let content = try await cache.current(refresh: true)
         guard let display = content.displays.first(where: { $0.displayID == displayID }) else { throw CaptureError.displayNotFound }
         let options = ScreenshotEngine.Options(showsCursor: settings[CaptureSettings.showsCursor], keepsHDR: keepsHDR)
-        return try await engine.capture(display, excluding: ShareableContentCache.ownWindows(in: content), options: options)
+        let excluded = ShareableContentCache.excludedWindows(in: content, hidesDesktop: screens.hidesDesktop)
+        return try await engine.capture(display, excluding: excluded, options: options)
     }
 
     /// The pixels of `rect` from the frozen display, cropped in pixel space at the display's scale.
@@ -129,7 +144,8 @@ extension CaptureCoordinator {
             .first { $0.frame.intersects(stored.rect) }
         guard let display else { return try await overlayCapture(.area) }
         let options = ScreenshotEngine.Options(showsCursor: settings[CaptureSettings.showsCursor], keepsHDR: keepsHDR)
-        let frozen = try await engine.capture(display, excluding: ShareableContentCache.ownWindows(in: content), options: options)
+        let excluded = ShareableContentCache.excludedWindows(in: content, hidesDesktop: hidesDesktop)
+        let frozen = try await engine.capture(display, excluding: excluded, options: options)
         let windows = ShareableContentCache.windowTargets(in: content)
         return try crop(stored.rect, from: frozen, windows: windows, kind: .area, intent: .capture)
     }
@@ -138,7 +154,8 @@ extension CaptureCoordinator {
     private func allDisplaysCapture() async throws -> CapturedImage? {
         let content = try await cache.current(refresh: true)
         let options = ScreenshotEngine.Options(showsCursor: settings[CaptureSettings.showsCursor], keepsHDR: keepsHDR)
-        let frozen = await engine.freeze(content.displays, excluding: ShareableContentCache.ownWindows(in: content), options: options)
+        let excluded = ShareableContentCache.excludedWindows(in: content, hidesDesktop: hidesDesktop)
+        let frozen = await engine.freeze(content.displays, excluding: excluded, options: options)
         if frozen.count == 1, let only = frozen.first {
             let result = CaptureResult(image: only.image, kind: .screen, rect: only.display.frame, scale: only.display.scale)
             return CapturedImage(result: result, hdrImage: only.hdrImage, intent: .capture)

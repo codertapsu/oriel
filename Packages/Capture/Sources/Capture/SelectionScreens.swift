@@ -10,6 +10,8 @@ struct SelectionScreens {
     let frozen: [FrozenDisplay]
     let windows: [WindowTarget]
     let content: SCShareableContent
+    /// Whether the desktop icons and widgets were left out of the pictures, so a live pick leaves them out too.
+    let hidesDesktop: Bool
 
     var isLive: Bool {
         frozen.isEmpty

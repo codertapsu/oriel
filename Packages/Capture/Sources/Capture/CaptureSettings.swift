@@ -23,6 +23,9 @@ nonisolated enum CaptureSettings {
     /// pick is captured once the overlay has gone.
     static let freezesScreen = SettingKey("capture.freezesScreen", default: true)
     static let showsMagnifier = SettingKey("capture.showsMagnifier", default: true)
+    /// Leaves Finder's desktop icons and the desktop widgets out of area, screen and all-displays captures and of the
+    /// frozen screen, through the capture filter (`DesktopClutter`); Finder itself is never touched.
+    static let hidesDesktopIcons = SettingKey("capture.hidesDesktopIcons", default: false)
     /// Seconds before a Quick Access card goes away by itself; 0 keeps it until closed.
     static let quickAccessSeconds = SettingKey("capture.quickAccessSeconds", default: 10)
     static let quickAccessCorner = SettingKey("capture.quickAccessCorner", default: ScreenCorner.bottomRight)
