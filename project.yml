@@ -74,6 +74,13 @@ targets:
         LSMinimumSystemVersion: "26.0"
         NSMicrophoneUsageDescription: "Oriel records your microphone only during screen recordings you start."
         NSCameraUsageDescription: "Oriel shows your camera only in the recording overlay you enable."
+        # Disk Space Analyzer (PLAN §7.10): macOS asks the first time a scan reads one of these
+        NSDesktopFolderUsageDescription: "Oriel reads your Desktop folder only when you scan it or manage its files in Disk Space Analyzer."
+        NSDocumentsFolderUsageDescription: "Oriel reads your Documents folder only when you scan it or manage its files in Disk Space Analyzer."
+        NSDownloadsFolderUsageDescription: "Oriel reads your Downloads folder only when you scan it or manage its files in Disk Space Analyzer."
+        NSRemovableVolumesUsageDescription: "Oriel reads removable volumes only when you scan one or manage its files in Disk Space Analyzer."
+        NSNetworkVolumesUsageDescription: "Oriel reads network volumes only when you scan one or manage its files in Disk Space Analyzer."
+        NSFileProviderDomainUsageDescription: "Oriel reads your cloud storage folders only when you scan them in Disk Space Analyzer, and keeps synced settings in an Oriel folder in iCloud Drive when you turn on settings sync."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true      # Ollama / LM Studio / llama.cpp on localhost
           NSExceptionDomains:

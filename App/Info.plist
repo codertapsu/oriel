@@ -84,8 +84,20 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Oriel shows your camera only in the recording overlay you enable.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Oriel reads your Desktop folder only when you scan it or manage its files in Disk Space Analyzer.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Oriel reads your Documents folder only when you scan it or manage its files in Disk Space Analyzer.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Oriel reads your Downloads folder only when you scan it or manage its files in Disk Space Analyzer.</string>
+	<key>NSFileProviderDomainUsageDescription</key>
+	<string>Oriel reads your cloud storage folders only when you scan them in Disk Space Analyzer, and keeps synced settings in an Oriel folder in iCloud Drive when you turn on settings sync.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Oriel records your microphone only during screen recordings you start.</string>
+	<key>NSNetworkVolumesUsageDescription</key>
+	<string>Oriel reads network volumes only when you scan one or manage its files in Disk Space Analyzer.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>Oriel reads removable volumes only when you scan one or manage its files in Disk Space Analyzer.</string>
 	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
