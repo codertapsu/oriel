@@ -4,9 +4,9 @@ custom_rules:
   no_polling:
     name: "No polling"
     regex: "Timer\\.scheduledTimer|DispatchSource\\.makeTimerSource|Timer\\.publish"
-    message: "Polling is banned. Use observers/notifications. Allowed only inside Recording and ScrollingCapture sessions."
+    message: "Polling is banned. Use observers/notifications. Allowed only inside Recording, ScrollingCapture and Activity Monitor sampling sessions."
     severity: error
-    excluded: "Packages/(Recording|Capture)/Sources/.*Session\\.swift"
+    excluded: "Packages/(Recording|Capture|ActivityMonitor)/Sources/.*Session\\.swift"
   no_tcc_db:
     regex: "TCC\\.db|com\\.apple\\.TCC"
     message: "Never touch the TCC database."

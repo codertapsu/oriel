@@ -16,7 +16,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
    private-API signature came from in docs/provenance.md.
 2. All private symbols go through Packages/PrivateAPIs via dlsym and are Optional. Never link private
    frameworks directly. Every private call has a public fallback or a disabled-feature path.
-3. No polling: no Timer / DispatchSourceTimer outside an active Recording or ScrollingCapture session.
+3. No polling: no repeating Timer, DispatchSourceTimer or sleep loop outside an active Recording or ScrollingCapture
+   session, or while Activity Monitor's window is open (it samples only then). Everything else reacts to events.
 4. AppKit for overlays, panels, switcher and editor canvas. SwiftUI only for settings, onboarding, history,
    the translation panel and the language-pack download sheet.
 5. APIs newer than 26.0 (26.4 Translation strategy, anything 27-only, Apple Intelligence features) go
