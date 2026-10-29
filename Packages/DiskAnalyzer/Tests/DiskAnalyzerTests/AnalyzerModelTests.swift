@@ -1,0 +1,125 @@
+@testable import DiskAnalyzer
+import Foundation
+import OrielCore
+import Testing
+
+/// The window's model and the file lists' queries, without a window.
+@MainActor
+struct AnalyzerModelTests {
+    private func model(with tree: ScanTree) throws -> DiskAnalyzerModel {
+        let folder = try TemporaryFolder()
+        let model = try DiskAnalyzerModel(
+            settings: Fixtures.memorySettings(),
+            store: ScanSnapshotStore(directory: folder.url)
+        )
+        model.target = ScanTarget(requestedPath: tree.rootPath, scanPath: tree.rootPath, displayName: "Root", firmlinks: .empty)
+        model.phase = .ready(stopped: false)
+        model.adopt(tree)
+        return model
+    }
+
+    private let tree = Fixtures.tree([
+        "Movies/trip.mov": 8_000_000,
+        "Movies/Old/1999.avi": 3_000_000,
+        "Code/app/main.swift": 2_000_000,
+        "notes.pdf": 1_500_000,
+    ], small: ["Code": (count: 12, size: 400_000)])
+
+    @Test func aPlanTakesEachItemOnceAndNeverTheRootOrABlock() throws {
+        let model = try model(with: tree)
+        let movies = try #require(Fixtures.index("Movies", in: tree))
+        let trip = try #require(Fixtures.index("Movies/trip.mov", in: tree))
+        let code = try #require(Fixtures.index("Code", in: tree))
+        let small = try #require(tree.children(of: code).first { tree[$0].kind == .smallFiles })
+        let plan = try #require(model.plan(.trash, nodes: [trip, movies, ScanTree.rootIndex, small]))
+        #expect(plan.nodes == [movies])
+        #expect(plan.bytes == 11_000_000)
+        #expect(plan.operation.items.map(\.path) == ["/Root/Movies"])
+        #expect(model.plan(.trash, nodes: [small]) == nil)
+    }
+
+    @Test func goingIntoAndOutOfFolders() throws {
+        let model = try model(with: tree)
+        let movies = try #require(Fixtures.index("Movies", in: tree))
+        let trip = try #require(Fixtures.index("Movies/trip.mov", in: tree))
+        model.open(movies)
+        #expect(model.focus == movies)
+        #expect(model.breadcrumbs == [ScanTree.rootIndex, movies])
+        model.open(trip)
+        #expect(model.focus == movies)
+        #expect(model.selection == [trip])
+        model.goUp()
+        #expect(model.focus == ScanTree.rootIndex)
+        #expect(model.selection == [movies])
+        #expect(!model.canGoUp)
+    }
+
+    @Test func theFolderAndSelectionSurviveARenumberedTree() throws {
+        let model = try model(with: tree)
+        let movies = try #require(Fixtures.index("Movies", in: tree))
+        let old = try #require(Fixtures.index("Movies/Old", in: tree))
+        model.focus = movies
+        model.selection = [old]
+        var edited = tree
+        try edited.remove(#require(Fixtures.index("Code", in: tree)))
+        let compacted = edited.compacted()
+        model.adopt(compacted)
+        #expect(compacted.path(of: model.focus) == "/Root/Movies")
+        #expect(model.selection.map(compacted.path(of:)) == ["/Root/Movies/Old"])
+    }
+
+    @Test func aFolderThatWentAwayLeavesTheNearestOneShown() throws {
+        let model = try model(with: tree)
+        let old = try #require(Fixtures.index("Movies/Old", in: tree))
+        model.focus = old
+        var edited = tree
+        edited.remove(old)
+        model.adopt(edited)
+        #expect(model.focus == Fixtures.index("Movies", in: tree))
+    }
+
+    @Test func namesAndPathsAsTheUserKnowsThem() throws {
+        let model = try model(with: tree)
+        let code = try #require(Fixtures.index("Code", in: tree))
+        let small = try #require(tree.children(of: code).first { tree[$0].kind == .smallFiles })
+        #expect(model.displayName(of: small) == "12 smaller files")
+        #expect(model.displayPath(of: ScanTree.rootIndex) == "/Root")
+        #expect(model.content == .scan)
+        model.source = .volume("/Elsewhere")
+        #expect(model.content == .welcome)
+    }
+
+    @Test func biggestFilesAreSortedAndCut() {
+        var query = FileQuery(
+            mode: .biggest,
+            version: 0,
+            folder: ScanTree.rootIndex,
+            filter: FileFilter(),
+            sort: FileSort(),
+            search: "",
+            lastOpenedCount: 0
+        )
+        let result = query.run(in: tree, lastOpened: [:])
+        #expect(result.rows.map { tree.name(of: $0) } == ["trip.mov", "1999.avi", "main.swift", "notes.pdf"])
+        #expect(result.matches == 4)
+        #expect(result.bytes == 14_500_000)
+        query.filter.minimumSize = 2_500_000
+        #expect(query.run(in: tree, lastOpened: [:]).rows.count == 2)
+    }
+
+    @Test func searchResultsCountAFolderAndWhatIsInItOnce() {
+        let query = FileQuery(
+            mode: .search,
+            version: 0,
+            folder: ScanTree.rootIndex,
+            filter: FileFilter(),
+            sort: FileSort(),
+            search: "movies",
+            lastOpenedCount: 0
+        )
+        let tree = Fixtures.tree(["Movies/movies.txt": 2_000_000, "Movies/b.mov": 3_000_000])
+        let result = query.run(in: tree, lastOpened: [:])
+        #expect(result.matches == 2)
+        #expect(result.bytes == 5_000_000)
+    }
+}
