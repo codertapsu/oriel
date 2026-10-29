@@ -16,6 +16,7 @@ final class AppController {
     let keychain = Bundle.main.bundleIdentifier.map { KeychainStore(prefix: $0) } ?? KeychainStore()
     let hub: FeatureHub
     let registry: ModuleRegistry
+    let sync: SettingsSyncService
 
     private let hotkeys = CarbonHotkeyEngine()
     /// Shortcut conflicts by action or command id, for the Shortcuts pane.
@@ -29,6 +30,7 @@ final class AppController {
 
     init() {
         hub = FeatureHub(settings: settings, permissions: permissions, keychain: keychain)
+        sync = SettingsSyncService(settings: settings)
         registry = ModuleRegistry(
             settings: settings,
             services: ServiceContainer(keychain: keychain, permissions: permissions, textRecognizer: hub.textRecognizer),
@@ -47,13 +49,21 @@ final class AppController {
         registry.openSettings = { [weak self] id in self?.showSettings(tab: id.rawValue) }
         registry.enableNewDefaultModules()
         registerShortcuts()
+        sync.update()
         settingsObserver = NotificationCenter.default.addObserver(
             forName: SettingsStore.didChangeNotification, object: settings, queue: .main
         ) { [weak self] note in
             let name = note.userInfo?["key"] as? String ?? ""
+            let fromSync = note.userInfo?["origin"] as? String == "sync"
             MainActor.assumeIsolated {
                 if name.hasPrefix("shortcuts.") || name == AppSettings.enabledModules.name {
                     self?.registerShortcuts()
+                }
+                if name == AppSettings.enabledModules.name, fromSync {
+                    Task { await self?.registry.applyEnabledModules() }
+                }
+                if name == AppSettings.syncSettings.name {
+                    self?.sync.update()
                 }
             }
         }
@@ -68,6 +78,7 @@ final class AppController {
     }
 
     func shutdown() async {
+        sync.stop()
         await registry.deactivateAll()
         await hub.shutdown()
         ipcServer?.stop()

@@ -16,4 +16,12 @@ enum AppSettings {
     static let rosettaWarningShown = SettingKey("app.rosettaWarningShown", default: false)
     static let intelNoticeShown = SettingKey("app.intelNoticeShown", default: false)
     static let lastBootstrapImport = SettingKey<Date?>("app.lastBootstrapImport", default: nil)
+    /// Sync settings through iCloud (PLAN §7.16); off until the user turns it on.
+    static let syncSettings = SettingKey("app.syncSettings", default: false)
+    /// This Mac's random identifier in sync; never synced.
+    static let syncDeviceID = SettingKey<String?>("sync.deviceID", default: nil)
+    /// When each synced setting last changed on this Mac.
+    static let syncModified = SettingKey<[String: Date]>("sync.modified", default: [:])
+    /// Whether this Mac has synced once, so it brings its settings only if it was the first.
+    static let syncSeeded = SettingKey("sync.seeded", default: false)
 }

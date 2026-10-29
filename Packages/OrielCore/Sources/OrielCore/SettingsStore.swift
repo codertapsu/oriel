@@ -10,7 +10,8 @@ import SwiftUI
 @MainActor
 @Observable
 public final class SettingsStore {
-    /// Posted after every change. `userInfo["key"]` is the setting's name.
+    /// Posted after every change. `userInfo["key"]` is the setting's name; `userInfo["origin"]` is `"sync"` when the
+    /// value came from another Mac.
     public static let didChangeNotification = Notification.Name("com.codertapsu.oriel.settingsDidChange")
 
     private var revision = 0
@@ -55,12 +56,35 @@ public final class SettingsStore {
         didChange(prefix)
     }
 
+    /// A setting's stored JSON by name, for settings sync, which moves values without knowing their types.
+    public func storedJSON(named name: String) -> Data? {
+        defaults.data(forKey: name)
+    }
+
+    /// Stores JSON that came from another Mac, or removes the setting when `json` is nil. The change notification
+    /// says so, so the value is not sent back.
+    public func setStoredJSON(_ json: Data?, named name: String) {
+        if let json {
+            defaults.set(json, forKey: name)
+        } else {
+            defaults.removeObject(forKey: name)
+        }
+        didChange(name, origin: "sync")
+    }
+
+    /// The names of the settings stored here that satisfy `isIncluded`.
+    public func storedNames(where isIncluded: (String) -> Bool) -> [String] {
+        defaults.dictionaryRepresentation().keys.filter(isIncluded).sorted()
+    }
+
     public func binding<Value>(_ key: SettingKey<Value>) -> Binding<Value> {
         Binding(get: { self[key] }, set: { self[key] = $0 })
     }
 
-    private func didChange(_ name: String) {
+    private func didChange(_ name: String, origin: String? = nil) {
         revision &+= 1
-        NotificationCenter.default.post(name: Self.didChangeNotification, object: self, userInfo: ["key": name])
+        var info: [String: String] = ["key": name]
+        info["origin"] = origin
+        NotificationCenter.default.post(name: Self.didChangeNotification, object: self, userInfo: info)
     }
 }

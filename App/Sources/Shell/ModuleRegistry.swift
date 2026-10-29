@@ -69,6 +69,19 @@ final class ModuleRegistry {
         }
     }
 
+    /// Starts the modules that are on but not running and stops the ones that are off, after the setting changed
+    /// without `setEnabled`, as when settings sync brings another Mac's choice.
+    func applyEnabledModules() async {
+        for module in modules {
+            let id = type(of: module).id
+            if isEnabled(id) {
+                await activate(id)
+            } else {
+                await deactivate(id)
+            }
+        }
+    }
+
     func deactivateAll() async {
         for id in active {
             await deactivate(id)
