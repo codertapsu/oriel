@@ -50,12 +50,13 @@ extension CaptureCoordinator {
         }
     }
 
+    /// The pin commands that hand the capture on; the pin controller handles the rest.
     func perform(_ command: PinCommand, on result: CaptureResult) {
         switch command {
         case .copy: copy(result)
         case .save: saveShowingToast(result)
         case .annotate: annotate(result)
-        case .close, .toggleLock, .toggleClickThrough, .setOpacity, .changeOpacity: break
+        default: break
         }
     }
 
@@ -223,7 +224,8 @@ extension CaptureCoordinator {
     }
 
     func makePins() -> PinController {
-        let controller = PinController()
+        let permissions = permissions
+        let controller = PinController { permissions.status(of: .accessibility) == .granted }
         controller.perform = { [weak self] command, result in
             self?.perform(command, on: result)
         }

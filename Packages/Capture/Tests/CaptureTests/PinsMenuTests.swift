@@ -1,9 +1,10 @@
+import AppKit
 @testable import Capture
 import CoreGraphics
 import OrielCore
 import Testing
 
-/// The status menu's Pinned submenu (PLAN §10.1).
+/// The status menu's Pinned submenu and a pin's own commands (PLAN §10.1, §17).
 @MainActor
 struct PinsMenuTests {
     private func result(kind: CaptureKind = .area, appName: String? = nil, windowTitle: String? = nil) throws -> CaptureResult {
@@ -15,6 +16,10 @@ struct PinsMenuTests {
             windowTitle: windowTitle,
             appName: appName
         )
+    }
+
+    private func menu(_ entries: [PinsMenu.Entry]) -> NSMenu? {
+        PinsMenu.make(for: entries, perform: { _, _ in }, stopClickThrough: {}, closeAll: {})
     }
 
     @Test func titlesNameTheSourceThenTheTime() throws {
@@ -32,9 +37,45 @@ struct PinsMenuTests {
     }
 
     @Test func nothingPinnedMeansNoMenu() throws {
-        #expect(PinsMenu.make(for: [], reveal: { _ in }, closeAll: {}) == nil)
-        let menu = try #require(try PinsMenu.make(for: [result(appName: "Safari"), result()], reveal: { _ in }, closeAll: {}))
-        #expect(menu.items.count == 4) // two pins, a separator, Close All Pins
-        #expect(menu.items.last?.title == "Close All Pins")
+        #expect(menu([]) == nil)
+        let pinned = try #require(try menu([
+            PinsMenu.Entry(result: result(appName: "Safari"), state: PinState()),
+            PinsMenu.Entry(result: result(), state: PinState()),
+        ]))
+        #expect(pinned.items.count == 4) // two pins, a separator, Close All Pins
+        #expect(pinned.items.last?.title == "Close All Pins")
+        #expect(pinned.items.first?.submenu?.items.first?.title == "Bring to Front")
+    }
+
+    @Test func aClickThroughPinCanAlwaysBeTurnedBack() throws {
+        var through = PinState()
+        through.isClickThrough = true
+        through.setOpacity(0.6)
+        let pinned = try #require(try menu([
+            PinsMenu.Entry(result: result(appName: "Safari"), state: through),
+            PinsMenu.Entry(result: result(appName: "Xcode"), state: PinState()),
+        ]))
+        #expect(pinned.items.map(\.title).suffix(2) == ["Stop Click-Through on All Pins", "Close All Pins"])
+        #expect(pinned.items.first?.subtitle == "Click-through · 60 %")
+        #expect(pinned.items[1].subtitle == nil)
+        let toggle = pinned.items.first?.submenu?.items.first { $0.title == "Click-Through" }
+        #expect(toggle?.state == .on)
+    }
+
+    @Test func aPinsCommandsShowItsState() {
+        var state = PinState()
+        state.isLocked = true
+        state.showsBorder = false
+        let items = PinsMenu.commandItems(for: state) { _ in }
+        #expect(items.first?.view is PinOpacitySlider)
+        let byTitle = Dictionary(items.map { ($0.title, $0) }, uniquingKeysWith: { first, _ in first })
+        #expect(byTitle["Click-Through"]?.state == .off)
+        #expect(byTitle["Lock Position"]?.state == .on)
+        #expect(byTitle["Border and Shadow"]?.state == .off)
+        for title in ["Zoom In", "Zoom Out", "Actual Size", "Copy", "Save", "Annotate", "Close"] {
+            #expect(byTitle[title] != nil)
+        }
+        #expect(byTitle["Copy"]?.keyEquivalent == "c")
+        #expect(PinsMenu.subtitle(for: state) == "Locked")
     }
 }

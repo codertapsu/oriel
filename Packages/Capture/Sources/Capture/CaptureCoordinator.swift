@@ -140,17 +140,19 @@ public final class CaptureCoordinator {
         return destination
     }
 
-    /// Pins `result` to the screen: a floating panel with opacity, click-through and a lock.
+    /// Pins `result` to the screen: a floating panel with opacity, zoom, click-through, a lock and a border.
     public func pin(_ result: CaptureResult) {
         pins.pin(result)
     }
 
-    /// The status menu's Pinned submenu: each pinned capture, to bring it to the front, and Close All Pins. Nil
-    /// while nothing is pinned.
+    /// The status menu's Pinned submenu: each pinned capture with its commands (Bring to Front, opacity,
+    /// click-through and the rest), Stop Click-Through on All Pins while one is, and Close All Pins. Nil while nothing
+    /// is pinned.
     public func makePinnedMenu() -> NSMenu? {
         PinsMenu.make(
-            for: pins.results,
-            reveal: { [weak self] id in self?.pins.reveal(id) },
+            for: pins.entries,
+            perform: { [weak self] id, command in self?.pins.perform(command, on: id) },
+            stopClickThrough: { [weak self] in self?.pins.stopClickThroughOnAllPins() },
             closeAll: { [weak self] in self?.pins.closeAll() }
         )
     }
