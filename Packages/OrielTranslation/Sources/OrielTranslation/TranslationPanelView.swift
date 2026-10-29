@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The side panel (PLAN §7.7.6): source and translation for every block, copy all or one, swap languages, translate
-/// again with another provider or glossary, export.
+/// again with another provider or glossary, export. A file dropped on it opens in the file translation window.
 struct TranslationPanelView: View {
     struct Actions {
         var selectProvider: @MainActor (ProviderID) -> Void
@@ -11,11 +11,14 @@ struct TranslationPanelView: View {
         var copyAll: @MainActor () -> Void
         var copy: @MainActor (String) -> Void
         var export: @MainActor (TranslationExporter.Format) -> Void
+        var openFiles: @MainActor ([URL]) -> Void
     }
 
     let model: TranslationSessionModel
     let glossaries: GlossaryLibraryModel
     let actions: Actions
+
+    @State private var isDropTarget = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +39,25 @@ struct TranslationPanelView: View {
                 .padding(10)
         }
         .frame(minWidth: 340, minHeight: 280)
+        .overlay {
+            if isDropTarget {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .overlay {
+                        Label("Translate the File", systemImage: "doc.text")
+                            .padding(10)
+                            .background(.regularMaterial, in: Capsule())
+                    }
+                    .padding(4)
+                    .allowsHitTesting(false)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            let files = urls.filter(\.isFileURL)
+            guard !files.isEmpty else { return false }
+            actions.openFiles(files)
+            return true
+        } isTargeted: { isDropTarget = $0 }
     }
 
     private var header: some View {

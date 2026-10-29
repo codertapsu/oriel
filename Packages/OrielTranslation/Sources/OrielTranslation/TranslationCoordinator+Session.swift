@@ -268,7 +268,8 @@ extension TranslationCoordinator {
             export: { [weak self, weak model] format in
                 guard let model else { return }
                 self?.export(model, as: format)
-            }
+            },
+            openFiles: { [weak self] urls in self?.translateFiles(urls) }
         )
     }
 

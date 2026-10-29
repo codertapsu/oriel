@@ -37,6 +37,13 @@ public final class TranslationCoordinator {
     private var historyWindow: TranslationHistoryWindowController?
     private var settingsModel: TranslationSettingsModel?
 
+    /// File translation (PLAN §17): one window, translating one file at a time.
+    var fileModel: FileTranslationModel?
+    var fileWindow: FileTranslationWindowController?
+    var fileTask: Task<Void, Never>?
+    /// Numbers file translations, so only the latest one changes the window.
+    var fileGeneration = 0
+
     /// - Parameters:
     ///   - settings: where provider settings, languages, usage counters and history preferences live.
     ///   - keychain: where API keys live (service `provider.<id>`).
