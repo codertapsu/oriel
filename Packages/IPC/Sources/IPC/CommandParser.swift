@@ -22,6 +22,7 @@ public enum CommandParser {
         "capture": ["area", "window", "screen", "text"],
         "translate": ["area"],
         "debug": ["capabilities", "open-switcher", "capture", "record", "perf-capture", "clipboard"],
+        "disk": ["volumes", "scan"],
     ]
 
     /// Commands without a verb.
@@ -29,7 +30,7 @@ public enum CommandParser {
 
     static let valueOptions: Set<String> = [
         "space", "app", "title", "rect", "to", "path", "provider", "shortcut", "fixture", "timeout",
-        "seconds", "pause-at", "resume-at", "runs", "delay", "sort", "limit",
+        "seconds", "pause-at", "resume-at", "runs", "delay", "sort", "limit", "top",
     ]
     static let flagOptions: Set<String> = ["json"]
 
@@ -88,13 +89,17 @@ public enum CommandParser {
     }
 
     /// Interactive commands wait for the user to select something, so they get ten minutes; a scripted recording
-    /// gets its length plus a minute to save the movie; a capture's `--delay` is added to its time.
+    /// gets its length plus a minute to save the movie; a capture's `--delay` is added to its time. A disk scan reads
+    /// a whole folder or volume, which can take minutes, so it gets ten too.
     static func timeout(for request: IPCRequest) -> TimeInterval {
         if let explicit = request.options["timeout"].flatMap(TimeInterval.init) {
             return explicit
         }
         if request.verb == "debug.record", let seconds = request.options["seconds"].flatMap(TimeInterval.init) {
             return seconds + 60
+        }
+        if request.verb == "disk.scan" {
+            return 600
         }
         let interactive = (request.verb.hasPrefix("capture.") || request.verb == "translate.area") && request.options["rect"] == nil
         let delay = request.options["delay"].flatMap(TimeInterval.init) ?? 0

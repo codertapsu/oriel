@@ -17,6 +17,10 @@ enum Usage {
     Activity Monitor
       oriel top [--sort cpu|memory|disk|network] [--limit <n>] [--json]   The busiest processes now
 
+    Disk Space Analyzer (read-only)
+      oriel disk volumes [--json]
+      oriel disk scan <path> [--top <n>] [--json]   The largest items in a folder or volume
+
     Diagnostics
       oriel debug capabilities --json
       oriel debug clipboard [--json]               Clipboard History's state, never its contents

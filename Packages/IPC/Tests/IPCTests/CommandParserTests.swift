@@ -59,6 +59,15 @@ struct CommandParserTests {
         #expect(try request(["top"]).0.verb == "top")
     }
 
+    @Test func aDiskScanHasTimeToReadAWholeVolume() throws {
+        let (scan, timeout) = try request(["disk", "scan", "/Volumes/Backup", "--top", "20", "--json"])
+        #expect(scan.verb == "disk.scan")
+        #expect(scan.arguments == ["/Volumes/Backup"])
+        #expect(scan.options == ["top": "20", "json": "true"])
+        #expect(timeout == 600)
+        #expect(try request(["disk", "volumes", "--json"]).1 == 30)
+    }
+
     @Test(arguments: [
         ["frobnicate"], ["windows"], ["top", "--bogus"], ["top", "--limit"], ["windows", "explode"], ["windows", "list", "--bogus"], [
             "windows",
@@ -66,7 +75,7 @@ struct CommandParserTests {
             "--title",
         ],
         ["capture", "area", "--rect", "1,2,3"], ["capture", "area", "--delay", "0"], ["capture", "area", "--delay", "61"],
-        ["capture", "area", "--delay", "2.5"], ["capture", "screen", "--delay"],
+        ["capture", "area", "--delay", "2.5"], ["capture", "screen", "--delay"], ["disk", "clean"], ["disk", "scan", "--top"],
     ])
     func badInputIsAUsageError(_ arguments: [String]) {
         #expect(throws: CommandParser.ParseError.self) { try CommandParser.parse(arguments) }
