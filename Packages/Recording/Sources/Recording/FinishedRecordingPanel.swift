@@ -191,9 +191,7 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
     }
 
     @objc private func copyFile(_: Any?) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        if pasteboard.writeObjects([movie as NSURL]) {
+        if Pasteboard.copy(fileURLs: [movie]) {
             Toast.show("Copied", symbol: "doc.on.doc")
         }
     }

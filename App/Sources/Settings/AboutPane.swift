@@ -1,4 +1,5 @@
 import AppKit
+import SharedUI
 import SwiftUI
 
 struct AboutPane: View {
@@ -24,8 +25,7 @@ struct AboutPane: View {
                     .textSelection(.enabled)
             }
             Button("Copy update command") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString("brew upgrade --cask oriel", forType: .string)
+                Pasteboard.copy("brew upgrade --cask oriel")
             }
         }
         .padding(24)

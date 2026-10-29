@@ -1,4 +1,5 @@
 import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Diagnostics, the command-line tool, the shared configuration and uninstall (PLAN §3.2, §7.1.8, §7.7.5, §15.8).
@@ -82,8 +83,7 @@ struct AdvancedPane: View {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? encoder.encode(capabilities), let text = String(data: data, encoding: .utf8) {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
+            Pasteboard.copy(text)
         }
     }
 }
