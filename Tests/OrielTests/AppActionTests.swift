@@ -1,5 +1,6 @@
 import Foundation
 @testable import Oriel
+import OrielCore
 import Testing
 
 /// The status menu's actions: their `oriel://` URLs and global shortcuts (PLAN §7.2, §10.1).
@@ -14,6 +15,7 @@ struct AppActionTests {
         ("oriel://record/screen", "recordScreen"),
         ("oriel://record/stop", "stopRecording"),
         ("oriel://settings", "showSettings"),
+        ("oriel://clipboard", "showClipboardHistory"),
     ])
     func urlsNameTheirActions(_ address: String, _ action: String) throws {
         #expect(try AppAction(url: #require(URL(string: address)))?.rawValue == action)
@@ -31,5 +33,21 @@ struct AppActionTests {
             #expect(AppAction.shortcutActions.contains(action))
             #expect(action.defaultShortcut == nil)
         }
+    }
+
+    /// ⌥V, as asked for, and only while Clipboard History is on.
+    @Test func clipboardHistoryOpensWithOptionVAndBelongsToItsModule() {
+        let action = AppAction.showClipboardHistory
+        #expect(AppAction.shortcutActions.contains(action))
+        #expect(action.defaultShortcut == KeyCombo(keyCode: KeyCode.ansiV, modifiers: .option))
+        #expect(action.defaultShortcut?.description == "⌥V")
+        #expect(action.module == .clipboardHistory)
+        #expect(AppAction.captureArea.module == nil)
+    }
+
+    /// Every default shortcut is different, so none of them fails to register because of another.
+    @Test func defaultShortcutsDoNotCollide() {
+        let defaults = AppAction.shortcutActions.compactMap(\.defaultShortcut)
+        #expect(Set(defaults).count == defaults.count)
     }
 }

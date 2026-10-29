@@ -7,6 +7,7 @@ enum AppAction: String, CaseIterable, Identifiable {
     case captureArea, captureWindow, captureScreen, captureScrolling, capturePreviousArea, captureWithTimer, captureAllDisplays
     case recordArea, recordWindow, recordScreen, stopRecording
     case translateArea
+    case showClipboardHistory
     case showCaptureHistory, showTranslationHistory, openImage
     case showSettings, showOnboarding, quit
 
@@ -28,6 +29,7 @@ enum AppAction: String, CaseIterable, Identifiable {
         case .recordScreen: "Record Screen"
         case .stopRecording: "Stop Recording"
         case .translateArea: "Translate Area"
+        case .showClipboardHistory: "Clipboard History"
         case .showCaptureHistory: "Capture History"
         case .showTranslationHistory: "Translation History"
         case .openImage: "Open Image in Editor…"
@@ -51,6 +53,7 @@ enum AppAction: String, CaseIterable, Identifiable {
         case .recordScreen: "menubar.dock.rectangle.badge.record"
         case .stopRecording: "stop.circle"
         case .translateArea: "character.bubble"
+        case .showClipboardHistory: "list.clipboard"
         case .showCaptureHistory: "clock.arrow.circlepath"
         case .showTranslationHistory: "text.bubble"
         case .openImage: "photo"
@@ -60,10 +63,12 @@ enum AppAction: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The default global shortcut, ⌃⇧ plus a key (PLAN §7.2, §10.5), for the actions that have one.
+    /// The default global shortcut, ⌃⇧ plus a key (PLAN §7.2, §10.5), for the actions that have one; Clipboard History
+    /// opens with ⌥V (PLAN §7.9).
     var defaultShortcut: KeyCombo? {
         let controlShift: KeyCombo.Modifiers = [.control, .shift]
         return switch self {
+        case .showClipboardHistory: KeyCombo(keyCode: KeyCode.ansiV, modifiers: .option)
         case .captureArea: KeyCombo(keyCode: KeyCode.ansi4, modifiers: controlShift)
         case .captureWindow: KeyCombo(keyCode: KeyCode.ansi5, modifiers: controlShift)
         case .captureScreen: KeyCombo(keyCode: KeyCode.ansi3, modifiers: controlShift)
@@ -77,8 +82,14 @@ enum AppAction: String, CaseIterable, Identifiable {
     /// Actions that can have a global shortcut, in Settings order.
     static let shortcutActions: [AppAction] = [
         .captureArea, .captureWindow, .captureScreen, .captureScrolling, .capturePreviousArea, .captureWithTimer,
-        .captureAllDisplays, .recordArea, .recordWindow, .recordScreen, .translateArea, .showCaptureHistory,
+        .captureAllDisplays, .recordArea, .recordWindow, .recordScreen, .translateArea, .showClipboardHistory, .showCaptureHistory,
     ]
+
+    /// The tool an action belongs to: while it is turned off, the action's shortcut is not registered, so it keeps no
+    /// key from other apps.
+    var module: ModuleID? {
+        self == .showClipboardHistory ? .clipboardHistory : nil
+    }
 
     var shortcutKey: SettingKey<KeyCombo?> {
         SettingKey("shortcuts.\(rawValue)", default: defaultShortcut)
@@ -93,7 +104,8 @@ enum AppAction: String, CaseIterable, Identifiable {
             "capture/scrolling": .captureScrolling, "capture/previous": .capturePreviousArea, "capture/timer": .captureWithTimer,
             "capture/all": .captureAllDisplays, "record/area": .recordArea, "record/window": .recordWindow,
             "record/screen": .recordScreen, "record/stop": .stopRecording,
-            "translate/area": .translateArea, "history": .showCaptureHistory, "settings": .showSettings,
+            "translate/area": .translateArea, "clipboard": .showClipboardHistory, "history": .showCaptureHistory,
+            "settings": .showSettings,
         ]
         guard let action = routes[path] else { return nil }
         self = action

@@ -48,6 +48,7 @@ struct CommandParserTests {
         #expect(record.options == ["seconds": "10", "pause-at": "3", "resume-at": "5"])
         #expect(timeout == 70)
         #expect(try request(["debug", "perf-capture", "--runs", "20", "--json"]).0.options == ["runs": "20", "json": "true"])
+        #expect(try request(["debug", "clipboard", "--json"]).0.verb == "debug.clipboard")
     }
 
     @Test(arguments: [

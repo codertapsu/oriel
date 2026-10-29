@@ -1,4 +1,5 @@
 import Capture
+import ClipboardHistory
 import Editor
 import Foundation
 import Hotkeys
@@ -19,7 +20,7 @@ enum SelfTest {
     /// One name per linked package, in the order of PLAN §6.2.
     static let packageNames = [
         "OrielCore", "PrivateAPIs", "Permissions", "Hotkeys", "SharedUI", "IPC", "WindowSwitcher",
-        "Capture", "Recording", "Editor", "OCR", "OrielTranslation", "Upload",
+        "Capture", "Recording", "Editor", "OCR", "OrielTranslation", "Upload", "ClipboardHistory",
     ]
 
     /// A type from each package, so the linker keeps every module and the self-test proves it loads.
@@ -27,6 +28,7 @@ enum SelfTest {
         Capabilities.self, PrivateAPIs.self, PermissionCenter.self, CarbonHotkeyEngine.self, FloatingPanel.self,
         IPCServer.self, WindowSwitcherModule.self, CaptureCoordinator.self, RecordingCoordinator.self,
         EditorLauncher.self, VisionTextRecognizer.self, TranslationCoordinator.self, S3Uploader.self,
+        ClipboardHistoryModule.self,
     ]
 
     static func run() -> Int32 {

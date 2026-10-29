@@ -63,7 +63,8 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(item(.translateArea))
         menu.addItem(.separator())
-        for action in [AppAction.showCaptureHistory, .showTranslationHistory, .openImage] where controller.hub.isAvailable(action) {
+        let histories = [AppAction.showClipboardHistory, .showCaptureHistory, .showTranslationHistory, .openImage]
+        for action in histories where controller.hub.isAvailable(action) {
             menu.addItem(item(action))
         }
         menu.addItem(pinnedItem())

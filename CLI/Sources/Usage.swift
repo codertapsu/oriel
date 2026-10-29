@@ -15,6 +15,7 @@ enum Usage {
 
     Diagnostics
       oriel debug capabilities --json
+      oriel debug clipboard [--json]               Clipboard History's state, never its contents
       oriel debug open-switcher --shortcut <n>     (Debug builds)
       oriel debug capture --fixture <png>          (Debug builds)
       oriel debug record --seconds <n> [--pause-at <s> --resume-at <s>]   (Debug builds)

@@ -43,13 +43,18 @@ final class AppController {
         LaunchChecks.showArchitectureNotices(settings: settings)
         statusMenu = StatusMenuController(controller: self)
         hub.onRecordingChange = { [weak self] recording in self?.statusMenu?.showRecording(recording) }
+        hub.clipboard.openSettings = { [weak self] in self?.showSettings(tab: "clipboard") }
+        hub.clipboard.shortcutDescription = { [weak self] in
+            self.flatMap { $0.settings[AppAction.showClipboardHistory.shortcutKey] }?.description
+        }
+        registry.enableNewDefaultModules()
         registerShortcuts()
         settingsObserver = NotificationCenter.default.addObserver(
             forName: SettingsStore.didChangeNotification, object: settings, queue: .main
         ) { [weak self] note in
             let name = note.userInfo?["key"] as? String ?? ""
             MainActor.assumeIsolated {
-                if name.hasPrefix("shortcuts.") {
+                if name.hasPrefix("shortcuts.") || name == AppSettings.enabledModules.name {
                     self?.registerShortcuts()
                 }
             }
@@ -123,11 +128,12 @@ final class AppController {
 
     // MARK: Shortcuts
 
-    /// Registers every action's global shortcut with Carbon; conflicts are kept for the Shortcuts pane.
+    /// Registers every action's global shortcut with Carbon; conflicts are kept for the Shortcuts pane. A tool's
+    /// shortcut is registered only while the tool is on.
     func registerShortcuts() {
         hotkeys.unregisterAll()
         shortcutErrors = [:]
-        for action in AppAction.shortcutActions {
+        for action in AppAction.shortcutActions where action.module.map(registry.isEnabled) ?? true {
             guard let combo = settings[action.shortcutKey] else { continue }
             do {
                 try hotkeys.register(combo, name: action.rawValue) { [weak self] in self?.perform(action) }

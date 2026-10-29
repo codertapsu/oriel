@@ -48,6 +48,19 @@ final class ModuleRegistry {
         }
     }
 
+    /// Turns on, once, the default modules that arrived after the user last chose their tools (an update), so a new
+    /// tool such as Clipboard History is not off just because the user once turned the switcher off and on.
+    func enableNewDefaultModules() {
+        let offered = Set(settings[AppSettings.offeredModules])
+        let new = AppSettings.defaultModules.map(\.rawValue).filter { !offered.contains($0) }
+        guard !new.isEmpty else { return }
+        if settings.hasValue(AppSettings.enabledModules) {
+            let enabled = settings[AppSettings.enabledModules]
+            settings[AppSettings.enabledModules] = enabled + new.filter { !enabled.contains($0) }
+        }
+        settings[AppSettings.offeredModules] = Array(offered.union(new)).sorted()
+    }
+
     func activateEnabledModules() async {
         for module in modules where isEnabled(type(of: module).id) {
             await activate(type(of: module).id)

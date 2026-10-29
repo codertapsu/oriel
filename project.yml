@@ -21,6 +21,7 @@ packages:
   OCR:              { path: Packages/OCR }
   OrielTranslation: { path: Packages/OrielTranslation }   # not "Translation": the SDK's Translation.framework owns that module name
   Upload:           { path: Packages/Upload }
+  ClipboardHistory: { path: Packages/ClipboardHistory }
 
 settings:
   base:
@@ -112,6 +113,7 @@ targets:
       - package: OCR
       - package: OrielTranslation
       - package: Upload
+      - package: ClipboardHistory
       - target: oriel-cli
         embed: true                  # copied into Oriel.app/Contents/Helpers/oriel
         codeSign: true

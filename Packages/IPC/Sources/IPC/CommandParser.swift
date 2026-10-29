@@ -20,7 +20,7 @@ public enum CommandParser {
         "windows": ["list", "focus", "close", "minimize"],
         "capture": ["area", "window", "screen"],
         "translate": ["area"],
-        "debug": ["capabilities", "open-switcher", "capture", "record", "perf-capture"],
+        "debug": ["capabilities", "open-switcher", "capture", "record", "perf-capture", "clipboard"],
     ]
 
     static let valueOptions: Set<String> = [

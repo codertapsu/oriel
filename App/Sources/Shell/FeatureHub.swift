@@ -1,5 +1,6 @@
 import AppKit
 import Capture
+import ClipboardHistory
 import Editor
 import IPC
 import OCR
@@ -13,9 +14,9 @@ import SwiftUI
 import Upload
 import WindowSwitcher
 
-/// Owns the feature coordinators — capture, recording, translation, the editor, upload and the switcher module —
-/// and connects them: the Quick Access Overlay's Annotate, Translate and Upload come back here through
-/// `CaptureActionHandling`. The shell talks only to this type.
+/// Owns the feature coordinators — capture, recording, translation, the editor, upload, and the switcher and
+/// Clipboard History modules — and connects them: the Quick Access Overlay's Annotate, Translate and Upload come back
+/// here through `CaptureActionHandling`. The shell talks only to this type.
 @MainActor
 final class FeatureHub: CaptureActionHandling {
     let recognizer = VisionTextRecognizer()
@@ -25,6 +26,7 @@ final class FeatureHub: CaptureActionHandling {
     let editor: EditorLauncher
     let uploads: UploadCoordinator
     let switcher = WindowSwitcherModule()
+    let clipboard = ClipboardHistoryModule()
 
     /// Called whenever a recording starts, pauses or ends, so the status item can show it.
     var onRecordingChange: ((Bool) -> Void)?
@@ -55,7 +57,7 @@ final class FeatureHub: CaptureActionHandling {
     }
 
     var modules: [any UtilityModule] {
-        [switcher]
+        [switcher, clipboard]
     }
 
     var isRecording: Bool {
@@ -65,6 +67,7 @@ final class FeatureHub: CaptureActionHandling {
     func isAvailable(_ action: AppAction) -> Bool {
         switch action {
         case .stopRecording: recording.isActive
+        case .showClipboardHistory: clipboard.isActive
         default: true
         }
     }
@@ -85,6 +88,7 @@ final class FeatureHub: CaptureActionHandling {
         case .recordScreen: await recordScreen()
         case .stopRecording: await recording.stop()
         case .translateArea: await translateArea()
+        case .showClipboardHistory: clipboard.togglePanel()
         case .showCaptureHistory: capture.showHistory()
         case .showTranslationHistory: translation.showHistory()
         case .openImage: openImage()
@@ -181,6 +185,12 @@ final class FeatureHub: CaptureActionHandling {
                 symbol: "rectangle.stack",
                 view: switcher.settingsPane ?? AnyView(EmptyView())
             ),
+            SettingsPaneEntry(
+                id: "clipboard",
+                title: "Clipboard History",
+                symbol: "list.clipboard",
+                view: clipboard.settingsPane ?? AnyView(EmptyView())
+            ),
             SettingsPaneEntry(id: "capture", title: "Capture", symbol: "camera.viewfinder", view: capture.settingsPane),
             SettingsPaneEntry(id: "recording", title: "Recording", symbol: "record.circle", view: recording.settingsPane),
             SettingsPaneEntry(id: "translation", title: "Translation", symbol: "character.bubble", view: translation.settingsPane),
@@ -200,7 +210,7 @@ final class FeatureHub: CaptureActionHandling {
     }
 
     var keychainServices: [String] {
-        translation.keychainServices + [UploadSettings.keychainService]
+        translation.keychainServices + [UploadSettings.keychainService, ClipboardHistoryModule.keychainService]
     }
 
     func applyBootstrap(providers: [BootstrapProvider], defaultProvider: String?) {
