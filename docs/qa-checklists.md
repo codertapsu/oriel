@@ -17,8 +17,9 @@ On the installed app, screen unlocked, after granting Accessibility and Screen &
 11. **Translate Area (⌃⇧T)** on English text with Japanese as the target: blocks fill in over the text; ⌥ peeks at the original; with no language pack, Oriel offers the download.
 12. **Google glossary** (needs a Google Cloud project with a glossary): Settings → Translation → Google → enter the glossary, **Add Service Account Key…** with the key's JSON file; Test Connection reports the glossary's entries, and a translation uses its terms.
 13. **Settings.** Every pane opens; change a shortcut in Shortcuts and use it; Advanced → Diagnostics → Copy as JSON.
-14. **CLI.** Advanced → Command-line tool → Install, then `oriel windows list`, `oriel capture area --rect 100,100,400,300 --to clipboard` and `oriel capture area --rect 100,100,400,300 --delay 3 --to clipboard` (a countdown first) in Terminal.
-15. **Quit** from the menu; ⌘⇥ and the shortcuts belong to the system again.
+14. **Clipboard History.** Copy text in Safari: macOS asks whether Oriel may paste from Safari; choose Allow. Oriel opens Paste from Other Apps once; set Oriel to Allow. Then copy text in Safari, an image in Preview, a file in Finder, `#FF8800` and a link. In VS Code, press ⌥V: the panel opens over VS Code with "Paste to Code" and the newest copy selected; each preview shows its kind. Return pastes into the editor; ⌥V again, ⌘2 pastes the second item; in a Messenger chat and in Chrome's search field Return pastes too. Search finds the text inside the copied image. Pin an item (⌘P), drag it within Pinned, delete one (⌘⌫) and Undo; ⌥⌘↓ moves an item. Copy in 1Password: nothing new appears. Capture Area, then Esc on Quick Access: ⌥V lists the screenshot first. Turn on Settings → Clipboard History → Remove items from the history after pasting them: a pasted item leaves the list, a pinned one stays. `oriel debug clipboard --json` shows `access: allowed` and the counts.
+15. **CLI.** Advanced → Command-line tool → Install, then `oriel windows list`, `oriel capture area --rect 100,100,400,300 --to clipboard` and `oriel capture area --rect 100,100,400,300 --delay 3 --to clipboard` (a countdown first) in Terminal.
+16. **Quit** from the menu; ⌘⇥ and the shortcuts belong to the system again.
 
 ## Release QA script (PLAN §14.6)
 

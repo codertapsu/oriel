@@ -1,14 +1,15 @@
 # Oriel
 
-Oriel is an internal macOS menu-bar utility with three tools:
+Oriel is an internal macOS menu-bar utility with four tools:
 
 - **Window switcher**: every window, including minimized, hidden and other-Space ones, with previews, search, up to nine shortcuts and a command-line tool.
-- **Snipping tool**: area, window and screen capture, screen recording, scrolling capture and an annotation editor.
+- **Snipping tool**: area, window and screen capture, screen recording, scrolling capture and an annotation editor; every capture also goes to the clipboard.
 - **Screenshot translation**: on-device OCR, then Apple Translation (offline), a local LLM or a cloud provider.
+- **Clipboard History**: everything you copy (text, images, files and more), encrypted on the Mac, searchable on ⌥V and pasted straight into the app you are in.
 
 It is written in Swift 6 (AppKit and SwiftUI) as a Universal binary, Developer ID signed and notarized, not sandboxed, with no runtime dependencies. The design, decisions and roadmap are in [docs/PLAN.md](docs/PLAN.md), and progress is tracked in [docs/checklist.md](docs/checklist.md).
 
-**Status:** 0.1.0, the first release: all three tools are built and wired into the app, and 1.0 follows the review of this release; what is verified and what still needs a person at the Mac is in [docs/reports/01-implementation.md](docs/reports/01-implementation.md).
+**Status:** 0.1.0, the first release: all four tools are built and wired into the app, and 1.0 follows the review of this release. What is verified and what still needs a person at the Mac is in [docs/reports/01-implementation.md](docs/reports/01-implementation.md) and, for Clipboard History and the automatic copy of every capture, [docs/reports/02-clipboard-history.md](docs/reports/02-clipboard-history.md).
 
 ## Documentation
 

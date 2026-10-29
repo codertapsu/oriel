@@ -1,10 +1,11 @@
 # Oriel user guide
 
-Oriel lives in the menu bar (the bay-window icon) and has no Dock icon. It has three tools:
+Oriel lives in the menu bar (the bay-window icon) and has no Dock icon. It has four tools:
 
 - the **window switcher**, which finds the right window, including minimized, hidden and other-Space ones;
 - the **snipping tool**: screenshots, screen recordings, an annotation editor, pins and history;
-- **screenshot translation**: select text anywhere on screen and read it in another language.
+- **screenshot translation**: select text anywhere on screen and read it in another language;
+- **Clipboard History**: everything you copy, searchable on ⌥V and pasted straight into the app you are in.
 
 ## Installing
 
@@ -14,10 +15,11 @@ Oriel lives in the menu bar (the bay-window icon) and has no Dock icon. It has t
 
 | Permission | Needed for | Without it |
 |---|---|---|
-| Accessibility (required; on macOS 27 the pane is called **Device Control and Data Access**) | Window switcher, taking over ⌘⇥, scrolling capture, keystrokes in recordings | The switcher cannot list or focus windows |
+| Accessibility (required; on macOS 27 the pane is called **Device Control and Data Access**) | Window switcher, taking over ⌘⇥, scrolling capture, keystrokes in recordings, pasting from Clipboard History | The switcher cannot list or focus windows; Clipboard History copies instead of pasting |
 | Screen & System Audio Recording | Screenshots, recordings, window thumbnails, text to translate | No capture; the switcher shows icons and titles only |
 | Microphone | Your voice in recordings | Recordings without the microphone |
 | Camera | The camera bubble in recordings | No camera bubble |
+| Paste from Other Apps | Clipboard History keeping what you copy in other apps (macOS lists Oriel here after it has asked once) | Clipboard History keeps only Oriel's own copies, such as screenshots |
 
 After granting Screen Recording, quit Oriel (menu → Quit Oriel) and open it again. macOS asks from time to time whether Oriel may still record the screen; that is the system, not Oriel, and only a management (MDM) profile can switch it off.
 
@@ -35,9 +37,10 @@ All of them can be changed in Settings → Shortcuts. Click a field, type the ne
 | Scrolling Capture | ⌃⇧6 |
 | Record Area (press again to stop) | ⌃⇧R |
 | Translate Area | ⌃⇧T |
+| Clipboard History | ⌥V |
 | Capture Previous Area, Capture with Timer, Capture All Displays, Record Window, Record Screen, Capture History | none |
 
-The window switcher has its own shortcuts in Settings → Switcher; the default is ⌥⇥.
+The window switcher has its own shortcuts in Settings → Switcher; the default is ⌥⇥. ⌥V types "√" on a US keyboard, and some keyboard layouts use ⌥ for letters; if you need ⌥V for typing, give Clipboard History another shortcut. Its shortcut is free for other apps while Clipboard History is turned off.
 
 ## Window switcher
 
@@ -63,13 +66,29 @@ Hold ⌥ and press ⇥ to open the switcher with the most recently used windows;
 - **Capture Previous Area** captures the last area again without asking; **Capture All Displays** captures every display in one image. Both, and the timer, are in the menu and can have a shortcut.
 - **Video:** the frozen screen keeps menus and hover states, but stops a video. Turn off Settings → Capture → **Freeze the screen while selecting**, and the screen keeps playing while you select; Oriel captures it when you finish. Open menus close when the selection starts, and there is no loupe.
 
-After a capture, the **Quick Access Overlay** appears in a corner. It offers Copy, Save, Annotate (opens the editor), Translate, Pin (keeps the image floating above everything), Upload and Copy Text (OCR). You can also drag the thumbnail into any app. It goes away after a few seconds, or stays while the pointer is over it. Settings → Capture chooses what happens after a capture, the folder and file name, the format (PNG, JPEG, HEIC), sounds and history.
+Every capture is copied to the clipboard straight away (Settings → Capture → **Copy every capture to the clipboard**, on by default), so you can paste it at once, and it is kept in [Clipboard History](#clipboard-history) however you close the overlay. After a capture, the **Quick Access Overlay** appears in a corner. It offers Copy (copies it again, say after you copied something else), Save, Annotate (opens the editor), Translate, Pin (keeps the image floating above everything), Upload and Copy Text (OCR). You can also drag the thumbnail into any app. It goes away after a few seconds, or stays while the pointer is over it. Settings → Capture chooses what happens after a capture, the folder and file name, the format (PNG, JPEG, HEIC), sounds and history.
 
 **Scrolling capture (⌃⇧6):** select the scrolling area. Oriel scrolls it and stitches the frames into one tall image. If an app ignores scrolling, choose manual mode and scroll yourself.
 
 **Pins** float above everything: drag to move, scroll to change the opacity, and use the buttons on hover to lock one or let clicks through. Menu → **Pinned** lists them: choose one to bring it to the front, or Close All Pins.
 
 **History** (menu → Capture History) keeps recent captures, searchable by the text in them.
+
+## Clipboard History
+
+Oriel keeps what you copy: text, formatted text, links, colors, images, files and other data. Press **⌥V** (Settings → Shortcuts), or choose Clipboard History in the menu, to open it over the app you are in.
+
+- **Find:** type to search everything you copied, including the text inside copied images; the menu next to the search field shows one type (Pinned, Text, Images, Files, Links, Colors). ↑ and ↓ move, ⇧↑ and ⇧↓ select several.
+- **Preview:** click an item to see it in full on the right: the whole text, the image, the color in HEX, RGB and HSL, a link with Open Link, or the files with Show in Finder.
+- **Paste:** **Return**, a double-click or **Paste to *App*** pastes the item into the field you were typing in (VS Code, a Messenger chat, a Chrome search box…). **⌥Return** pastes text without its formatting (or with it, when Settings says plain text). **⌘1**–**⌘9** paste the first nine items. **⌘C** or **Copy** only puts the item on the clipboard. Several selected items paste as their texts on separate lines.
+- **Organize:** **⌘P** pins an item (pinned items stay at the top and are never removed by the limits); drag items to reorder them, or into Pinned to pin them; **⌥⌘↑/↓** move the selection; **⌘⌫** or the bin deletes it, and **Undo** (⌘Z) brings it back until the panel closes. The ⋯ menu pauses the history and clears it (pinned items stay). Drag an item into another app to drop it there.
+- **Esc** clears the search, then closes; clicking elsewhere closes too.
+
+Every screenshot is copied to the clipboard as well (Settings → Capture → Copy every capture to the clipboard), so it is in Clipboard History even if you close Quick Access with Esc.
+
+**Two permissions make it complete.** Pasting into another app needs **Accessibility** (without it, Oriel copies the item and you press ⌘V). Keeping what you copy *in other apps* needs **Paste from Other Apps**: the first time you copy in another app, macOS asks whether Oriel may paste from it; choose Allow, then set Oriel to **Allow** in System Settings → Privacy & Security → Paste from Other Apps (Oriel opens it for you once), so macOS stops asking. Until then, only Oriel's own copies, such as screenshots, are kept, and the panel says how many copies it missed.
+
+**Privacy.** The history stays on this Mac, encrypted, with the key in your keychain. Copies that password managers mark as concealed are never kept, nor anything copied in Keychain Access, Passwords, 1Password, Bitwarden or KeePassXC; Settings → Clipboard History edits that list. Settings also sets how many items to keep (500 by default), for how long (30 days) and how much space they may take (500 MB; the oldest go first, pinned items stay), removes items once pasted if you like, and pauses or clears the history. Settings → General → Tools turns Clipboard History off altogether.
 
 ## Editor
 
@@ -110,11 +129,12 @@ oriel windows close|minimize <window-id>
 oriel capture area|window|screen [--rect x,y,w,h] [--delay <seconds>] [--to clipboard|file|editor] [--path <file>]
 oriel translate area [--rect x,y,w,h] [--to <language>] [--provider <id>] [--json]
 oriel debug capabilities --json
+oriel debug clipboard [--json]      # Clipboard History's state, never what was copied
 ```
 
 `--delay` (1 to 60 seconds) shows a countdown before capturing.
 
-Oriel also opens URLs: `oriel://capture/area`, `oriel://capture/window`, `oriel://capture/screen`, `oriel://capture/scrolling`, `oriel://capture/previous`, `oriel://capture/timer`, `oriel://capture/all`, `oriel://record/area`, `oriel://record/window`, `oriel://record/screen`, `oriel://record/stop`, `oriel://translate/area`, `oriel://history`, `oriel://settings`. For example: `open oriel://capture/area`.
+Oriel also opens URLs: `oriel://capture/area`, `oriel://capture/window`, `oriel://capture/screen`, `oriel://capture/scrolling`, `oriel://capture/previous`, `oriel://capture/timer`, `oriel://capture/all`, `oriel://record/area`, `oriel://record/window`, `oriel://record/screen`, `oriel://record/stop`, `oriel://translate/area`, `oriel://clipboard`, `oriel://history`, `oriel://settings`. For example: `open oriel://capture/area`.
 
 ## Shared team configuration
 
@@ -127,6 +147,8 @@ A `bootstrap.json` in `~/Library/Application Support/Oriel/` is imported on the 
 | A shortcut does nothing | Settings → Shortcuts shows ⚠︎ when another app owns the combination. Pick another. |
 | The switcher shows no windows or cannot switch | Grant Accessibility (Settings → Permissions). If Oriel is already switched on in System Settings → Privacy & Security → Device Control and Data Access (Accessibility before macOS 27) but Settings → Permissions still says it is missing, select Oriel there, remove it with −, and add it again with +: the switch belonged to another copy of Oriel. |
 | Captures are black or show only the desktop | Grant Screen Recording, then quit and reopen Oriel. |
+| Clipboard History keeps only screenshots | Set Oriel to Allow in System Settings → Privacy & Security → Paste from Other Apps (it is listed there once macOS has asked about it); if it already is, quit and reopen Oriel. `oriel debug clipboard` shows `access: allowed` when it works. |
+| Return in Clipboard History copies but does not paste | Grant Accessibility: macOS drops the ⌘V that Oriel posts without it. |
 | Translation says the language pack is missing | Accept the download Oriel offers, or download it in System Settings → General → Language & Region → Translation Languages. |
 | A local model does not answer | Check that Ollama/LM Studio is running and the endpoint in Settings → Translation (e.g. `http://localhost:11434/v1`); use Test connection. |
 | Diagnostics for a bug report | Settings → Advanced → Diagnostics → Copy as JSON, or `oriel debug capabilities --json`. |

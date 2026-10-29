@@ -78,3 +78,9 @@ xcrun stapler validate "dist/Oriel-${VERSION}.dmg"
 spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.dmg"
 ```
 - [ ] Installs through the tap on a clean macOS 26 VM with no Gatekeeper prompt. **Verify:** manual, recorded in `docs/qa-checklists.md`.
+
+## 13.8 Clipboard History
+- [x] Classification, colors, the index (repeat copies, pins, reordering, Undo, limits), search, paste composition and the panel model are pure and tested. **Verify:** `swift test --package-path Packages/ClipboardHistory`
+- [x] The store is encrypted at rest, survives a restart and sets an unreadable history aside. **Verify:** `swift test --package-path Packages/ClipboardHistory --filter ClipboardStoreTests`
+- [x] No polling and no concealed reads. **Verify:** `make lint` (the `no_polling` rule covers the package); `swift test --package-path Packages/ClipboardHistory --filter 'PasteboardWatcherTests|PasteboardReaderTests'`
+- [ ] Copies in other apps appear once Paste from Other Apps allows it; ⌥V opens the panel over the app in front; Return pastes into VS Code, Chrome and Messages. **Verify:** manual (`docs/qa-checklists.md`), with Accessibility and Paste from Other Apps.

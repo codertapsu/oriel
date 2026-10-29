@@ -1,6 +1,8 @@
 # Oriel — Technical Design and Implementation Plan
 
-**Version 2.5 · 2026-10-29 · Supersedes v2.4, v2.3, v2.2, v2.1, v2.0 (consolidated), the v1 research plan and the v2 addendum**
+**Version 2.6 · 2026-10-29 · Supersedes v2.5, v2.4, v2.3, v2.2, v2.1, v2.0 (consolidated), the v1 research plan and the v2 addendum**
+
+**Changes in 2.6** (release 0.1.0, `docs/reports/02-clipboard-history.md`): Clipboard History is the second utility module (§7.9): it keeps text, links, colors, images, files and other data, encrypted at rest with a key in the Keychain, and opens a panel on ⌥V to search, preview, pin, reorder, delete and paste an item into the app in front. It notices copies without a timer, by comparing the pasteboard's change count after input events and app switches (§7.9 item 3, CLAUDE.md rule 3), and reads other apps' copies only as macOS's Paste from Other Apps allows, which is checked with `NSPasteboard.accessBehavior` (§8.1; CLAUDE.md rule 8 names it). Every interactive capture is also copied to the clipboard, on by default, so it is in Clipboard History even when Quick Access is closed with Esc (§7.2 item 8). Every write Oriel makes to the general pasteboard goes through `SharedUI.Pasteboard`, which announces it (§6.2). Modules that arrive in an update are turned on once (§6.3).
 
 **Changes in 2.5** (release 0.1.0, `docs/reports/01-implementation.md`): the parts of §7 that the pre-release builds lacked are built. Capture has the live mode for video (Settings → Capture → Freeze the screen while selecting, off; §7.2 item 2) and Capture with Timer in the menu, as a shortcut, as `oriel://capture/timer` and as the CLI's `--delay` (§7.2 item 3, §7.1.8). Record Window records the picked window's frame (§7.4). The status menu has Pinned (§10.1). The editor has Quick Look on ⌘Y (§7.5). The switcher's display is a setting (§7.1.3). Google glossaries use Cloud Translation v3 with a service account key, because v3 takes no API keys (§7.7.2, §7.7.5). Models running on an Intel Mac carry a warning (§7.7.7, §11). Move to Applications hands over without a race (§15.6). CI runs `.github/workflows/ci.yml`, signing ad hoc (§15.7, Appendix C).
 
@@ -300,7 +302,7 @@ Every hard requirement (non-activating panels at custom levels, event taps, AX, 
 | `PrivateAPIs` | — (Swift only) | `dlsym` loading of `_AXUIElementGetWindow`, `_AXUIElementCreateWithRemoteToken`, `_SLPSSetFrontProcessWithOptions`, `SLPSPostEventRecordTo`, `GetProcessForPID`, `SLSMainConnectionID`, `SLSGetActiveSpace`, `SLSCopyManagedDisplaySpaces`, `SLSCopySpacesForWindows`, `CGSGetSymbolicHotKeyValue`, `CGSSetSymbolicHotKeyEnabled`, `CGSIsSymbolicHotKeyEnabled` (docs/provenance.md). Each symbol is `Optional`; `PrivateAPIs.presence` reports which resolved. No MultitouchSupport: gestures come from the event tap (§7.1.5). |
 | `Permissions` | OrielCore | AX trust, Screen Recording preflight/request, mic/camera, System Settings deep links, change observation |
 | `Hotkeys` | OrielCore | `EventTapHotkeyEngine` (switcher), `CarbonHotkeyEngine` (capture/translate/record), `ShortcutRecorderView`, Sticky Keys policy |
-| `SharedUI` | OrielCore | `Material.make(for:)` (glass / opaque), HUD primitives, panel base classes, accessibility helpers |
+| `SharedUI` | OrielCore | `Material.make(for:)` (glass / opaque), HUD primitives, panel base classes, accessibility helpers, `Pasteboard` (every write to the general pasteboard, announced to Clipboard History) |
 | `IPC` | OrielCore | Socket server (app) and client (CLI), Codable request/response types |
 | `WindowSwitcher` | OrielCore, PrivateAPIs, Permissions, Hotkeys, SharedUI | `WindowStore`, AX observers, focus engine, switcher panel, preview panel, layout, search, gesture recognizer, exceptions |
 | `Capture` | OrielCore, Permissions, SharedUI | Shareable-content cache, screenshot engine, freeze-frame overlay, window snapping, magnifier, Quick Access Overlay, scrolling capture, pinboard |
@@ -309,6 +311,7 @@ Every hard requirement (non-activating panels at custom levels, event taps, AX, 
 | `OCR` | OrielCore | `OCRService`, geometry conversion, layout grouping, language detection |
 | `OrielTranslation` | OrielCore, OCR, SharedUI | `TranslationProvider` protocol, providers, segment JSON contract, overlay renderer, history, usage counters |
 | `Upload` | OrielCore, SharedUI | `UploadDestination` protocol, `S3CompatibleDestination` |
+| `ClipboardHistory` | OrielCore, SharedUI | The Clipboard History `UtilityModule` (§7.9): pasteboard watcher and reader, classifier, encrypted store, OCR indexing, the history panel, pasting by posting ⌘V, the Settings pane |
 | App target `Oriel` | all of the above | Status item, `ModuleRegistry`, onboarding, Settings window, bootstrap import |
 | Tool target `oriel-cli` (binary `oriel`, module `OrielCLI`, embedded at `Contents/Helpers/oriel`) | IPC, OrielCore | `oriel windows …`, `oriel capture …`, `oriel translate …`, `oriel debug …` |
 
@@ -334,7 +337,7 @@ public struct ModuleContext: Sendable {
 }
 ```
 
-`ModuleRegistry` reads the enabled-modules setting, activates modules lazily and deactivates a module when the user disables it, releasing its observers, taps and caches. A new tool (color picker, ruler, clipboard history…) is a new package conforming to `UtilityModule`.
+`ModuleRegistry` reads the enabled-modules setting, activates modules lazily and deactivates a module when the user disables it, releasing its observers, taps and caches. A new tool (color picker, ruler…) is a new package conforming to `UtilityModule`, as Clipboard History is (§7.9). A default-on module that arrives in an update is turned on once, also for a user who had already chosen their tools (`app.offeredModules` remembers which were offered), and a tool's global shortcut is registered only while the tool is on.
 
 ### 6.4 Concurrency and state
 
@@ -458,7 +461,7 @@ struct ShortcutSpec: Codable, Hashable, Sendable {
 
 #### 7.1.6 Zero-CPU idle
 
-- No `Timer`, `DispatchSourceTimer` or polling in the steady state. A SwiftLint custom rule bans `Timer.scheduledTimer` outside `Recording` and `Capture` sessions.
+- No `Timer`, `DispatchSourceTimer` or polling in the steady state. A SwiftLint custom rule bans `Timer.scheduledTimer` outside `Recording` and `Capture` sessions. Clipboard History checks the pasteboard only after events (§7.9 item 3).
 - Thumbnails are captured only when the switcher opens (visible tiles first), then cached. No background refresh.
 - Let App Nap work. During recording or scrolling capture wrap the work in `ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason:)`.
 - Verify with `scripts/idle-cpu.sh` (§13) and `powermetrics`.
@@ -512,6 +515,7 @@ Observe `NSWorkspace.accessibilityDisplayOptionsDidChangeNotification`: `accessi
 5. **Coordinates:** Cocoa global coordinates have a bottom-left origin on the primary screen; CG/SCK use top-left. All conversion lives in `ScreenGeometry` and is unit-tested with synthetic layouts (negative origins, mixed 1×/2× scales). Crop in pixel space using each display's `backingScaleFactor`; write the scale into image metadata (DPI 144 for 2×).
 6. **Quick Access Overlay:** after capture, a small non-activating panel in a screen corner offers Copy, Save, Annotate, Translate, Pin, Upload, Copy Text (OCR) and drag-out; auto-dismisses after N seconds (pauses on hover); stacks for multiple captures.
 7. **HDR:** SDR PNG by default; HEIC HDR as an option via the macOS 26 screenshot configuration (confirm the exact type name in the SDK audit).
+8. **Clipboard:** every interactive capture, in every mode, is also copied to the clipboard (Settings → Capture → Copy every capture to the clipboard, on by default), whatever the after-capture action, so it is in Clipboard History (§7.9) even when Quick Access is closed with Esc. Quick Access keeps its Copy button, for copying a capture again after something else. Headless captures (`oriel capture --rect`) keep their explicit `--to`.
 
 ### 7.3 Scrolling capture
 
@@ -723,6 +727,20 @@ A `google` provider may add `"glossary"` and `"serviceAccountKey"`, the key file
 
 One destination at launch: `S3CompatibleDestination` (AWS, MinIO, R2, B2) with `PUT` + SigV4, keys from the Keychain, copy-link after upload, optional EXIF/metadata stripping. The `UploadDestination` protocol stays so WebDAV, a shared folder or OAuth providers can be added later.
 
+### 7.9 Clipboard History
+
+The second `UtilityModule` (package `ClipboardHistory`, on by default, General → Tools). The panel opens with ⌥V (Settings → Shortcuts), from the status menu or with `oriel://clipboard`.
+
+1. **What is kept:** every copy: text, formatted text (RTF, RTFD, HTML), links, colors (`#RGB` to `#RRGGBBAA`, `rgb()`, `hsl()`, `NSColor`), images (PNG, TIFF, JPEG, HEIC, GIF, WebP, PDF), files (file URLs, file-reference URLs resolved to paths) and any other data, with all of each item's types (at most 512 items and 64 MB a copy). Promises, web archives and a TIFF next to a PNG of the same image are dropped. A copy with the same content (SHA-256 of its text, image bytes or file list) is the same item again: it moves to the top with the new source and date. By default the history keeps 500 items, for 30 days, in at most 500 MB (100–2000 items; 1, 7, 30 or 90 days, or until a limit; 100 MB to 5 GB), dropping the oldest first: every capture is copied (§7.2 item 8), and without a size limit a few hundred Retina screenshots would fill gigabytes. Pinned items are never dropped; they count toward the size only.
+2. **Oriel's own copies** go through `SharedUI.Pasteboard`, which announces each write with its contents and change count (`Pasteboard.writes()`, one `AsyncStream` per listener). They are kept whatever macOS allows for other apps' copies, which is how a screenshot reaches the history when Quick Access is closed with Esc (§7.2 item 8).
+3. **Noticing other apps' copies without polling:** macOS posts no notification when the pasteboard changes (none in the 27.0.1 shared cache), and rule 3 bans timers. `PasteboardWatcher` compares `NSPasteboard.changeCount` after what comes before a copy: a mouse-up or a key-down anywhere (an `NSEvent` global monitor; key-downs only with Accessibility, which macOS requires for them; the monitor never looks at the key), the same in Oriel's own windows (a local monitor), another app coming to the front, wake and session activation, and the panel opening. After an event it checks twice, 150 ms and 1 s later (one-shot sleeps that the next event restarts), for apps that write a moment after the key press. Idle cost is zero.
+4. **Paste from Other Apps (macOS 15.4+):** reading another app's copy without a paste gesture makes macOS ask, unless the app is set to Allow in System Settings → Privacy & Security → Paste from Other Apps (link anchor `Privacy_Pasteboard`). `NSPasteboard.accessBehavior` gives the state. `.alwaysAllow`: read. `.default` (never asked): read; macOS asks once and then lists Oriel. `.ask` and `.alwaysDeny`: do not read (every read would ask, or fail); count the copies missed and say so in the panel and Settings. The first time the user lets a copy through, Oriel opens that pane once, so Oriel can be set to Allow. A copy's types are looked at before its data, so a concealed copy is never read.
+5. **Privacy:** copies carrying an nspasteboard.org marker (`org.nspasteboard.ConcealedType`, `TransientType`, `AutoGeneratedType`) or an older password-manager marker are never kept, nor copies made while a listed app is in front (by default Keychain Access, Passwords, 1Password, Bitwarden and KeePassXC; Settings → Clipboard History). Pause stops all keeping. Logs never contain what was copied.
+6. **Storage:** `~/Library/Application Support/Oriel/ClipboardHistory/<bundle ID>/` holds `index.sealed`, the item list, and under `items/` each item's contents and an image's thumbnail, each sealed with AES-GCM under a 256-bit key kept in the Keychain (service `clipboard`, this device only, separate for the Debug build), and is excluded from backups. An index that cannot be opened (a different key) moves to `unreadable/` and the history starts afresh. The store is an actor; contents are decrypted off the main thread. Images are read by on-device OCR at utility priority, so they can be found by their text.
+7. **Panel (AppKit, rule 4):** a `FloatingPanel` that becomes key without activating Oriel, so the app the user was in stays active and takes the paste. A search field (every word, ignoring case and accents, over the text, title, file names, source app, kind, color and the text read from an image), a type menu (All, Pinned, Text, Images, Files, Links, Colors), a list with Pinned and History sections (thumbnails, file icons, color swatches, source app and time, ⌘1–⌘9 on the first nine) and a preview of the selected item (text or formatted text, a link, a color in HEX, RGB and HSL, an image, files and whether they still exist, the types of other data). Return pastes; ⌥Return pastes the other way (plain or formatted, per Settings); a double-click pastes; the paste button names the app ("Paste to Safari"). ⌘C copies without pasting, ⌘P pins, ⌘⌫ deletes (Undo until the panel closes), ⌥⌘↑/↓ move items, drag and drop reorders (dropping into Pinned pins) and drops an item into another app, several selected items paste as their texts on separate lines (or as one set of files), and Clear History keeps pinned items. Esc clears the search, then closes; a click elsewhere closes.
+8. **Pasting:** the items are written back (`Pasteboard.write(_:announces: false)`), the panel closes, and ⌘V is posted with `CGEvent` at the HID tap, with the key that types "v" in the current keyboard layout while ⌘ is held (`UCKeyTranslate`). macOS delivers posted keys only with Accessibility; without it the item is copied and the user presses ⌘V. A pasted item moves to the top, or leaves the history when "Remove items from the history after pasting them" is on (pinned items stay).
+9. **CLI:** `oriel debug clipboard [--json]` reports the state (open, watching, paused, access, copies missed, item and pinned counts, bytes on disk), never contents.
+
 ---
 
 ## 8. macOS APIs, permissions and security
@@ -731,10 +749,11 @@ One destination at launch: `S3CompatibleDestination` (AWS, MinIO, R2, B2) with `
 
 | Permission | Needed by | Check / request | Notes |
 |---|---|---|---|
-| Accessibility | Switcher (AX, event tap, focus), scrolling capture (posting scrolls), click overlays | `AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt: true])`; re-check on app activation, never on a timer | Tied to the code signature: use one stable Apple Development certificate on every dev machine, Developer ID for releases |
+| Accessibility | Switcher (AX, event tap, focus), scrolling capture (posting scrolls), click overlays, Clipboard History (posting ⌘V to paste; key-downs that time a clipboard check) | `AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt: true])`; re-check on app activation, never on a timer | Tied to the code signature: use one stable Apple Development certificate on every dev machine, Developer ID for releases |
 | Screen & System Audio Recording | Thumbnails/preview (optional), capture, recording, window titles via CGWindowList | `CGPreflightScreenCaptureAccess()` / `CGRequestScreenCaptureAccess()` | Periodic re-confirmation on 15+; a relaunch is usually needed after granting |
 | Microphone | Recording with mic | `AVCaptureDevice.requestAccess(for: .audio)` + `NSMicrophoneUsageDescription` | Entitlement `com.apple.security.device.audio-input` |
 | Camera | Camera bubble | `NSCameraUsageDescription` | Entitlement `com.apple.security.device.camera` |
+| Paste from Other Apps | Clipboard History reading other apps' copies (§7.9) | `NSPasteboard.general.accessBehavior` (macOS 15.4+): `.alwaysAllow` granted, `.alwaysDeny` denied, `.default` and `.ask` not yet; a read of another app's copy makes macOS ask and list Oriel | Pasteboard privacy, not a TCC service Oriel checks; System Settings anchor `Privacy_Pasteboard`; Oriel's own copies need nothing |
 | Input Monitoring, Automation | Not needed | — | Keep it that way |
 | Network | Providers, uploads | — | Not sandboxed; plain-HTTP local endpoints need `NSAllowsLocalNetworking` in ATS |
 
@@ -742,7 +761,7 @@ Hardened Runtime entitlements: only `device.audio-input` and `device.camera`. No
 
 ### 8.2 Onboarding
 
-A permissions window lists each permission, what it unlocks and its live status (re-checked on activation), with deep links `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility` and `?Privacy_ScreenCapture`. "Continue without" leads to degraded modes (icons-only switcher, no capture). Never read or write `TCC.db`; macOS 27 removes app access to it anyway.
+A permissions window lists each permission, what it unlocks and its live status (re-checked on activation), with deep links `x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility`, `?Privacy_ScreenCapture` and `?Privacy_Pasteboard`. "Continue without" leads to degraded modes (icons-only switcher, no capture). Never read or write `TCC.db`; macOS 27 removes app access to it anyway.
 
 ### 8.3 MDM (optional)
 
@@ -776,7 +795,7 @@ Techniques: event-driven everything; lazy tile-size thumbnails with at most four
 
 ### 10.1 App shell
 
-`LSUIElement = YES` (no Dock icon). Status menu: Capture Area / Window / Screen / Scrolling / Previous Area / with Timer, Record Area / Window / Screen, Translate Area, Open History, Pinned (each pin, to bring it to the front, and Close All Pins), Settings…, Quit. Settings is a SwiftUI `TabView`: General, Window Switcher, Shortcuts, Capture, Recording, Translation, Upload, Permissions, Advanced/Diagnostics, About. System appearance is followed automatically with semantic colors and SF Symbols.
+`LSUIElement = YES` (no Dock icon). Status menu: Pause Clipboard History, Capture Area / Window / Screen / Scrolling / Previous Area / with Timer, Record Area / Window / Screen, Translate Area, Clipboard History (⌥V), Open History, Pinned (each pin, to bring it to the front, and Close All Pins), Settings…, Quit. Settings is a SwiftUI `TabView`: General, Window Switcher, Clipboard History, Shortcuts, Capture, Recording, Translation, Upload, Permissions, Advanced/Diagnostics, About. System appearance is followed automatically with semantic colors and SF Symbols.
 
 ### 10.2 Liquid Glass
 
@@ -923,6 +942,12 @@ spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.
 ```
 - [ ] Installs through the tap on a clean macOS 26 VM with no Gatekeeper prompt. **Verify:** manual, recorded in `docs/qa-checklists.md`.
 
+### 13.8 Clipboard History
+- [ ] Classification, colors, the index (repeat copies, pins, reordering, Undo, limits), search, paste composition and the panel model are pure and tested. **Verify:** `swift test --package-path Packages/ClipboardHistory`
+- [ ] The store is encrypted at rest, survives a restart and sets an unreadable history aside. **Verify:** `--filter ClipboardStoreTests`
+- [ ] No polling and no concealed reads. **Verify:** `make lint` (the `no_polling` rule covers the package); `--filter 'PasteboardWatcherTests|PasteboardReaderTests'`
+- [ ] Copies in other apps appear once Paste from Other Apps allows it; ⌥V opens the panel over the app in front; Return pastes into VS Code, Chrome and Messages. **Verify:** manual (`docs/qa-checklists.md`), with Accessibility and Paste from Other Apps.
+
 ---
 
 ## 14. Testing strategy
@@ -1006,7 +1031,7 @@ Multi-display, mixed-scale (Retina + 1× external) setups are tested manually be
 
 **1.x:** capture history with OCR-indexed search; pinned screenshots with opacity/click-through; background tool for social-ready shots; hide desktop icons during capture; "Copy Text" OCR mode; numbered-step and step-capture sequences; Smart Redact (auto-blur emails, phone numbers, keys found by OCR and data detectors, on device); more upload destinations (WebDAV, SFTP, shared folder, Dropbox/Drive via OAuth); Lightshot-style instant mode; switcher presets (active-app-only, app-grouped, per-display, quit-app).
 
-**2.x:** video editor beyond trim (zoom/pan to clicks, webcam background blur, chapters); Snagit-style Smart Move/Simplify via Vision segmentation; "translate under cursor" live mode, file drag-in translation, per-project glossary, video-frame OCR; utility modules (color picker with contrast checker, screen ruler, clipboard history, window tiling hotkeys) as `UtilityModule`s; App Intents for capture/translate/focus; iCloud KVS settings sync.
+**2.x:** video editor beyond trim (zoom/pan to clicks, webcam background blur, chapters); Snagit-style Smart Move/Simplify via Vision segmentation; "translate under cursor" live mode, file drag-in translation, per-project glossary, video-frame OCR; utility modules (color picker with contrast checker, screen ruler, window tiling hotkeys) as `UtilityModule`s, next to the switcher and Clipboard History; App Intents for capture/translate/focus; iCloud KVS settings sync.
 
 ---
 
@@ -1152,7 +1177,7 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
 6. Never call AX on the main thread in hot paths; use the AX actor with messaging timeout 0.25 s.
 7. Secrets only in the Keychain. Logs use `privacy: .private` for user content.
 8. Never read or write TCC.db. Permissions are checked only through AXIsProcessTrusted,
-   CGPreflightScreenCaptureAccess and AVCaptureDevice.
+   CGPreflightScreenCaptureAccess, AVCaptureDevice and NSPasteboard.accessBehavior (Paste from Other Apps).
 9. Keep ARCHS = "arm64 x86_64" explicit. Run `make universal-check` before finishing any task that touches
    build settings. Never pass -ld_classic.
 10. No new SwiftPM dependencies, deployment-target changes or ARCHS changes without an explicit instruction.
@@ -1277,6 +1302,7 @@ packages:
   OCR:              { path: Packages/OCR }
   OrielTranslation: { path: Packages/OrielTranslation }   # not "Translation": the SDK's Translation.framework owns that module name
   Upload:           { path: Packages/Upload }
+  ClipboardHistory: { path: Packages/ClipboardHistory }
 
 settings:
   base:
@@ -1368,6 +1394,7 @@ targets:
       - package: OCR
       - package: OrielTranslation
       - package: Upload
+      - package: ClipboardHistory
       - target: oriel-cli
         embed: true                  # copied into Oriel.app/Contents/Helpers/oriel
         codeSign: true
