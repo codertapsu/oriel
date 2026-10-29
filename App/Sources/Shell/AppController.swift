@@ -39,6 +39,7 @@ final class AppController {
     }
 
     func start() {
+        IntentContext.controller = self
         MainMenu.install { [weak self] in self?.showSettings() }
         if LaunchChecks.offerMoveToApplications() {
             return // the copy in Applications takes over once this one has quit
@@ -108,6 +109,18 @@ final class AppController {
         } else {
             log.error("unknown URL \(url.absoluteString, privacy: .private)")
         }
+    }
+
+    /// Runs an app action or a command by its id, for Run Oriel Command; false when there is none, as for a command
+    /// of a tool that is turned off.
+    func run(commandID id: String) -> Bool {
+        if let action = AppAction(rawValue: id) {
+            perform(action)
+            return true
+        }
+        guard let command = commands.first(where: { $0.id == id }) else { return false }
+        command.perform()
+        return true
     }
 
     /// Every command the features and the turned-on tools offer (PLAN §6.5).
