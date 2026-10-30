@@ -19,8 +19,10 @@ nonisolated struct AXWindowAccess: WindowAccessing {
     ]
     private static let frameAttributes = [kAXPositionAttribute, kAXSizeAttribute]
 
-    /// The focused window, else the main window (an app whose focus is in a floating palette).
+    /// The focused window, else the main window (an app whose focus is in a floating palette). Never one of Oriel's own:
+    /// macOS would answer that request inside Oriel, on this thread (`OwnWindowAccess` handles them).
     func focusedWindow(of pid: Int32) -> WindowLookup<AXUIElement> {
+        guard pid != OwnWindowTiler.ownPID else { return .noWindow }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, Self.messagingTimeout)
         for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
@@ -84,6 +86,7 @@ nonisolated struct AXWindowAccess: WindowAccessing {
     }
 
     func withEnhancedUserInterfaceOff<Result>(pid: Int32, _ body: () -> Result) -> Result {
+        guard pid != OwnWindowTiler.ownPID else { return body() }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, Self.messagingTimeout)
         let attribute = Self.enhancedUserInterfaceAttribute as CFString

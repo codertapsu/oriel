@@ -38,11 +38,19 @@ public final class WindowTilingModule: UtilityModule {
     /// The module the app registers.
     public convenience init() {
         let mover = WindowMover()
+        let own = OwnWindowTiler()
         self.init(
             arrange: { action, pid, displays, options in
-                await mover.arrange(action, pid: pid, displays: displays, options: options)
+                // Oriel's own windows through AppKit: an AX request to itself would run AppKit off the main thread.
+                if pid == OwnWindowTiler.ownPID {
+                    return await own.arrange(action, displays: displays, options: options)
+                }
+                return await mover.arrange(action, pid: pid, displays: displays, options: options)
             },
-            forget: { await mover.forgetAll() },
+            forget: {
+                await own.forgetAll()
+                await mover.forgetAll()
+            },
             isTrusted: { AXIsProcessTrusted() },
             frontmostApp: {
                 NSWorkspace.shared.frontmostApplication.map { (pid: $0.processIdentifier, name: $0.localizedName) }
