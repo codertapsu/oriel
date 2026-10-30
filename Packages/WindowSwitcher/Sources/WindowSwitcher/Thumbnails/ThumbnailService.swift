@@ -1,8 +1,8 @@
 import CoreGraphics
 
-/// Tile thumbnails and full-size previews (PLAN §7.1.7). Captures happen only while the switcher is open, at
-/// tile size, at most four at a time, in request order (visible tiles first); nothing runs in the background.
-/// Thumbnails live in a 48 MB LRU cache; previews are released when the panel closes.
+/// Tile thumbnails and full-size previews (PLAN §7.1.7). Captures happen only while the switcher or a Dock preview
+/// (§7.1.12) is open, at tile size, at most four at a time, in request order (visible tiles first); nothing runs in the
+/// background. Thumbnails live in a 48 MB LRU cache, which the two share; previews are released when the panel closes.
 actor ThumbnailService {
     static let cacheLimit = 48 * 1024 * 1024
     static let maximumInFlight = 4

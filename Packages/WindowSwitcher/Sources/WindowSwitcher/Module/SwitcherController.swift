@@ -12,6 +12,9 @@ import SharedUI
 /// focusing happen on the next main-actor turn, so the callback never waits on AppKit, ScreenCaptureKit or
 /// Accessibility.
 final class SwitcherController {
+    /// The panel is opening: the Dock's preview steps aside.
+    var onOpen: (() -> Void)?
+
     private let store: WindowStore
     private let source: any WindowSource
     private let thumbnails: ThumbnailService
@@ -241,6 +244,7 @@ final class SwitcherController {
         )
         rebuildItems()
         startOutsideClickMonitor()
+        onOpen?()
         let store = store
         Task { await store.refresh() }
     }

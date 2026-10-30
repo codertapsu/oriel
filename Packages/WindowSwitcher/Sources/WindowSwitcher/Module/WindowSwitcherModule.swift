@@ -9,9 +9,12 @@ import SwiftUI
 /// hidden and other-Space ones, with up to nine shortcuts, three styles, search, previews, hover actions,
 /// three-finger swipes, Cmd-Tab takeover and the `oriel windows …` CLI verbs.
 ///
+/// It also shows an app's windows next to its Dock icon and the number of windows on Dock icons (PLAN §7.1.12), from
+/// the same windows, also while the switcher itself is off.
+///
 /// Needs Accessibility; Screen Recording is optional and only adds thumbnails and previews. While active it
-/// runs one event tap and AX and workspace observers, and no timers; `deactivate()` removes all of it and
-/// gives Cmd-Tab back.
+/// runs one event tap (only while the switcher is on) and AX and workspace observers, and no timers;
+/// `deactivate()` removes all of it and gives Cmd-Tab back.
 public final class WindowSwitcherModule: UtilityModule {
     public static let id: ModuleID = .windowSwitcher
 
@@ -64,16 +67,21 @@ public final class WindowSwitcherModule: UtilityModule {
         self.settings = settings
     }
 
-    /// Whether the switcher is running: active, enabled and trusted.
+    /// Whether the module is running: active, trusted, and the switcher or a Dock feature on.
     var isRunning: Bool {
         runtime != nil
+    }
+
+    /// Whether the switcher itself runs, not only the Dock's features.
+    var isSwitcherRunning: Bool {
+        runtime?.isSwitcherOn == true
     }
 
     // MARK: UtilityModule
 
     /// "Show Window Switcher" while the switcher runs.
     public var menuItems: [NSMenuItem] {
-        guard isRunning else { return [] }
+        guard isSwitcherRunning else { return [] }
         let show = ActionMenuItem("Show Window Switcher", symbol: "rectangle.on.rectangle") { [weak self] in
             self?.show(shortcutIndex: 0)
         }
@@ -158,7 +166,7 @@ public final class WindowSwitcherModule: UtilityModule {
 
     /// Debug hook: opens the switcher as if shortcut `shortcutIndex` (0-based) were pressed, in keep-open mode.
     public func show(shortcutIndex: Int) {
-        guard let runtime else {
+        guard let runtime, runtime.isSwitcherOn else {
             log.notice("show(shortcutIndex:) ignored: the switcher is not running")
             return
         }
@@ -183,7 +191,7 @@ public final class WindowSwitcherModule: UtilityModule {
     private func applyCurrentSettings() async {
         guard isActive, let settings else { return }
         let configuration = SwitcherConfiguration.load(from: settings)
-        guard configuration.isEnabled else {
+        guard configuration.needsRuntime else {
             trust.stop()
             await stopRuntime()
             return
@@ -207,7 +215,7 @@ public final class WindowSwitcherModule: UtilityModule {
             self.runtime = runtime
             runtime.start(configuration: configuration)
         }
-        commandTab?.apply(shortcuts: configuration.shortcuts, enabled: configuration.takesOverCommandTab)
+        commandTab?.apply(shortcuts: configuration.shortcuts, enabled: configuration.isEnabled && configuration.takesOverCommandTab)
     }
 
     private func stopRuntime() async {

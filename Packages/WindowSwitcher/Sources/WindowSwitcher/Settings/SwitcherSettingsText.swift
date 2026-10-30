@@ -9,6 +9,11 @@ nonisolated enum SwitcherSettingsText {
     static let needsScreenRecording = "Thumbnails and the preview need Screen & System Audio Recording. Without it the "
         + "switcher shows app icons and titles."
 
+    static let dock = "Click a window to switch to it; its buttons close, minimize or make it full screen. Counts show on "
+        + "apps with two or more windows, also while the switcher is off. While the Dock hides itself they show when it "
+        + "is out, and with magnification on they step aside while the pointer is in the Dock. Thumbnails need Screen & "
+        + "System Audio Recording."
+
     static let systemSwipe = "macOS uses three-finger horizontal swipes itself. In Trackpad settings, set “Swipe between "
         + "full-screen applications” to four fingers."
 

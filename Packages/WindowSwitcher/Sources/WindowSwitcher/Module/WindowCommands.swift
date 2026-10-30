@@ -100,7 +100,7 @@ enum WindowCommands {
         guard let number, (1 ... ShortcutSpec.maximumCount).contains(number) else {
             return .failure(request, "usage: oriel debug open-switcher [--shortcut 1-9]", status: 64)
         }
-        guard module.isRunning else { return notRunning(request) }
+        guard module.isSwitcherRunning else { return notRunning(request) }
         module.show(shortcutIndex: number - 1)
         return .ok(request)
     }

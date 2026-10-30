@@ -13,6 +13,13 @@ nonisolated struct SwitcherConfiguration: Sendable, Equatable {
     var gesturesEnabled = false
     var exceptions = AppException.defaults
     var takesOverCommandTab = true
+    var showsDockPreviews = true
+    var showsDockWindowCounts = true
+
+    /// Whether anything of the module runs: the switcher, or the Dock's previews or counts, which use its windows.
+    var needsRuntime: Bool {
+        isEnabled || showsDockPreviews || showsDockWindowCounts
+    }
 
     /// Key codes that can open a shortcut, so the tap callback can skip everything else cheaply.
     var triggerKeys: Set<UInt16> {
@@ -31,7 +38,9 @@ nonisolated struct SwitcherConfiguration: Sendable, Equatable {
             placement: settings[SwitcherSettingKeys.placement],
             gesturesEnabled: settings[SwitcherSettingKeys.gesturesEnabled],
             exceptions: settings[SwitcherSettingKeys.exceptions],
-            takesOverCommandTab: settings[SwitcherSettingKeys.takesOverCommandTab]
+            takesOverCommandTab: settings[SwitcherSettingKeys.takesOverCommandTab],
+            showsDockPreviews: settings[SwitcherSettingKeys.dockPreviews],
+            showsDockWindowCounts: settings[SwitcherSettingKeys.dockWindowCounts]
         )
     }
 

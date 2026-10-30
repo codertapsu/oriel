@@ -1,6 +1,6 @@
 import OrielCore
 
-/// The switcher's settings (PLAN §7.1.4, §7.1.7, §7.1.10). Every name starts with `switcher.`.
+/// The switcher's settings (PLAN §7.1.4, §7.1.7, §7.1.10, §7.1.12). Every name starts with `switcher.`.
 nonisolated enum SwitcherSettingKeys {
     static let prefix = "switcher."
 
@@ -17,6 +17,10 @@ nonisolated enum SwitcherSettingKeys {
     static let gesturesEnabled = SettingKey("switcher.gesturesEnabled", default: false)
     static let exceptions = SettingKey("switcher.exceptions", default: AppException.defaults)
     static let takesOverCommandTab = SettingKey("switcher.takesOverCommandTab", default: true)
+    /// An app's windows next to its Dock icon while the pointer rests on it (PLAN §7.1.12).
+    static let dockPreviews = SettingKey("switcher.dockPreviews", default: true)
+    /// The number of windows on the Dock icon of each app with two or more.
+    static let dockWindowCounts = SettingKey("switcher.dockWindowCounts", default: true)
     /// The symbolic hot keys the switcher turned off, written before turning them off, so they are turned
     /// back on at the next activation after a crash or `kill -9` (PLAN §7.1.4).
     static let disabledSymbolicHotKeys = SettingKey("switcher.disabledSymbolicHotKeys", default: [Int32]())

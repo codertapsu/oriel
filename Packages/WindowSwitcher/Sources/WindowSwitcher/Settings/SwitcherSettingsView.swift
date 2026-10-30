@@ -4,8 +4,8 @@ import Hotkeys
 import OrielCore
 import SwiftUI
 
-/// Settings → Window Switcher (PLAN §10.1): enable, the shortcuts table, appearance, preview, gestures,
-/// Cmd-Tab takeover, exceptions, and notes on Sticky Keys and Spaces.
+/// Settings → Window Switcher (PLAN §10.1): enable, the shortcuts table, appearance, preview, the Dock's previews and
+/// counts, gestures, Cmd-Tab takeover, exceptions, and notes on Sticky Keys and Spaces.
 struct SwitcherSettingsView: View {
     let settings: SettingsStore
 
@@ -46,6 +46,17 @@ struct SwitcherSettingsView: View {
                 if !canCapture {
                     note(SwitcherSettingsText.needsScreenRecording)
                 }
+            }
+            Section {
+                Toggle(
+                    "Show an app's windows when the pointer rests on its Dock icon",
+                    isOn: settings.binding(SwitcherSettingKeys.dockPreviews)
+                )
+                Toggle("Show the number of windows on Dock icons", isOn: settings.binding(SwitcherSettingKeys.dockWindowCounts))
+            } header: {
+                Text("Dock")
+            } footer: {
+                Text(SwitcherSettingsText.dock)
             }
             Section("Trackpad") {
                 Toggle("Switch windows with a three-finger swipe", isOn: settings.binding(SwitcherSettingKeys.gesturesEnabled))

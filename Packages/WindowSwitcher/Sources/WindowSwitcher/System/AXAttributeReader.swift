@@ -2,7 +2,8 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-/// Reading and writing AX attributes. Called only from `AXClient`, the AX actor.
+/// Reading and writing AX attributes. Called only from the AX actors: `AXClient` for windows, `DockAccessibility` for the
+/// Dock.
 nonisolated enum AXAttributeReader {
     /// `kAXFullScreenAttribute` is not in the public headers; this is its value.
     static let fullScreenAttribute = "AXFullScreen"
@@ -51,6 +52,11 @@ nonisolated enum AXAttributeReader {
         return unsafeDowncast(object, to: AXUIElement.self)
     }
 
+    /// An attribute whose value is a list of elements (children, selected children).
+    static func elements(_ attribute: String, of element: AXUIElement) -> [AXUIElement]? {
+        value(attribute, of: element) as? [AXUIElement]
+    }
+
     static func value(_ attribute: String, of element: AXUIElement) -> CFTypeRef? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
@@ -67,13 +73,13 @@ nonisolated enum AXAttributeReader {
         AXUIElementPerformAction(element, action as CFString) == .success
     }
 
-    private static func point(_ object: AnyObject) -> CGPoint? {
+    static func point(_ object: AnyObject) -> CGPoint? {
         guard let value = axValue(object, type: .cgPoint) else { return nil }
         var point = CGPoint.zero
         return AXValueGetValue(value, .cgPoint, &point) ? point : nil
     }
 
-    private static func size(_ object: AnyObject) -> CGSize? {
+    static func size(_ object: AnyObject) -> CGSize? {
         guard let value = axValue(object, type: .cgSize) else { return nil }
         var size = CGSize.zero
         return AXValueGetValue(value, .cgSize, &size) ? size : nil
