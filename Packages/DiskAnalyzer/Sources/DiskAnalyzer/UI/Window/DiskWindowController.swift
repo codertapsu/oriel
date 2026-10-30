@@ -18,6 +18,9 @@ final class DiskWindowController: NSWindowController, NSWindowDelegate {
     var toolbarItems: [NSToolbarItem.Identifier: NSToolbarItem] = [:]
     var operationSheet: OperationSheetController?
     var changesSheet: ChangesSheetController?
+    var cleanupSheet: CleanupSheetController?
+    /// While Clean Up waits for the apps it asked to quit.
+    var cleanupObserver: (any NSObjectProtocol)?
     /// The files Quick Look shows.
     var quickLookURLs: [URL] = []
     private var isOpen = true

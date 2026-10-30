@@ -21,6 +21,9 @@ extension DiskWindowController {
             self?.model.selection = nodes
             self?.quickLook()
         })
+        if nodes.count == 1, tree[nodes[0]].kind.isContainer {
+            menu.addItem(item("Clean Up…", symbol: "sparkles") { [weak self] in self?.cleanUp(nodes[0]) })
+        }
         menu.addItem(.separator())
         menu.addItem(item("Copy", symbol: "doc.on.clipboard") { [weak self] in
             guard let self else { return }
@@ -57,6 +60,9 @@ extension DiskWindowController {
         let focus = model.focus
         menu.addItem(item("Reveal in Finder", symbol: "folder") { [weak self] in self?.model.revealInFinder([focus]) })
         menu.addItem(item("Copy Path", symbol: "link") { [weak self] in self?.model.copyPaths([focus]) })
+        if model.tree?[focus].kind.isContainer == true {
+            menu.addItem(item("Clean Up…", symbol: "sparkles") { [weak self] in self?.cleanUp(focus) })
+        }
         menu.addItem(.separator())
         menu.addItem(item("Scan Again", symbol: "arrow.clockwise") { [weak self] in self?.model.rescan() })
         menu.addItem(item("Export as CSV…", symbol: "square.and.arrow.up") { [weak self] in self?.exportCSV() })

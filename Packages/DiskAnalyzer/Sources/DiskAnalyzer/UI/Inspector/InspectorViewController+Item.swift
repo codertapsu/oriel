@@ -158,6 +158,9 @@ extension InspectorViewController {
         if model.canRemoveDownload(node) {
             buttons.append(("Remove Download", { [weak self] in self?.model.removeDownloads([node]) }))
         }
+        if item.kind.isContainer {
+            buttons.append(("Clean Up…", { [weak self] in self?.actions?.cleanUp(node) }))
+        }
         if node != ScanTree.rootIndex, model.refusal(for: node) == nil {
             buttons.append(("Move to Trash…", { [weak self] in self?.actions?.trash([node]) }))
         }

@@ -91,6 +91,15 @@ struct DiskSettingsView: View {
             """)
             .font(.caption)
             .foregroundStyle(.secondary)
+            if CleanupExplainer.gate.isOpen {
+                Toggle("Ask Apple Intelligence about folders Oriel doesn't know", isOn: settings.binding(DiskSettings.explainsFolders))
+                Text("""
+                Clean Up shows what the on-device model thinks such a folder is. It reads names and sizes, never what \
+                files hold, and nothing leaves this Mac. It can be wrong, so it never makes a folder look safer.
+                """)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
         }
     }
 

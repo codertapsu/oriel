@@ -20,4 +20,6 @@ protocol DiskActions: AnyObject {
     func exportCSV()
     /// Reads the folders only an administrator can open: through the helper when it is allowed, else after offering it.
     func readAsAdministrator()
+    /// Checks a folder and offers the safest way to get its space back (PLAN §7.10 item 19).
+    func cleanUp(_ node: Int32)
 }

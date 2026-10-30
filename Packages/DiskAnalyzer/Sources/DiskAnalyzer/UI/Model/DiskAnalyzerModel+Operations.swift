@@ -99,6 +99,9 @@ extension DiskAnalyzerModel {
             refreshFolders([folder.path])
         } else if case let .move(folder) = plan.operation.kind {
             refreshFolders([folder.path])
+        } else if plan.operation.kind.isDestructive, plan.nodes.count < plan.operation.items.count {
+            // Some items were not nodes of the scan (smaller files it summed up): their folders are read again.
+            refreshFolders(Array(Set(plan.operation.items.map { $0.deletingLastPathComponent().path })))
         }
         if !report.trashed.isEmpty {
             registerUndo(of: report.trashed)

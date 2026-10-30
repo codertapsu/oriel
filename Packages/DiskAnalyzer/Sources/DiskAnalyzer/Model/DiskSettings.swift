@@ -18,6 +18,9 @@ nonisolated enum DiskSettings {
     static let usesSpotlightDates = SettingKey("disk.usesSpotlightDates", default: true)
     /// Ask before moving items to the Trash. Deleting immediately always asks, twice.
     static let confirmsTrash = SettingKey("disk.confirmsTrash", default: true)
+    /// Clean Up asks Apple Intelligence what a folder its catalog does not know is, where the model is available
+    /// (`CleanupExplainer`).
+    static let explainsFolders = SettingKey("disk.explainsFolders", default: true)
     /// Keep the open scan up to date as files change, while the window is open.
     static let watchesChanges = SettingKey("disk.watchesChanges", default: true)
     /// Remember a summary of each scan, to show what grew since.
