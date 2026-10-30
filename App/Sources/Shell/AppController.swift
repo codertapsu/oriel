@@ -38,7 +38,8 @@ final class AppController {
         )
     }
 
-    func start() {
+    /// Starts everything; `opensWindow` shows Settings once started, unless onboarding is still to come, which shows instead.
+    func start(opensWindow: Bool = false) {
         IntentContext.controller = self
         MainMenu.install { [weak self] in self?.showSettings() }
         if LaunchChecks.offerMoveToApplications() {
@@ -75,6 +76,8 @@ final class AppController {
         }
         if !settings[AppSettings.onboardingCompleted] {
             showOnboarding()
+        } else if opensWindow {
+            showSettings()
         }
     }
 

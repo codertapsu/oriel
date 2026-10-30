@@ -37,6 +37,23 @@ enum LaunchChecks {
         return pid_t(arguments[index + 1])
     }
 
+    /// Whether Oriel opens its window as it starts (PLAN §10.1), so that starting it shows something besides an icon in
+    /// the menu bar: when the user opened it, not when macOS starts it at login, and not when it was launched to open a
+    /// file or a URL (`launchIsDefault` is false then).
+    nonisolated static func opensWindowAtLaunch(launchIsDefault: Bool, launchedAtLogin: Bool) -> Bool {
+        launchIsDefault && !launchedAtLogin
+    }
+
+    /// From `applicationDidFinishLaunching`'s notification, the only moment the launch's Apple event is current: the
+    /// open-application event carries `keyAELaunchedAsLogInItem` when macOS starts a login item.
+    static func opensWindow(launch notification: Notification) -> Bool {
+        let launchIsDefault = notification.userInfo?[NSApplication.launchIsDefaultUserInfoKey] as? Bool ?? true
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        let launchedAtLogin = event?.eventID == kAEOpenApplication
+            && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+        return opensWindowAtLaunch(launchIsDefault: launchIsDefault, launchedAtLogin: launchedAtLogin)
+    }
+
     /// True when an XCTest/Swift Testing bundle hosts itself in this process (`make test`).
     static var isTestHost: Bool {
         let environment = ProcessInfo.processInfo.environment

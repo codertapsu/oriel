@@ -19,4 +19,12 @@ struct LaunchChecksTests {
         #expect(LaunchChecks.replacedProcessID(in: ["Oriel", "--replacing"]) == nil)
         #expect(LaunchChecks.replacedProcessID(in: ["Oriel", "--replacing", "soon"]) == nil)
     }
+
+    /// Opened by the user, Oriel shows its window, so the launch is seen; started at login, or to open a file or a
+    /// URL, it stays in the menu bar (PLAN §10.1).
+    @Test func theWindowOpensWhenTheUserStartsOrielOnly() {
+        #expect(LaunchChecks.opensWindowAtLaunch(launchIsDefault: true, launchedAtLogin: false))
+        #expect(!LaunchChecks.opensWindowAtLaunch(launchIsDefault: true, launchedAtLogin: true))
+        #expect(!LaunchChecks.opensWindowAtLaunch(launchIsDefault: false, launchedAtLogin: false))
+    }
 }

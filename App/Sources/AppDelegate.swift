@@ -4,6 +4,8 @@ import AppKit
 @main
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: AppController?
+    /// Whether this launch opens the window (`LaunchChecks.opensWindow(launch:)`), decided while the launch event is current.
+    private var opensWindow = false
     /// Set while waiting for the copy this one replaces to quit (Move to Applications).
     private var exitObserver: (any NSObjectProtocol)?
 
@@ -17,10 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         withExtendedLifetime(delegate) { app.run() }
     }
 
-    func applicationDidFinishLaunching(_: Notification) {
+    func applicationDidFinishLaunching(_ notification: Notification) {
         // As the host of `make test`, start nothing: a test run must not take the socket, the shortcuts or the
         // event tap from the copy the user is running.
         guard !LaunchChecks.isTestHost else { return }
+        opensWindow = LaunchChecks.opensWindow(launch: notification)
         if let other = LaunchChecks.otherInstance() {
             if LaunchChecks.replacedProcessID(in: CommandLine.arguments) == other.processIdentifier {
                 start(after: other)
@@ -37,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard controller == nil else { return }
         let controller = AppController()
         self.controller = controller
-        controller.start()
+        controller.start(opensWindow: opensWindow)
     }
 
     /// Starts once `other`, the copy that moved this one to Applications, has quit, so the two never hold the socket,
