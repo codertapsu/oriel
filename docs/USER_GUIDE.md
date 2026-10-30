@@ -27,13 +27,15 @@ Settings → General → Tools turns the window switcher, Clipboard History and 
 | Microphone | Your voice in recordings | Recordings without the microphone |
 | Camera | The camera bubble in recordings, and its background blur | No camera bubble |
 | Paste from Other Apps | Clipboard History keeping what you copy in other apps (macOS lists Oriel here after it has asked once) | Clipboard History keeps only Oriel's own copies, such as screenshots |
-| Full Disk Access (optional, not in the welcome window: Disk Space Analyzer offers it when a scan could not read some folders) | Disk Space Analyzer counting every folder, other apps' data, Mail, Messages and Safari included | Those folders are counted as "couldn't be read" |
+| Full Disk Access (optional, not in the welcome window: Disk Space Analyzer offers it when macOS kept some folders from a scan) | Disk Space Analyzer counting your private data: other apps' data, Mail, Messages and Safari | Those folders are counted as protected by macOS |
 
 After granting Screen Recording, quit Oriel (menu → Quit Oriel) and open it again. macOS asks from time to time whether Oriel may still record the screen; that is the system, not Oriel, and only a management (MDM) profile can switch it off.
 
 Some questions come up only when you use a tool. The first time Disk Space Analyzer reads your Desktop, Documents or Downloads folder, an external or network drive or a cloud folder, macOS asks whether Oriel may (see [Disk Space Analyzer](#disk-space-analyzer)), and settings sync may ask once to use iCloud Drive. Activity Monitor and Color Picker need no permission at all.
 
-To start Oriel at login, open Settings → General → **Open Oriel at login**.
+When you open Oriel, its Settings window opens too, so you can see it started; from then on it lives in the menu bar. Closing the window leaves Oriel running, with every shortcut and the switcher working: only **Quit Oriel** in the menu quits it. Opening Oriel again while it runs brings the window back.
+
+To start Oriel at login, open Settings → General → **Open Oriel at login**. Started at login, it stays quietly in the menu bar.
 
 ## Global shortcuts
 
@@ -73,6 +75,7 @@ Hold ⌥ and press ⇥ to open the switcher with the most recently used windows;
 - **Three-finger swipe:** swipe sideways to switch. In System Settings → Trackpad → More Gestures, move "Swipe between full-screen applications" to four fingers first.
 - **Exceptions:** per app (by bundle ID), either hide its windows from the switcher, or let ⌥⇥ pass through to it while it is in front. Virtual machines and remote desktops pass through by default, so ⌥⇥ reaches the guest.
 - **Where it opens:** Settings → Window Switcher → Show on: the display under the pointer (the default), the display with the active window, or the main display. "This screen" filters mean that display.
+- **Oriel's own windows** (Settings, the editor, Disk Space Analyzer, Activity Monitor) are listed like any other, and closing or minimizing them from the switcher works; quitting from the switcher never quits Oriel itself.
 - If focusing a window on another Space does nothing, turn on System Settings → Desktop & Dock → "When switching to an application, switch to a Space with open windows".
 
 ## Screenshots
@@ -231,20 +234,25 @@ How each provider uses it: DeepL with its own glossaries (Oriel creates and upda
 Disk Space Analyzer shows where the space on your drives goes and helps you get it back safely. Choose **Disk Space Analyzer** in the menu (or open `oriel://disk`); it has no shortcut until you give it one in Settings → Shortcuts. `oriel://disk/scan` opens it with a folder picker. Nothing runs while its window is closed.
 
 - **See your drives:** the sidebar lists every volume with a bar of used, purgeable and free space, your cloud folders (iCloud Drive, Google Drive, Dropbox, OneDrive, Box) and the folders you scanned before. Select one for its details; external drives have **Eject**.
-- **Scan:** **Scan** (⌘R) reads the selected volume or folder; **Choose Folder…** (⌘O) scans any folder. Progress shows as it goes; **Stop** (⌘.) keeps what was read. Scanning Macintosh HD counts macOS itself as one "macOS (system)" block and what no file accounts for (snapshots, overhead) as "Other space", so the total matches Finder.
+- **Scan:** **Scan** (⌘R) reads the selected volume or folder; **Choose Folder…** (⌘O) scans any folder. Progress shows as it goes; **Stop** (⌘.) keeps what was read. Scanning Macintosh HD also reads macOS itself, into a folder named **macOS**: the system folders (`/System`, `/usr`, `/bin`, `/sbin`), the swap files (VM) and update data, with Preboot, where macOS starts up from, as one block. Hidden files and folders are included. What no file accounts for (snapshots, overhead) is "Other space", so the total matches Finder.
 - **Look around:** **Sunburst** and **Treemap** show the biggest consumers as the biggest areas; hover for a name and size. In the sunburst, click a folder to open it and the center to go up; in the treemap, click to select and double-click a folder to open it. Return opens the selected folder and ⌘↑ goes up in every view. **List** is an outline with size bars. The breadcrumbs above go back to any folder. ⌘1–⌘8 switch views.
 - **Find what to remove:** **Biggest Files** lists the largest files, filtered by kind and size; **Old Files** lists files you have not used for a year (or another span), using Spotlight's "last opened" date where it knows it; **Duplicates** finds copies with the same content and marks all but the newest or oldest; **File Types** breaks the space down by kind; **Space Hogs** measures caches, Xcode data, simulators, backups, installers, `node_modules` and the Trash, and says what each is and whether it comes back by itself. Type in the search field (⌘F) to find items by name, and right-click a column header for more columns.
 - **Act on it:** select one or more items (⌘ or ⇧ to add), then use the toolbar, the right-click menu or the inspector (⌥⌘I): Open, Reveal in Finder, Quick Look (Space), Copy to…, Move to…, Move to Trash (⌘⌫) or Delete Immediately (⌥⌘⌫). Oriel always says how many items and how much space before it removes or moves anything. **Move to Trash** can be undone with ⌘Z, or with Put Back in the Trash; **Delete Immediately** asks twice and cannot be undone. Moving to another drive copies, checks the copy and only then removes the original. Progress shows in a sheet with **Stop**.
-- **What it will not touch:** macOS, the top of a drive, your home folder and its own folders, the Library folders apps rely on, the top of iCloud Drive or another cloud folder, anything inside an app (remove the whole app), the apps that come with macOS, and Oriel. The inspector says why when an item is refused.
+- **What it will not touch:** macOS (everything in the macOS folder), the top of a drive and everything directly in it, your home folder and its own folders, the Library folders apps rely on, the top of iCloud Drive or another cloud folder, anything inside an app (remove the whole app), the apps that come with macOS, what was read as an administrator, and Oriel. The inspector says why when an item is refused. Biggest Files and Old Files leave macOS's own files out unless you open the macOS folder; Duplicates never compares them.
 - **What grew:** Oriel remembers a summary of each scan (names and sizes only). Scan the same folder again and a note says how much it grew since, with **Show Changes…** pointing at the folders responsible. Right-click the background for **Export as CSV…**.
 
 **Purgeable space** is space macOS frees by itself when it needs it: local Time Machine snapshots, iCloud files that are safely in iCloud, and caches apps mark as purgeable. Finder counts it as used, but large downloads and copies can use it. To free it now, select Macintosh HD: **Remove Snapshots…** removes local Time Machine snapshots (macOS may ask for an administrator's password; your backups on the backup disk stay), **Remove Download** in a scan of iCloud Drive frees the local copies of files that stay in iCloud, **Open Trash** shows what is waiting to be emptied, and **Storage Settings…** opens macOS's own storage tools.
 
 **Cloud storage:** a scan of a cloud folder shows how much is downloaded on this Mac and how much is only in the cloud; it never downloads anything. macOS does not tell apps how much of your plan is used, so Oriel links to the provider's storage page instead.
 
-**Permissions.** Disk Space Analyzer needs no permission to start. The first time a scan reads Desktop, Documents, Downloads, iCloud Drive, a cloud folder, an external or network drive, or another app's data, macOS asks whether Oriel may; choose Allow to count it. What you keep private is counted as "folders that couldn't be read". For a complete picture, choose **Grant Full Disk Access…** in the window, switch Oriel on in System Settings → Privacy & Security → Full Disk Access, quit and reopen Oriel, and scan again.
+**Permissions.** Disk Space Analyzer needs no permission to start. The first time a scan reads Desktop, Documents, Downloads, iCloud Drive, a cloud folder, an external or network drive, or another app's data, macOS asks whether Oriel may; choose Allow to count it.
 
-**Settings → Disk Space Analyzer:** exclusions (folders, or names such as `node_modules`), the size from which files are listed one by one (1 MB; smaller ones are counted together per folder), hidden files, going into other volumes inside a folder, keeping the scan up to date while the window is open, remembering scans (and forgetting them), Spotlight's "last opened" dates, and asking before moving to the Trash.
+Some folders stay closed even so, for two different reasons, and the note above the views says which:
+
+- **Only macOS or another user may open them.** Their permissions let only their owner in, and Full Disk Access does not change that: Spotlight's index, the file-system event log, most of `/private/var/db`, other users' home folders. Choose **Read as Administrator…**: macOS asks for an administrator's name and password, Oriel reads those folders with an administrator's rights and adds them to the scan. It only reads; it changes nothing, and never sees the password. What it read stays as read until the next scan, and cannot be removed from Oriel.
+- **macOS protects them.** Privacy protection keeps your private data from apps without Full Disk Access (Mail, Messages, Safari, other apps' data): choose **Full Disk Access…**, switch Oriel on in System Settings → Privacy & Security → Full Disk Access, quit and reopen Oriel, and scan again. System Integrity Protection keeps a few folders of macOS's from every app, even with an administrator's password; those are listed but cannot be counted.
+
+**Settings → Disk Space Analyzer:** exclusions (folders, or names such as `node_modules`), the size from which files are listed one by one (1 MB; smaller ones are counted together per folder), hidden files, counting macOS's own files one by one (on; off, macOS is one block and scans are a few seconds faster), going into other volumes inside a folder, keeping the scan up to date while the window is open, remembering scans (and forgetting them), Spotlight's "last opened" dates, and asking before moving to the Trash.
 
 ## Activity Monitor
 
@@ -305,6 +313,7 @@ Arrange the window you are working in without reaching for the mouse. Every shor
 - **The menu:** the menu bar icon's **Window Tiling** menu lists every layout with a small picture and its shortcut.
 - **Settings → Window Tiling:** a gap between windows and along the screen's edges (none to 32 points), Almost Maximize's size (60–95 %, 90 % to start), and the cycling.
 - **Windows that won't fit:** a window with a minimum size, or a terminal that snaps to whole lines, keeps the layout's edge (a right half stays against the right edge) and stays on the screen. Full-screen windows and sheets are left alone, with a short message.
+- **Oriel's own windows** tile like any other.
 - **Permission:** Window Tiling needs Accessibility. Without it, a shortcut shows a message with **Open System Settings**; switch Oriel on in Privacy & Security → Accessibility (on macOS 27: Device Control and Data Access).
 
 ## Sync settings
@@ -370,7 +379,9 @@ A `bootstrap.json` in `~/Library/Application Support/Oriel/` is imported on the 
 | Upload says to set up a destination | Settings → Upload → Add Destination; the first one becomes the default. |
 | SFTP: "doesn't know the host key" or "refused your SSH key" | Run `ssh host` once in Terminal and accept the key; install your key with `ssh-copy-id`, and put a key with a passphrase in the agent (`ssh-add --apple-use-keychain`). |
 | Dropbox or Google Drive: "Sign in again" | Settings → Upload → the destination → Sign Out, then Sign In…. For Google, publish the consent screen to stop the 7-day sign-outs. |
-| "N folders couldn't be read" in Disk Space Analyzer | Grant Full Disk Access (the button in the note), quit and reopen Oriel, and scan again. If only Desktop, Documents or a cloud folder is empty, allow Oriel in System Settings → Privacy & Security → Files and Folders. |
+| "N folders can be opened only by macOS or another user" in Disk Space Analyzer | Full Disk Access does not open these. Choose **Read as Administrator…** in the note and enter an administrator's password. |
+| "N folders are protected by macOS" in Disk Space Analyzer | Grant Full Disk Access (the button in the note), quit and reopen Oriel, and scan again. What stays is guarded by System Integrity Protection, which no app gets past. If only Desktop, Documents or a cloud folder is empty, allow Oriel in System Settings → Privacy & Security → Files and Folders. |
+| Oriel disappears from the menu bar after you use the window switcher | Fixed in this build (it crashed when the switcher read Oriel's own windows). If it happens again, send the newest `Oriel-*.ips` from Console → Crash Reports. |
 | Macintosh HD shows a large "Other space", or the files add up to more than the drive uses | Other space is what no file shows: local snapshots, other volumes in the same container, folders Oriel could not read. APFS copies (clones) share their space but are counted per file; the inspector's "Freed if deleted" shows what removing one really frees. |
 | Activity Monitor shows dashes for other users' processes | They are measured with `/bin/ps` on the CPU, Memory and Energy tabs; wait a second. Disk use and energy are shared only for your own processes. |
 | A process cannot be quit | Oriel says why: it belongs to macOS (kernel_task, launchd, WindowServer, loginwindow), it is Oriel, or it has already ended. Another user's process needs an administrator's password. |

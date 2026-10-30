@@ -22,7 +22,9 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
    the translation panel and the language-pack download sheet.
 5. APIs newer than 26.0 (26.4 Translation strategy, anything 27-only, Apple Intelligence features) go
    behind `#available` AND a FeatureGate; UI is hidden when unavailable. Intel/Rosetta are runtime gates.
-6. Never call AX on the main thread in hot paths; use the AX actor with messaging timeout 0.25 s.
+6. Never call AX on the main thread in hot paths; use the AX actor with messaging timeout 0.25 s. Never send an AX
+   request to Oriel's own process: macOS answers it inside Oriel on the calling thread, so AppKit runs off the main
+   thread (docs/os-quirks.md). Oriel's own windows go through AppKit.
 7. Secrets only in the Keychain. Logs use `privacy: .private` for user content.
 8. Never read or write TCC.db. Permissions are checked only through AXIsProcessTrusted,
    CGPreflightScreenCaptureAccess, AVCaptureDevice and NSPasteboard.accessBehavior (Paste from Other Apps).

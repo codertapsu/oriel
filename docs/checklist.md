@@ -27,6 +27,8 @@ make release-dry-run               # after `source scripts/apple-credentials.env
 - [x] Bootstrap import populates Settings and the Keychain and deletes the file. **Verify:** `--filter BootstrapImportTests`
 - [x] Diagnostics shows arch, Rosetta, Apple Intelligence, packs, private symbols, permissions. **Verify:** `oriel debug capabilities --json` lists all six keys.
 - [x] No dependencies. **Verify:** `rg -n "dependencies:" Packages/*/Package.swift` shows only local `path:` entries; `rg -n "url:" Packages/*/Package.swift` returns nothing.
+- [x] Started by the user, Oriel opens Settings; at login, or for a file or URL, it does not. **Verify:** `xcodebuild -project Oriel.xcodeproj -scheme Oriel -destination 'platform=macOS' test -only-testing:OrielTests/LaunchChecksTests`
+- [ ] Closing every window leaves Oriel running with the switcher and shortcuts working; only Quit Oriel quits it. **Verify:** manual (`docs/qa-checklists.md` item 39).
 
 ## 13.2 Window switcher
 - [x] `WindowStore` builds the list from AX + CGWindowList + SkyLight with a fake `WindowSource` in tests. **Verify:** `swift test --package-path Packages/WindowSwitcher --filter WindowStoreTests`
@@ -41,6 +43,8 @@ make release-dry-run               # after `source scripts/apple-credentials.env
 - [ ] Gesture recognizer rejects four-finger and two-finger sequences. **Verify:** unit test on recorded sequences in `Tests/Fixtures/gestures/`.
 - [x] `ShortcutRecorderView` rejects reserved combos and flags conflicts. **Verify:** `--filter ShortcutRecorderTests`
 - [x] Carbon engine registers/unregisters and fires. **Verify:** `swift test --package-path Packages/Hotkeys --filter CarbonHotkeyEngineTests`
+- [x] Oriel's own process is never asked through AX; AppKit lists, focuses, closes and minimizes its windows, and quitting from the switcher never quits Oriel. **Verify:** `swift test --package-path Packages/WindowSwitcher --filter OwnWindowsTests`
+- [ ] With Oriel's windows opened and closed, the switcher lists them and Oriel keeps running. **Verify:** manual (`docs/qa-checklists.md` items 39–40).
 
 ## 13.3 Capture
 - [x] `ScreenGeometry` conversions correct for multi-display, mixed-scale layouts. **Verify:** `--filter ScreenGeometryTests`
@@ -176,7 +180,10 @@ spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.
 - [x] The FSEvents stream reports a change made by another process; the duplicate finder, clone facts, space hogs (in a home folder of the test's own) and volume crossing on real files. **Verify:** `--filter 'ScanWatcherTests|SystemHelperTests'`
 - [x] The commands, the CLI verbs and their parsing, the snapshot store, and the window's model (plans, navigation, search, renumbered trees). **Verify:** `--filter 'DiskAnalyzerModuleTests|HistoryAndCommandLineTests|AnalyzerModelTests'`; `swift test --package-path Packages/IPC --filter CommandParserTests`
 - [x] No polling. **Verify:** `make lint` (the `no_polling` rule covers the package)
-- [ ] A scan of Macintosh HD adds up to Finder's used space with "macOS (system)"; the permission prompts appear once with Oriel's texts; Full Disk Access removes the unreadable-folders note; Move to Trash, Undo, Delete Immediately, a move to an external drive, Eject, Remove Download, Remove Snapshots and `oriel disk scan ~/Downloads` work on the installed app. **Verify:** manual (`docs/qa-checklists.md`).
+- [x] Why a folder could not be read (`EACCES`, `EPERM`, other), kept on the node and counted again from the tree. **Verify:** `--filter 'ScanEngineTests|ElevatedReadTests'`
+- [x] macOS's own volumes: what is left out and entered, anchors through edits and compaction, a scan into the macOS folder, Preboot as a block, refreshes leave them, the lists and Duplicates leave them out, `ATTR_VOL_SPACEUSED` below the container's use. **Verify:** `--filter MacOSVolumesTests`
+- [x] Read as Administrator: its request as arguments and back, its listing as the user (an unreadable folder, JSON round trip) and the graft into a scan; the app's executable lists folders and exits. **Verify:** `--filter ElevatedReadTests`; `xcodebuild -project Oriel.xcodeproj -scheme Oriel -destination 'platform=macOS' test -only-testing:OrielTests/ElevatedReadEntryTests`
+- [ ] A scan of Macintosh HD adds up to Finder's used space with the macOS folder (or "macOS (system)" with the setting off); the permission prompts appear once with Oriel's texts; the notes say why folders are closed, Full Disk Access removes the protected-by-macOS note for personal data and Read as Administrator reads the owner-only folders (QA items 42–43); Move to Trash, Undo, Delete Immediately, a move to an external drive, Eject, Remove Download, Remove Snapshots and `oriel disk scan ~/Downloads` work on the installed app. **Verify:** manual (`docs/qa-checklists.md`).
 
 ## 13.17 Activity Monitor
 - [x] CPU % from tick and time deltas (wrap, resets, reused pids, mixed readers), the memory breakdown, the ps and nettop parsers (names with spaces, dots and commas; header-ordered columns), IOKit and sysctl dictionaries, the process tree and helper grouping, filters, search and sorting, the signal safety rules, the ring buffer and heavy-use detection are pure and tested. **Verify:** `swift test --package-path Packages/ActivityMonitor`
@@ -208,4 +215,5 @@ spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.
 - [x] Commands have the assigned ids and defaults, unique, out of the menu list; the menu shows them with key equivalents; feedback per outcome; no permission → notice. **Verify:** `--filter 'TilingCommandsTests|WindowTilingModuleTests'`
 - [x] No timers and no AX outside the AX actor. **Verify:** `rg -n "Timer|DispatchSource" Packages/WindowTiling/Sources` returns nothing; `rg -ln "AXUIElement(Copy|Set|Perform|IsAttribute)" Packages/WindowTiling/Sources` lists only `System/AXWindowAccess.swift`.
 - [ ] Reads the front app's focused window for real. **Verify:** `ORIEL_TCC_TESTS=1 swift test --package-path Packages/WindowTiling --filter SystemAccessTests` (read-only)
+- [x] Oriel's own window in front is arranged through AppKit on the main thread, never by the AX actor. **Verify:** `--filter OwnWindowTilerTests`
 - [ ] Tiles real windows on the installed app. **Verify:** manual (`docs/qa-checklists.md`).

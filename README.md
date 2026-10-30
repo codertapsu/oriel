@@ -6,7 +6,7 @@ Oriel is an internal macOS menu-bar utility with nine tools:
 - **Snipping tool**: area, window and screen capture, Capture Text, Instant Capture, Step Capture, screen recording, scrolling capture, an annotation editor with Smart Redact, and a video editor with Auto Zoom and chapters; every capture also goes to the clipboard, and uploads go to S3, WebDAV, SFTP, a shared folder, Dropbox or Google Drive.
 - **Screenshot translation**: on-device OCR, then Apple Translation (offline), a local LLM or a cloud provider, for an area, the text under the pointer or a whole file, with glossaries.
 - **Clipboard History**: everything you copy (text, images, files and more), encrypted on the Mac, searchable on ⌥V and pasted straight into the app you are in.
-- **Disk Space Analyzer**: where the space on each drive goes, in a sunburst, a treemap and lists, and safe ways to get it back.
+- **Disk Space Analyzer**: where the space on each drive goes, macOS's own files and the folders only an administrator can read included, in a sunburst, a treemap and lists, and safe ways to get it back.
 - **Activity Monitor**: every process's CPU, memory, energy, disk and network use, measured only while its window is open.
 - **Color Picker**: any color on screen in every format, with palettes and a WCAG contrast checker.
 - **Screen Ruler**: distances, areas and guides on screen, snapped to the edges it finds.
@@ -14,7 +14,7 @@ Oriel is an internal macOS menu-bar utility with nine tools:
 
 Settings sync through iCloud, and App Intents put Oriel's actions in the Shortcuts app and Spotlight. It is written in Swift 6 (AppKit and SwiftUI) as a Universal binary, Developer ID signed and notarized, not sandboxed, with no runtime dependencies. The design, decisions and roadmap are in [docs/PLAN.md](docs/PLAN.md), and progress is tracked in [docs/checklist.md](docs/checklist.md).
 
-**Status:** 0.1.0, the first release: all nine tools are built and wired into the app, and 1.0 follows the review of this release. What is verified and what still needs a person at the Mac is in [docs/reports/01-implementation.md](docs/reports/01-implementation.md); for Clipboard History and the automatic copy of every capture, in [docs/reports/02-clipboard-history.md](docs/reports/02-clipboard-history.md); and for the roadmap features of PLAN §17, Disk Space Analyzer, Activity Monitor and the other new tools, in [docs/reports/03-roadmap-and-tools.md](docs/reports/03-roadmap-and-tools.md).
+**Status:** 0.1.0, the first release: all nine tools are built and wired into the app, and 1.0 follows the review of this release. What is verified and what still needs a person at the Mac is in [docs/reports/01-implementation.md](docs/reports/01-implementation.md); for Clipboard History and the automatic copy of every capture, in [docs/reports/02-clipboard-history.md](docs/reports/02-clipboard-history.md); for the roadmap features of PLAN §17, Disk Space Analyzer, Activity Monitor and the other new tools, in [docs/reports/03-roadmap-and-tools.md](docs/reports/03-roadmap-and-tools.md); and for the fixes after the first days of use, in [docs/reports/04-first-use-fixes.md](docs/reports/04-first-use-fixes.md).
 
 ## Documentation
 
