@@ -52,13 +52,14 @@ extension InspectorViewController {
         if summary.administratorFolders > 0 {
             views.append(PageParts.text("""
             \(DiskFormat.count(summary.administratorFolders, "folder")) can be opened only by their owner, macOS or another \
-            user; Full Disk Access does not change that. Read as Administrator asks for an administrator's password, then \
-            reads them and changes nothing.
+            user; Full Disk Access does not change that. Read as Administrator reads them with an administrator's rights and \
+            changes nothing: through Oriel's helper, without asking, once you have allowed it in System Settings, or after \
+            macOS asks for the password.
             """, size: NSFont.smallSystemFontSize))
             views += samples(summary.samples(.needsAdministrator))
             if !model.isReadingAsAdministrator {
                 views.append(ButtonRow(
-                    [("Read as Administrator…", { [weak self] in self?.model.readAsAdministrator() })],
+                    [("Read as Administrator…", { [weak self] in self?.actions?.readAsAdministrator() })],
                     primaryFirst: false
                 ))
             }
@@ -118,7 +119,7 @@ extension InspectorViewController {
             """))
             if (model.summary?.administratorFolders ?? 0) > 0, !model.isReadingAsAdministrator {
                 views.append(ButtonRow(
-                    [("Read as Administrator…", { [weak self] in self?.model.readAsAdministrator() })],
+                    [("Read as Administrator…", { [weak self] in self?.actions?.readAsAdministrator() })],
                     primaryFirst: false
                 ))
             }

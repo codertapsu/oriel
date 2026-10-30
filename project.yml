@@ -106,6 +106,21 @@ targets:
         CFBundleURLTypes:
           - CFBundleURLName: com.codertapsu.oriel
             CFBundleURLSchemes: [oriel]
+    postBuildScripts:
+      # Disk Space Analyzer's privileged helper (PrivilegedReader): its launchd property list, named after the bundle ID
+      # so a Debug build's helper never takes the release's name. Code signing comes after this phase and seals it.
+      - name: Embed the disk reader's launchd property list
+        script: |
+          set -euo pipefail
+          plist="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchDaemons/$PRODUCT_BUNDLE_IDENTIFIER.disk-reader.plist"
+          mkdir -p "$(dirname "$plist")"
+          sed -e "s/BUNDLE_IDENTIFIER/$PRODUCT_BUNDLE_IDENTIFIER/g" -e "s/EXECUTABLE_NAME/$EXECUTABLE_NAME/g" \
+            "$SRCROOT/App/LaunchDaemons/disk-reader.plist" > "$plist"
+          plutil -lint -s "$plist"
+        inputFiles:
+          - $(SRCROOT)/App/LaunchDaemons/disk-reader.plist
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchDaemons/$(PRODUCT_BUNDLE_IDENTIFIER).disk-reader.plist
     entitlements:
       path: App/Oriel.entitlements
       properties:

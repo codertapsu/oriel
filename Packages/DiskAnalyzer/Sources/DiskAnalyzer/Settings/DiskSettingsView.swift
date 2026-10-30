@@ -38,6 +38,7 @@ struct DiskSettingsView: View {
                 .foregroundStyle(.secondary)
             }
             safety(settings)
+            administrator(settings)
             access
         }
         .formStyle(.grouped)
@@ -90,6 +91,32 @@ struct DiskSettingsView: View {
             """)
             .font(.caption)
             .foregroundStyle(.secondary)
+        }
+    }
+
+    private func administrator(_ settings: SettingsStore) -> some View {
+        Section("Read as Administrator") {
+            Text(model.helperExplanation).font(.caption).foregroundStyle(.secondary)
+            switch model.helperStatus {
+            case .unavailable:
+                EmptyView()
+            case .notInstalled:
+                Button("Install Helper…") { model.installHelper() }
+            case .needsApproval:
+                Button("Open Login Items") { model.openLoginItems() }
+                Button("Remove Helper") { model.removeHelper() }
+            case .allowed:
+                Toggle("Read them in every scan", isOn: settings.binding(DiskSettings.readsAsAdministrator))
+                Button("Remove Helper") { model.removeHelper() }
+            }
+        }
+        .task {
+            model.refreshHelperStatus()
+            // Coming back from System Settings: show whether the helper is allowed now.
+            let activations = NotificationCenter.default.notifications(named: NSApplication.didBecomeActiveNotification).map { _ in () }
+            for await _ in activations {
+                model.refreshHelperStatus()
+            }
         }
     }
 

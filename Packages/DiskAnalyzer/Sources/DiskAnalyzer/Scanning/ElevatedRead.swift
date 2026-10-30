@@ -2,9 +2,10 @@ import Darwin
 import Foundation
 
 /// Read as Administrator (PLAN §7.10): reads the folders of a scan that only their owner may open, macOS or another user,
-/// which Full Disk Access does not change. Oriel runs its own executable again as root through macOS's password prompt
-/// (`AdminCommand`), in a mode that only lists folders, by the scan's own rules, and prints the listings as JSON
-/// (`runIfRequested`); the listings then go into the scan where the folders were (`apply`).
+/// which Full Disk Access does not change. As root, Oriel's own executable lists the folders by the scan's own rules
+/// (`read`), either in Oriel's privileged helper once the user has allowed it (`PrivilegedReader`), or started through
+/// macOS's password prompt in a mode that prints the listings as JSON (`runWithPassword`, `runIfRequested`). The
+/// listings then go into the scan where the folders were (`apply`).
 ///
 /// As root it reads and prints, nothing else: it opens no file, writes nothing, follows no symbolic link and ends when it
 /// has printed. The password goes to macOS, never to Oriel. Folders System Integrity Protection guards stay unreadable
@@ -101,9 +102,8 @@ public nonisolated enum ElevatedRead {
 
     // MARK: In Oriel
 
-    /// Lists `folders` as root, through macOS's password prompt. `executable` is Oriel's own.
-    static func run(folders: [String], options: ScanOptions, executable: String) async -> Outcome {
-        let request = Request(folders: Array(folders.prefix(folderLimit)), options: options)
+    /// Lists the request's folders as root, through macOS's password prompt. `executable` is Oriel's own.
+    static func runWithPassword(_ request: Request, executable: String) async -> Outcome {
         let count = DiskFormat.count(request.folders.count, "folder")
         let script = AdminCommand.appleScript(
             for: [executable, argument] + request.arguments,
@@ -177,9 +177,10 @@ public nonisolated enum ElevatedRead {
         return 0
     }
 
-    /// Lists the folders and every folder below them the scan's rules enter, depth first, with the scan's own reader and
-    /// counting (`DirectoryDigest`).
+    /// Lists the folders and every folder below them the scan's rules enter, depth first, with the scan's own reader,
+    /// counting (`DirectoryDigest`) and I/O rules (`ScanIOPolicy`: no downloads of cloud files, no access times).
     static func read(_ request: Request) -> Result {
+        ScanIOPolicy.applyToCurrentThread()
         let reader = DirectoryReader()
         var categories = FileCategoryCache()
         var links = HardLinkRegistry()

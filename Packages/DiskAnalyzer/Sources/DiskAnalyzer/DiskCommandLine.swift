@@ -61,12 +61,28 @@ enum DiskCommandLine {
         let options = DiskSettings.scanOptions(in: settings, firmlinks: found.1)
         let outcome = await ScanEngine.scan(target, options: options, cancellation: CancellationFlag())
         var tree = outcome.tree
+        var summary = outcome.summary
         if let volume = target.volume {
             tree = await Task.detached(priority: .userInitiated) { [tree] in
                 DiskAnalyzerModel.addingVolumeBlocks(to: tree, volume: volume)
             }.value
         }
-        let report = ScanReport(tree: tree, summary: outcome.summary, target: target, top: top)
+        // With Oriel's helper allowed, the folders only an administrator can open are read too; the CLI never asks for a
+        // password.
+        if summary.administratorFolders > 0, settings[DiskSettings.readsAsAdministrator], PrivilegedReader.status == .allowed {
+            var nodes = tree.descendants(of: ScanTree.rootIndex) { $0.flags.contains(.needsAdministrator) }.sorted()
+            if tree.root.flags.contains(.needsAdministrator) {
+                nodes.insert(ScanTree.rootIndex, at: 0)
+            }
+            let folders = nodes.prefix(ElevatedRead.folderLimit).map(tree.path(of:))
+            if case let .read(result) = await PrivilegedReader.read(ElevatedRead.Request(folders: folders, options: options)) {
+                let volume = target.volume
+                (tree, summary) = await Task.detached(priority: .userInitiated) { [tree, summary] in
+                    DiskAnalyzerModel.adding(result, folders: folders, to: tree, summary: summary, volume: volume)
+                }.value
+            }
+        }
+        let report = ScanReport(tree: tree, summary: summary, target: target, top: top)
         return request.flag("json") ? json(request, report.json) : .ok(request, report.text)
     }
 

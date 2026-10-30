@@ -11,7 +11,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var exitObserver: (any NSObjectProtocol)?
 
     static func main() {
-        // Read as Administrator runs this executable again as root, only to list folders: nothing else starts.
+        // Disk Space Analyzer's helper is this executable, started by launchd as root: it only lists folders for Oriel.
+        PrivilegedReaderDaemon.runIfRequested()
+        // Read as Administrator through the password prompt runs it as root too, only to list folders.
         if let status = ElevatedRead.runIfRequested(CommandLine.arguments) {
             exit(status)
         }

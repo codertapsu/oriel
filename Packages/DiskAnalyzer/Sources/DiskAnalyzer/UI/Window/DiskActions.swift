@@ -18,4 +18,6 @@ protocol DiskActions: AnyObject {
     func deleteUnavailableSimulators()
     func showChanges()
     func exportCSV()
+    /// Reads the folders only an administrator can open: through the helper when it is allowed, else after offering it.
+    func readAsAdministrator()
 }

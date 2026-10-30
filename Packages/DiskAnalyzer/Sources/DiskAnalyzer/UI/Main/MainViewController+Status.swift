@@ -58,7 +58,7 @@ extension MainViewController {
                 text: "\(DiskFormat.count(administrator, "folder")) can be opened only by macOS or another user, so "
                     + "\(administrator == 1 ? "its" : "their") space is not counted. Full Disk Access does not change that.",
                 button: "Read as Administrator…"
-            ) { [weak self] in self?.model.readAsAdministrator() })
+            ) { [weak self] in self?.actions?.readAsAdministrator() })
         }
         let protected = summary.protectedFolders
         if protected > 0 {

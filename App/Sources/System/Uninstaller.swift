@@ -1,8 +1,10 @@
 import AppKit
+import DiskAnalyzer
 import OrielCore
 
 /// Settings → Advanced → "Uninstall Oriel…" (PLAN §15.8): removes Application Support data, the Keychain
-/// items, the login item, the CLI links and the preferences, then quits. The cask's `zap` does the same.
+/// items, the login item, Disk Space Analyzer's helper, the CLI links and the preferences, then quits. The cask's
+/// `zap` does the same.
 @MainActor
 enum Uninstaller {
     static func run(settings _: SettingsStore, keychain: KeychainStore, keychainServices: [String]) {
@@ -10,7 +12,7 @@ enum Uninstaller {
         alert.messageText = "Uninstall Oriel?"
         alert.informativeText = """
         This removes Oriel's settings, history, recordings folder, saved API keys and upload credentials, the login \
-        item and the command-line tool, then quits. Screenshots you saved elsewhere are kept.
+        item, Disk Space Analyzer's helper and the command-line tool, then quits. Screenshots you saved elsewhere are kept.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Uninstall")
@@ -21,6 +23,7 @@ enum Uninstaller {
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         try? LaunchAtLogin.set(false)
+        PrivilegedReader.uninstall()
         for location in CLIInstaller.installedLocations {
             try? CLIInstaller.uninstall(location)
         }

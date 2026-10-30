@@ -27,7 +27,7 @@ struct SettingsSyncTests {
     @Test(arguments: [
         "capture.saveFolder", "capture.saveLocation", "recording.outputDirectory", "upload.destinations", "app.onboardingCompleted",
         "app.lastBootstrapImport", "sync.deviceID", "clipboard.openedPasteboardSettings", "disk.lastScanDate", "NSWindow Frame Main",
-        "disk.explainedFolderAccess", "recording.outputFolder",
+        "disk.explainedFolderAccess", "disk.helperBuild", "recording.outputFolder",
     ])
     func thisMacsOwnSettingsStay(_ name: String) {
         #expect(!SettingsSyncPolicy.syncs(name))

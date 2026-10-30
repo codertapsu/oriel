@@ -15,7 +15,9 @@ public nonisolated enum SettingsSyncPolicy {
     public static let localMarkers = ["folder", "directory", "path", "bookmark", "location", "lastused", "lastopened", "lastscan"]
 
     /// Settings under a synced prefix that are this Mac's own although their names do not say so.
-    public static let localNames: Set<String> = ["clipboard.openedPasteboardSettings", "disk.explainedFolderAccess"]
+    public static let localNames: Set<String> = [
+        "clipboard.openedPasteboardSettings", "disk.explainedFolderAccess", "disk.helperBuild",
+    ]
 
     public static func syncs(_ name: String) -> Bool {
         if syncedNames.contains(name) {

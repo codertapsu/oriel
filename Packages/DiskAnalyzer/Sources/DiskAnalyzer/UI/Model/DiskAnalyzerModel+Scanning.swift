@@ -88,6 +88,7 @@ extension DiskAnalyzerModel {
         if settings[DiskSettings.remembersScans] {
             remember(tree, target: target, flag: flag)
         }
+        readAsAdministratorAfterScan()
     }
 
     /// Adds the startup volume's system block, unless macOS's own volumes were read file by file, and the used space no

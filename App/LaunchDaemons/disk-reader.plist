@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Disk Space Analyzer's privileged helper (PLAN §7.10 item 17, PrivilegedReader): Oriel's own executable, started by
+  launchd as root to list folders only an administrator can open. A build phase in project.yml writes it to
+  Contents/Library/LaunchDaemons/<bundle ID>.disk-reader.plist with the bundle ID and the executable's name filled in,
+  so a Debug build's helper never takes the release's name (CLAUDE.md rule 14).
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>BUNDLE_IDENTIFIER.disk-reader</string>
+	<key>BundleProgram</key>
+	<string>Contents/MacOS/EXECUTABLE_NAME</string>
+	<key>MachServices</key>
+	<dict>
+		<key>BUNDLE_IDENTIFIER.disk-reader</key>
+		<true/>
+	</dict>
+	<key>AssociatedBundleIdentifiers</key>
+	<array>
+		<string>BUNDLE_IDENTIFIER</string>
+	</array>
+</dict>
+</plist>

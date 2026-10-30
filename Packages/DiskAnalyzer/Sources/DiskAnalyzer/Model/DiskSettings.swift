@@ -22,6 +22,11 @@ nonisolated enum DiskSettings {
     static let watchesChanges = SettingKey("disk.watchesChanges", default: true)
     /// Remember a summary of each scan, to show what grew since.
     static let remembersScans = SettingKey("disk.remembersScans", default: true)
+    /// Read the folders only an administrator can open in every scan, through Oriel's helper once it is allowed
+    /// (`PrivilegedReader`).
+    static let readsAsAdministrator = SettingKey("disk.readsAsAdministrator", default: true)
+    /// The build that registered the helper, which is registered again after an update (this Mac's own, not synced).
+    static let helperBuild = SettingKey("disk.helperBuild", default: "")
     /// Whether the note about macOS asking for folder access was shown before a first scan of the home folder.
     static let explainedFolderAccess = SettingKey("disk.explainedFolderAccess", default: false)
     /// The view the window opens on.

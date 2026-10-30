@@ -184,6 +184,52 @@ extension DiskWindowController: DiskActions {
         nodes.count == 1 ? "“\(model.displayName(of: nodes[0]))”" : DiskFormat.count(nodes.count, "item")
     }
 
+    func readAsAdministrator() {
+        switch model.helperStatus {
+        case .allowed: model.readAsAdministrator(through: .helper)
+        case .unavailable: model.readAsAdministrator(through: .password)
+        case .notInstalled, .needsApproval: offerHelper()
+        }
+    }
+
+    /// Offers Oriel's helper, which reads these folders in every scan once allowed, or the password for this scan only.
+    private func offerHelper() {
+        let installed = model.helperStatus == .needsApproval
+        let alert = NSAlert()
+        alert.messageText = "Read the folders only an administrator can open?"
+        alert.informativeText = installed
+            ? """
+            Oriel's helper is installed but not allowed yet. In System Settings → General → Login Items & Extensions, switch \
+            on Oriel under Allow in the Background; macOS asks for an administrator's password once, and scans then read \
+            these folders without asking. Or macOS can ask for the password now, for this scan only.
+            """
+            : """
+            Oriel's helper can read them in every scan without asking, once you allow it in System Settings, where macOS \
+            asks for an administrator's password once. It only reads folders, and only Oriel can use it. Or macOS can ask \
+            for the password now, for this scan only.
+            """
+        alert.addButton(withTitle: installed ? "Open Login Items" : "Install Helper…")
+        alert.addButton(withTitle: "Just This Scan")
+        alert.addButton(withTitle: "Cancel")
+        let choose: (NSApplication.ModalResponse) -> Void = { [weak self] response in
+            guard let self else { return }
+            switch response {
+            case .alertFirstButtonReturn where installed: model.approveHelper()
+            case .alertFirstButtonReturn: model.installHelper()
+            case .alertSecondButtonReturn: model.readAsAdministrator(through: .password)
+            default: break
+            }
+        }
+        guard let window, window.isVisible else {
+            choose(alert.runModal())
+            return
+        }
+        alert.beginSheetModal(for: window) { response in
+            // Let this sheet go before macOS's own prompt or System Settings comes.
+            Task { @MainActor in choose(response) }
+        }
+    }
+
     func confirm(title: String, text: String, button: String, destructive: Bool = false, then action: @escaping () -> Void) {
         let alert = NSAlert()
         alert.messageText = title

@@ -6,6 +6,8 @@ import OrielCore
 @Observable
 final class DiskSettingsModel {
     @ObservationIgnored private weak var module: DiskAnalyzerModule?
+    /// Oriel's helper for Read as Administrator, read when the pane appears and when Oriel comes to the front.
+    private(set) var helperStatus = PrivilegedReader.Status.unavailable
 
     init(module: DiskAnalyzerModule) {
         self.module = module
@@ -25,6 +27,66 @@ final class DiskSettingsModel {
 
     func openFullDiskAccess() {
         SystemLinks.open(SystemLinks.fullDiskAccess)
+    }
+
+    // MARK: Read as Administrator
+
+    var helperExplanation: String {
+        switch helperStatus {
+        case .unavailable:
+            "Read as Administrator, in the window, asks for an administrator's password each time: this build of Oriel has no helper."
+        case .notInstalled:
+            "Read as Administrator, in the window, asks for an administrator's password each time. Oriel's helper reads these "
+                + "folders in every scan instead, once you allow it in System Settings, where macOS asks for the password once. It "
+                + "only reads folders, and only Oriel can use it."
+        case .needsApproval:
+            "Oriel's helper is installed. Switch on Oriel under Allow in the Background in System Settings → General → Login "
+                + "Items & Extensions; macOS asks for an administrator's password once."
+        case .allowed:
+            "Oriel's helper is allowed: it reads the folders only an administrator can open, and nothing else, without asking."
+        }
+    }
+
+    func refreshHelperStatus() {
+        Task {
+            helperStatus = await Task.detached(priority: .utility) { PrivilegedReader.status }.value
+        }
+    }
+
+    /// Registers the helper and opens Login Items, where the user switches it on.
+    func installHelper() {
+        Task {
+            let failure = await Task.detached(priority: .userInitiated) { () -> String? in
+                do {
+                    try PrivilegedReader.install()
+                    return nil
+                } catch {
+                    return error.localizedDescription
+                }
+            }.value
+            if let failure {
+                let alert = NSAlert()
+                alert.messageText = "Oriel's helper could not be installed"
+                alert.informativeText = failure
+                alert.runModal()
+                return
+            }
+            settings?[DiskSettings.helperBuild] = PrivilegedReader.build
+            PrivilegedReader.openLoginItems()
+            refreshHelperStatus()
+        }
+    }
+
+    func openLoginItems() {
+        PrivilegedReader.openLoginItems()
+    }
+
+    func removeHelper() {
+        Task {
+            await Task.detached(priority: .userInitiated) { PrivilegedReader.uninstall() }.value
+            settings?[DiskSettings.helperBuild] = ""
+            refreshHelperStatus()
+        }
     }
 
     /// Asks for a folder to exclude and adds it, written with `~` for the home folder.

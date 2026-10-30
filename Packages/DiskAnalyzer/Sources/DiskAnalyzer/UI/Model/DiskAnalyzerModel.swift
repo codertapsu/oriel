@@ -56,8 +56,10 @@ final class DiskAnalyzerModel {
     var categoryRequest: FileCategory?
     /// The notes above the views the user hid for this scan.
     var hiddenNotes = Set<String>()
-    /// While Read as Administrator runs (`readAsAdministrator()`).
+    /// While Read as Administrator runs (`readAsAdministrator(through:)`).
     var isReadingAsAdministrator = false
+    /// Oriel's helper for Read as Administrator, read when the window opens and when Oriel comes to the front.
+    var helperStatus = PrivilegedReader.Status.unavailable
 
     var duplicates = DuplicateSearch.idle
     /// The copies marked for removal in Duplicates.
@@ -98,6 +100,9 @@ final class DiskAnalyzerModel {
     @ObservationIgnored var askedLastOpened = Set<Int32>()
     /// Volumes whose local snapshots were asked for.
     @ObservationIgnored var localSnapshotLoads = Set<String>()
+    /// Read the open scan's folders as soon as the user has allowed the helper in System Settings.
+    @ObservationIgnored var readsAfterHelperApproval = false
+    @ObservationIgnored private var activationObserver: (any NSObjectProtocol)?
     @ObservationIgnored let log = Log.logger("disk")
 
     init(settings: SettingsStore, store: ScanSnapshotStore = ScanSnapshotStore()) {
@@ -114,10 +119,21 @@ final class DiskAnalyzerModel {
     func windowOpened() {
         volumeWatcher.start()
         refreshSources()
+        refreshHelperStatus()
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshHelperStatus() }
+        }
     }
 
     /// The window closed: stop everything, and let the scan go, so a closed window holds no memory and does no work.
     func windowClosed() {
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+        }
+        activationObserver = nil
+        readsAfterHelperApproval = false
         volumeWatcher.stop()
         watcher.stop()
         refreshDelay?.cancel()
