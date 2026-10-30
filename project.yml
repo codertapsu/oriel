@@ -72,6 +72,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true
         LSMinimumSystemVersion: "26.0"
+        LSApplicationCategoryType: public.app-category.utilities   # Finder's Kind and the archive's App Category
         NSMicrophoneUsageDescription: "Oriel records your microphone only during screen recordings you start."
         NSCameraUsageDescription: "Oriel shows your camera only in the recording overlay you enable."
         # Disk Space Analyzer (PLAN §7.10): macOS asks the first time a scan reads one of these
