@@ -2,10 +2,12 @@ import AppKit
 import PrivateAPIs
 
 /// The real `WindowSource`: Accessibility through the AX actor, `CGWindowListCopyWindowInfo`, and SkyLight
-/// Spaces through `PrivateAPIs` (PLAN §7.1.1).
+/// Spaces through `PrivateAPIs` (PLAN §7.1.1). Oriel's own windows come from AppKit (`OwnWindows`): an AX request to its
+/// own process would run AppKit off the main thread (`AXClient.ownPID`).
 ///
-/// With `observesChanges` it installs AX observers per app and the workspace observers and reports changes on
-/// `events`. Without, it only answers reads; the CLI and the read-only TCC test use it that way.
+/// With `observesChanges` it installs AX observers per app, the workspace observers and an observer of Oriel's own
+/// windows, and reports changes on `events`. Without, it only answers reads; the CLI and the read-only TCC test use it
+/// that way.
 final nonisolated class SystemWindowSource: WindowSource {
     let events: AsyncStream<WindowSourceEvent>
     let capabilities: SourceCapabilities
@@ -14,6 +16,8 @@ final nonisolated class SystemWindowSource: WindowSource {
     private let ax: AXClient
     private let apis: PrivateAPIs
     private let workspace: WorkspaceObserver?
+    private let ownWindows: OwnWindowObserver?
+    private let ownPID = AXClient.ownPID
 
     @MainActor
     init(observesChanges: Bool, apis: PrivateAPIs = .shared) {
@@ -25,16 +29,19 @@ final nonisolated class SystemWindowSource: WindowSource {
         let relay = observesChanges ? AXNotificationRelay { continuation.yield($0) } : nil
         ax = AXClient(apis: apis, relay: relay)
         workspace = observesChanges ? WorkspaceObserver() : nil
+        ownWindows = observesChanges ? OwnWindowObserver() : nil
     }
 
     func start() async {
         guard let workspace else { return }
         let continuation = continuation
         await workspace.start { continuation.yield($0) }
+        await ownWindows?.start(pid: ownPID) { continuation.yield($0) }
     }
 
     func stop() async {
         await workspace?.stop()
+        await ownWindows?.stop()
         await ax.removeAllObservers()
         continuation.finish()
     }
@@ -44,15 +51,23 @@ final nonisolated class SystemWindowSource: WindowSource {
     }
 
     func accessibilityWindows(of pid: Int32) async -> AXWindowsResult {
-        await ax.windows(of: pid)
+        if pid == ownPID {
+            return await .windows(MainActor.run { OwnWindows.records() })
+        }
+        return await ax.windows(of: pid)
     }
 
+    /// None for Oriel: AppKit lists its windows on every Space.
     func otherSpaceWindows(of pid: Int32, ids: Set<UInt32>) async -> [AXWindowRecord] {
-        await ax.otherSpaceWindows(of: pid, ids: ids)
+        guard pid != ownPID else { return [] }
+        return await ax.otherSpaceWindows(of: pid, ids: ids)
     }
 
     func focusedWindowID(of pid: Int32) async -> UInt32? {
-        await ax.focusedWindowID(of: pid)
+        if pid == ownPID {
+            return await MainActor.run { OwnWindows.focusedWindowID }
+        }
+        return await ax.focusedWindowID(of: pid)
     }
 
     func serverWindows() async -> [ServerWindowRecord] {
@@ -76,10 +91,18 @@ final nonisolated class SystemWindowSource: WindowSource {
     }
 
     func focus(_ window: WindowEntry) async -> Bool {
-        await WindowFocuser(ax: ax, apis: apis).focus(window)
+        if window.info.pid == ownPID {
+            let id = window.id
+            return await MainActor.run { OwnWindows.focus(id) }
+        }
+        return await WindowFocuser(ax: ax, apis: apis).focus(window)
     }
 
     func perform(_ action: WindowAction, on window: WindowEntry) async -> Bool {
+        if window.info.pid == ownPID {
+            let id = window.id
+            return await MainActor.run { OwnWindows.perform(action, on: id) }
+        }
         guard window.isActionable else { return false }
         return switch action {
         case .close: await ax.close(windowID: window.id)
@@ -89,12 +112,18 @@ final nonisolated class SystemWindowSource: WindowSource {
     }
 
     func setMinimized(_ minimized: Bool, window: WindowEntry) async -> Bool {
+        if window.info.pid == ownPID {
+            let id = window.id
+            return await MainActor.run { OwnWindows.setMinimized(minimized, id: id) }
+        }
         guard window.isActionable else { return false }
         return await ax.setMinimized(minimized, windowID: window.id)
     }
 
+    /// Never Oriel itself: only Quit in its menu quits it.
     func quit(pid: Int32) async -> Bool {
-        await MainActor.run { NSRunningApplication(processIdentifier: pid)?.terminate() ?? false }
+        guard pid != ownPID else { return false }
+        return await MainActor.run { NSRunningApplication(processIdentifier: pid)?.terminate() ?? false }
     }
 
     @MainActor

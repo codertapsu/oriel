@@ -1,5 +1,5 @@
 /// What the switcher can do to a window without switching to it first (PLAN §1.2, §7.1.3). Every action goes
-/// through Accessibility, so it needs an AX element for the window.
+/// through Accessibility, so it needs an AX element for the window; Oriel's own windows go through AppKit.
 public nonisolated enum WindowAction: String, Sendable, CaseIterable {
     /// Presses the window's close button.
     case close

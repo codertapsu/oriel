@@ -17,6 +17,11 @@ actor AXClient {
     /// long-running Chromium browser; those windows appear once their Space has been visited.
     static let remoteElementIDLimit: UInt64 = 1000
     static let remoteTimeBudget: Duration = .milliseconds(100)
+    /// Oriel's own process, which is never asked. macOS answers an AX request to the asking process itself by running
+    /// AppKit's accessibility code on the calling thread, here the AX queue, so AppKit walked Oriel's views off the main
+    /// thread and the app trapped on a main-actor check (macOS 27.0.1, docs/os-quirks.md). `OwnWindows` describes its
+    /// windows from AppKit instead.
+    nonisolated static let ownPID = ProcessInfo.processInfo.processIdentifier
 
     private struct ObservedApp {
         let element: AXUIElement
@@ -184,8 +189,10 @@ actor AXClient {
 
     // MARK: Private
 
-    /// The app element, with an observer when the client observes. Nil when the app refuses (still launching).
+    /// The app element, with an observer when the client observes. Nil when the app refuses (still launching), and
+    /// always for Oriel itself (`ownPID`).
     private func application(_ pid: Int32) -> ObservedApp? {
+        guard pid != Self.ownPID else { return nil }
         if let app = applications[pid] {
             return app
         }
@@ -243,6 +250,7 @@ actor AXClient {
     /// Builds elements from remote tokens until every wanted window is found, the id range ends, the time
     /// budget runs out or the app stops answering.
     private func remoteElements(pid: Int32, wanted: Set<UInt32>) -> [UInt32: AXUIElement] {
+        guard pid != Self.ownPID else { return [:] }
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: Self.remoteTimeBudget)
         var remaining = wanted
