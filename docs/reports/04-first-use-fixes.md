@@ -50,11 +50,11 @@ Nothing was driven on your screen, and no administrator password was entered. QA
 
 Also unverified: whether a Shortcuts action that launches Oriel counts as a default launch, which would open Settings next to it.
 
-## Open questions
+## Open questions (answered)
 
-1. **Read as Administrator asks every time.** What it read lasts until the next scan. Reading those folders on every scan without asking would need a privileged helper (`SMAppService.daemon`), approved once in System Settings, which is a larger piece. Is asking each time acceptable?
-2. **Biggest Files** leaves macOS's files out unless you open the macOS folder, so the list stays about what you can remove. Would you rather see the swap files and the like there too?
-3. **Settings at every launch.** Should there be a setting to start Oriel without its window, beyond login?
+1. **Read as Administrator asks every time.** Asked once now: Oriel's helper, allowed once in System Settings, reads those folders in every scan (`docs/reports/05-administrator-helper.md`).
+2. **Biggest Files** now lists macOS's files at the top level too (report 05).
+3. **Settings at every launch.** No answer; unchanged.
 
 ## What you need to do
 
