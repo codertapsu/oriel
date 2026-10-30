@@ -34,6 +34,6 @@ nonisolated struct ScanNodeFlags: OptionSet, Sendable, Hashable, Codable {
     /// cannot read it again, so changes on disk do not refresh it, and Oriel changes nothing in it.
     static let readAsAdministrator = ScanNodeFlags(rawValue: 1 << 14)
     /// On one of macOS's own volumes: the sealed system volume or a helper volume (Preboot, VM, Update). Counted, never
-    /// removed or moved, and left out of Old Files, Duplicates and, unless shown, Biggest Files.
+    /// removed or moved, left out of Duplicates and, unless its folder is shown, Old Files.
     static let macOSVolume = ScanNodeFlags(rawValue: 1 << 15)
 }

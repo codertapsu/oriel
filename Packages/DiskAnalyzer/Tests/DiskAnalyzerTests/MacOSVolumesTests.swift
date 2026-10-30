@@ -135,7 +135,8 @@ struct MacOSVolumesTests {
         #expect(refreshed[macOS].fileCount == 1)
     }
 
-    @Test func biggestAndOldFilesLeaveMacOSsFilesOutUnlessItsFolderIsShown() {
+    /// Biggest Files lists everything big, macOS's files included; Old Files leaves them out unless their folder is shown.
+    @Test func biggestFilesListMacOSsFilesAndOldFilesOnlyInsideItsFolder() {
         var tree = Fixtures.tree(["Users/movie.mov": 3_000_000])
         let macOS = tree.appendAnchor(Item(name: "macOS", kind: .folder, flags: .macOSVolume), path: "/")
         tree.append(Item(name: "sleepimage", kind: .file, size: 9_000_000, logicalSize: 9_000_000, flags: .macOSVolume), to: macOS)
@@ -143,10 +144,9 @@ struct MacOSVolumesTests {
         var query = FileQuery(
             mode: .biggest, version: 0, folder: ScanTree.rootIndex, filter: FileFilter(), sort: FileSort(), search: "", lastOpenedCount: 0
         )
-        #expect(query.run(in: tree, lastOpened: [:]).rows.map(tree.name(of:)) == ["movie.mov"])
+        #expect(query.run(in: tree, lastOpened: [:]).rows.map(tree.name(of:)) == ["sleepimage", "movie.mov"])
         query.mode = .old
         #expect(query.run(in: tree, lastOpened: [:]).rows.map(tree.name(of:)) == ["movie.mov"])
-        query.mode = .biggest
         query.folder = macOS
         #expect(query.run(in: tree, lastOpened: [:]).rows.map(tree.name(of:)) == ["sleepimage"])
         query.folder = ScanTree.rootIndex

@@ -23,10 +23,10 @@ nonisolated struct FileQuery: Sendable, Equatable {
         var bytes: Int64
     }
 
-    /// macOS's own files are left out of Biggest Files and Old Files, which are for finding what to remove, unless the
-    /// list is of a folder on macOS's volumes; the search finds them.
+    /// macOS's own files are left out of Old Files, which is for finding what to remove and would list the sealed system's
+    /// unused files, unless the list is of a folder on macOS's volumes. Biggest Files and the search show them.
     func run(in tree: ScanTree, lastOpened: [Int32: Date]) -> Result {
-        let showsMacOS = mode == .search || tree[folder].flags.contains(.macOSVolume)
+        let showsMacOS = mode != .old || tree[folder].flags.contains(.macOSVolume)
         let candidates: [Int32] = switch mode {
         case .biggest, .old: tree.files(under: folder).filter { showsMacOS || !tree[$0].flags.contains(.macOSVolume) }
         case .search: tree.search(search, under: folder)
