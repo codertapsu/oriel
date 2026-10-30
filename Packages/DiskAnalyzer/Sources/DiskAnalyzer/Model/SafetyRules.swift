@@ -89,7 +89,13 @@ nonisolated struct SafetyRules: Sendable {
             // On the data volume, outside the firmlinks: Spotlight's index, the file-system event log and the like.
             return .system
         }
-        let first = "/" + (path.split(separator: "/").first.map(String.init) ?? "")
+        let components = path.split(separator: "/")
+        // Everything directly at the top of the startup volume is macOS's: its folders and, on the system volume, its
+        // files and links (.file, .VolumeIcon.icns, etc, tmp, var).
+        if components.count == 1 {
+            return .system
+        }
+        let first = "/" + (components.first.map(String.init) ?? "")
         if Self.systemRoots.contains(first), !Self.allowedInside.contains(where: { path.hasPrefix($0) }) {
             return .system
         }

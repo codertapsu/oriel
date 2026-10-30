@@ -13,7 +13,8 @@ final class NodeIcons {
         let item = tree[node]
         switch item.kind {
         case .folder:
-            return folder
+            // The folder that holds macOS's own volumes.
+            return tree.anchors[node] != nil && item.flags.contains(.macOSVolume) ? symbol("applelogo") : folder
         case .package:
             let name = tree.name(of: node)
             guard name.lowercased().hasSuffix(".app") else { return icon(forName: name, fallback: folder) }

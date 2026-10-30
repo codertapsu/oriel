@@ -20,14 +20,15 @@ nonisolated extension ScanTree {
     ) -> [(index: Int32, item: DirectoryDigest.Item)] {
         guard contains(folder), nodes[Int(folder)].kind.isContainer else { return [] }
         var kept: [String: Int32] = [:]
-        // The system and "Other space" blocks of a volume's scan are not on disk, so a listing never has them.
+        // The system and "Other space" blocks of a volume's scan are not on disk, and the folder of macOS's own volumes is
+        // read from elsewhere, so a listing never has them.
         var blocks: [Int32] = []
         var child = nodes[Int(folder)].firstChild
         var removed = 0
         while child != ScanNode.none {
             let node = nodes[Int(child)]
             let next = node.nextSibling
-            if node.kind == .system || node.kind == .unaccounted {
+            if node.kind == .system || node.kind == .unaccounted || anchors[child] != nil {
                 blocks.append(child)
             } else if keepsSubfolders, node.kind.isContainer {
                 kept[names[Int(node.name)]] = child
@@ -38,7 +39,7 @@ nonisolated extension ScanTree {
         }
         var node = nodes[Int(folder)]
         node.firstChild = ScanNode.none
-        node.flags.subtract([.unreadable, .partial])
+        node.flags.subtract(UnreadableReason.allFlags.union(.partial))
         setNode(node, at: folder)
         var next: [(index: Int32, item: DirectoryDigest.Item)] = []
         for item in digest.items {
@@ -86,7 +87,8 @@ nonisolated extension ScanTree {
             kept[index] = node
         }
         var copy = self
-        copy.replaceStorage(nodes: kept, names: names, removedCount: 0)
+        let movedAnchors = anchors.compactMap { index, path in renumbered[index].map { ($0, path) } }
+        copy.replaceStorage(nodes: kept, names: names, removedCount: 0, anchors: Dictionary(uniqueKeysWithValues: movedAnchors))
         return copy
     }
 

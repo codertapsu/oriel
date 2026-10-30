@@ -71,7 +71,9 @@ struct ScanEngineTests {
         #expect(outcome.tree.index(ofPath: folder.path + "/ToOutside/huge.bin") == nil)
     }
 
-    @Test func foldersThatCannotBeReadAreCountedAndMarked() async throws {
+    /// A folder whose permissions keep the user out fails with `EACCES`, which Full Disk Access does not change: it is
+    /// one an administrator can read.
+    @Test func foldersThatCannotBeReadAreCountedAndMarkedWithWhy() async throws {
         let folder = try TemporaryFolder()
         try folder.file("Open/a.bin", size: 2_000_000)
         try folder.file("Locked/secret.bin", size: 2_000_000)
@@ -79,10 +81,26 @@ struct ScanEngineTests {
         defer { chmod(folder.path + "/Locked", 0o755) }
         let outcome = await scan(folder)
         #expect(outcome.summary.unreadableFolders == 1)
-        #expect(outcome.summary.unreadableSamples == [folder.path + "/Locked"])
+        #expect(outcome.summary.administratorFolders == 1)
+        #expect(outcome.summary.protectedFolders == 0)
+        #expect(outcome.summary.samples(.needsAdministrator) == [folder.path + "/Locked"])
         let locked = try #require(outcome.tree.index(ofPath: folder.path + "/Locked"))
-        #expect(outcome.tree[locked].flags.contains(.unreadable))
+        #expect(outcome.tree[locked].flags.isSuperset(of: [.unreadable, .needsAdministrator]))
+        #expect(!outcome.tree[locked].flags.contains(.protectedByMacOS))
         #expect(outcome.tree[locked].size == 0)
+    }
+
+    @Test func theReasonFollowsTheError() {
+        #expect(UnreadableReason(error: EACCES) == .needsAdministrator)
+        #expect(UnreadableReason(error: EPERM) == .protectedByMacOS)
+        #expect(UnreadableReason(error: EIO) == .other)
+        for reason in [UnreadableReason.needsAdministrator, .protectedByMacOS, .other] {
+            #expect(UnreadableReason(flags: reason.flags) == reason)
+        }
+        var tree = ScanTree(rootName: "Root", rootPath: "/Root")
+        tree.setUnreadable(.needsAdministrator, at: ScanTree.rootIndex)
+        tree.setUnreadable(.protectedByMacOS, at: ScanTree.rootIndex)
+        #expect(tree.root.flags == [.unreadable, .protectedByMacOS])
     }
 
     @Test func aCancelledScanStopsAndSaysSo() async throws {

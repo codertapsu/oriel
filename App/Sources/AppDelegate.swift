@@ -1,4 +1,5 @@
 import AppKit
+import DiskAnalyzer
 
 /// Entry point and application delegate of the menu-bar agent.
 @main
@@ -10,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var exitObserver: (any NSObjectProtocol)?
 
     static func main() {
+        // Read as Administrator runs this executable again as root, only to list folders: nothing else starts.
+        if let status = ElevatedRead.runIfRequested(CommandLine.arguments) {
+            exit(status)
+        }
         if CommandLine.arguments.contains("--self-test") {
             exit(SelfTest.run())
         }

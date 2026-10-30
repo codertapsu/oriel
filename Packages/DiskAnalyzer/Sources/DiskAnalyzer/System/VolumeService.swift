@@ -46,26 +46,41 @@ nonisolated enum VolumeService {
     }
 
     /// The bytes used by the startup disk's sealed system and the helper volumes macOS mounts under
-    /// `/System/Volumes` (Preboot, VM, Update…) in the same APFS container, the data volume left out. On APFS each
-    /// volume's own use is `statfs`'s blocks minus its free blocks; the container's free space is shared.
+    /// `/System/Volumes` (Preboot, VM, Update…) in the same APFS container, the data volume left out.
     static func systemBytes() -> Int64 {
-        guard let root = usedAndTotal("/") else { return 0 }
-        var total = root.used
-        let hidden = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [], options: []) ?? []
-        for url in hidden where url.path.hasPrefix("/System/Volumes/") && url.path != FirmlinkMap.dataVolume {
-            // Volumes of other containers (the Apple silicon boot container's xarts, iSCPreboot, Hardware) differ in size.
-            guard let volume = usedAndTotal(url.path), volume.total == root.total else { continue }
-            total += volume.used
-        }
-        return total
+        (["/"] + helperVolumeMounts()).reduce(0) { $0 + (spaceUsed($1) ?? 0) }
     }
 
-    private static func usedAndTotal(_ path: String) -> (used: Int64, total: Int64)? {
+    /// The space the volume mounted at `path` takes itself, as `df` shows it (`ATTR_VOL_SPACEUSED`). On APFS `statfs`
+    /// answers for the whole container, the same for every volume in it (macOS 27.0.1, docs/os-quirks.md).
+    static func spaceUsed(_ path: String) -> Int64? {
+        var list = attrlist()
+        list.bitmapcount = u_short(ATTR_BIT_MAP_COUNT)
+        list.volattr = attrgroup_t(ATTR_VOL_INFO) | attrgroup_t(ATTR_VOL_SPACEUSED)
+        // The length, then the value, packed at 4-byte alignment.
+        var buffer = [UInt8](repeating: 0, count: 16)
+        let status = buffer.withUnsafeMutableBytes { getattrlist(path, &list, $0.baseAddress, $0.count, 0) }
+        guard status == 0 else { return nil }
+        return buffer.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 4, as: Int64.self) }
+    }
+
+    /// The mount points of the helper volumes macOS keeps under `/System/Volumes` in the startup volume's APFS container
+    /// (Preboot, VM, Update…), the data volume left out. `statfs`'s totals are the container's, so they tell the
+    /// volumes of this container from those of another.
+    static func helperVolumeMounts() -> Set<String> {
+        guard let root = containerSize("/") else { return [] }
+        let hidden = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [], options: []) ?? []
+        return Set(hidden.map(\.path).filter { path in
+            // Volumes of other containers (the Apple silicon boot container's xarts, iSCPreboot, Hardware) differ in size.
+            path.hasPrefix("/System/Volumes/") && path != FirmlinkMap.dataVolume && containerSize(path) == root
+        })
+    }
+
+    /// The size `statfs` gives, which on APFS is the container's.
+    private static func containerSize(_ path: String) -> Int64? {
         var info = statfs()
         guard statfs(path, &info) == 0 else { return nil }
-        let block = Int64(info.f_bsize)
-        let used = (Int64(info.f_blocks) - Int64(info.f_bfree)) * block
-        return (max(0, used), Int64(info.f_blocks) * block)
+        return Int64(info.f_blocks) * Int64(info.f_bsize)
     }
 
     /// The mount points of every volume, hidden ones included, for the safety rules.

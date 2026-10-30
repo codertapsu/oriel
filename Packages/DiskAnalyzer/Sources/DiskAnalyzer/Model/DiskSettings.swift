@@ -9,6 +9,9 @@ nonisolated enum DiskSettings {
     static let smallFileThreshold = SettingKey("disk.smallFileThreshold", default: 1_000_000)
     static let includesHiddenFiles = SettingKey("disk.includesHiddenFiles", default: true)
     static let crossesVolumes = SettingKey("disk.crossesVolumes", default: false)
+    /// Read the sealed system volume and macOS's helper volumes file by file when the startup volume is scanned, rather
+    /// than counting them as one block.
+    static let countsMacOSFiles = SettingKey("disk.countsMacOSFiles", default: true)
     /// Paths (starting with `/` or `~`) and folder names a scan skips.
     static let exclusions = SettingKey("disk.exclusions", default: [String]())
     /// Ask Spotlight when the files Old Files lists were last opened.

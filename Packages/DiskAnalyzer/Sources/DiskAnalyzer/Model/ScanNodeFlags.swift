@@ -1,10 +1,10 @@
 /// Facts about a node that change how it is counted, shown or handled.
-nonisolated struct ScanNodeFlags: OptionSet, Sendable, Hashable {
+nonisolated struct ScanNodeFlags: OptionSet, Sendable, Hashable, Codable {
     let rawValue: UInt16
 
     /// A dot file or one with the hidden flag.
     static let hidden = ScanNodeFlags(rawValue: 1 << 0)
-    /// A folder the scan could not open (no permission, often for want of Full Disk Access).
+    /// A folder the scan could not open; `needsAdministrator` or `protectedByMacOS` says why, when it is one of those.
     static let unreadable = ScanNodeFlags(rawValue: 1 << 1)
     /// A folder whose listing stopped part way, so some of its contents are missing.
     static let partial = ScanNodeFlags(rawValue: 1 << 2)
@@ -26,4 +26,14 @@ nonisolated struct ScanNodeFlags: OptionSet, Sendable, Hashable {
     static let purgeable = ScanNodeFlags(rawValue: 1 << 10)
     /// Taken out of the tree, by a file operation or because it disappeared.
     static let removed = ScanNodeFlags(rawValue: 1 << 11)
+    /// Unreadable because only its owner may open it (`UnreadableReason.needsAdministrator`).
+    static let needsAdministrator = ScanNodeFlags(rawValue: 1 << 12)
+    /// Unreadable because macOS protects it (`UnreadableReason.protectedByMacOS`).
+    static let protectedByMacOS = ScanNodeFlags(rawValue: 1 << 13)
+    /// Read with an administrator's rights after the scan (`ElevatedRead`). Kept as it was read: the user's own rights
+    /// cannot read it again, so changes on disk do not refresh it, and Oriel changes nothing in it.
+    static let readAsAdministrator = ScanNodeFlags(rawValue: 1 << 14)
+    /// On one of macOS's own volumes: the sealed system volume or a helper volume (Preboot, VM, Update). Counted, never
+    /// removed or moved, and left out of Old Files, Duplicates and, unless shown, Biggest Files.
+    static let macOSVolume = ScanNodeFlags(rawValue: 1 << 15)
 }

@@ -6,7 +6,8 @@ nonisolated enum FileErrorMessage {
     static func message(for code: Int32) -> String {
         switch code {
         case ENOSPC: "There is not enough free space there."
-        case EACCES, EPERM: "Oriel is not allowed to change it. Without Full Disk Access some folders are off limits."
+        case EACCES: "Only its owner, macOS or another user, may change it."
+        case EPERM: "macOS protects it, or Oriel has no Full Disk Access."
         case EROFS: "The volume is read-only."
         case ENOENT: "It is no longer there."
         case EEXIST: "Something with that name is already there."

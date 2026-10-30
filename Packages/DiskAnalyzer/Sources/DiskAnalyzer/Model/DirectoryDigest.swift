@@ -6,8 +6,10 @@
 /// - A file with several hard links is counted once (`isFirstLink`); its other links get no size.
 /// - Symlinks are never followed. Firmlinks, automount triggers, folders that are only in the cloud, excluded folders
 ///   and, unless crossing is allowed, other volumes are listed but not entered.
-nonisolated struct DirectoryDigest: Sendable, Equatable {
-    struct Item: Sendable, Equatable {
+/// - On macOS's own volumes (`MacOSVolumes`), firmlinks, automount triggers and volumes other than the helper volumes
+///   are left out altogether, the helper volumes are entered, and everything is marked `macOSVolume`.
+nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
+    struct Item: Sendable, Equatable, Codable {
         var name: String
         var kind: ScanNodeKind
         var size: Int64 = 0
@@ -25,7 +27,7 @@ nonisolated struct DirectoryDigest: Sendable, Equatable {
         var crossesVolume = false
     }
 
-    struct SmallFiles: Sendable, Equatable {
+    struct SmallFiles: Sendable, Equatable, Codable {
         var count = 0
         var size: Int64 = 0
         var logicalSize: Int64 = 0
@@ -56,7 +58,8 @@ nonisolated struct DirectoryDigest: Sendable, Equatable {
         options: ScanOptions,
         categories: inout FileCategoryCache,
         isFirstLink: (Int32, UInt64) -> Bool,
-        canCrossInto: (String) -> Bool = { _ in false }
+        canCrossInto: (String) -> Bool = { _ in false },
+        macOS: MacOSVolumes? = nil
     ) -> DirectoryDigest {
         var digest = DirectoryDigest()
         for entry in entries {
@@ -70,18 +73,27 @@ nonisolated struct DirectoryDigest: Sendable, Equatable {
             switch entry.kind {
             case .directory:
                 let path = childPath(parentPath, entry.name)
+                if let macOS, !macOS.keeps(entry, at: path) {
+                    continue
+                }
                 digest.items.append(folder(
                     entry,
                     path: path,
                     inherited: inheritedCategory,
                     options: options,
                     categories: &categories,
+                    entersMount: macOS?.helperMounts.contains(path) ?? false,
                     canCrossInto: canCrossInto
                 ))
             case .file:
                 digest.addFile(entry, inherited: inheritedCategory, options: options, categories: &categories, isFirstLink: isFirstLink)
             case .symlink, .special:
                 digest.small.add(entry, size: entry.allocatedSize, logicalSize: entry.logicalSize)
+            }
+        }
+        if macOS != nil {
+            for index in digest.items.indices {
+                digest.items[index].flags.insert(.macOSVolume)
             }
         }
         return digest
@@ -97,6 +109,7 @@ nonisolated struct DirectoryDigest: Sendable, Equatable {
         inherited: FileCategory?,
         options: ScanOptions,
         categories: inout FileCategoryCache,
+        entersMount: Bool,
         canCrossInto: (String) -> Bool
     ) -> Item {
         let isPackage = categories.isPackage(entry.name)
@@ -116,7 +129,7 @@ nonisolated struct DirectoryDigest: Sendable, Equatable {
             item.flags.insert(.firmlink)
         } else if entry.isMountPoint {
             item.flags.insert(.mountPoint)
-            item.crossesVolume = options.crossesVolumes && canCrossInto(path)
+            item.crossesVolume = entersMount || (options.crossesVolumes && canCrossInto(path))
             item.descends = item.crossesVolume
         } else if entry.isDataless {
             item.flags.insert(.cloudOnly)

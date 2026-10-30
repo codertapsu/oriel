@@ -25,16 +25,7 @@ extension MainViewController {
                 self?.model.rescan()
             })
         }
-        if summary.unreadableFolders > 0 {
-            let count = DiskFormat.count(summary.unreadableFolders, "folder")
-            notes.append(Note(
-                id: "unreadable",
-                symbol: "lock",
-                tint: .systemOrange,
-                text: "\(count) could not be read, so their space is not counted. macOS shows them to apps with Full Disk Access.",
-                button: "Grant Full Disk Access…"
-            ) { SystemLinks.open(SystemLinks.fullDiskAccess) })
-        }
+        notes += unreadableNotes(summary)
         if let diff = model.diff, abs(diff.totalDelta) >= 50_000_000 {
             notes.append(Note(
                 id: "diff",
@@ -45,6 +36,51 @@ extension MainViewController {
             ) { [weak self] in self?.actions?.showChanges() })
         }
         return notes.filter { !model.hiddenNotes.contains($0.id) }
+    }
+
+    /// Why folders could not be read, each with what helps: Full Disk Access lifts macOS's privacy protection, but not a
+    /// folder's permissions, which only an administrator gets past (docs/os-quirks.md).
+    private func unreadableNotes(_ summary: ScanSummary) -> [Note] {
+        var notes: [Note] = []
+        let administrator = summary.administratorFolders
+        if model.isReadingAsAdministrator {
+            notes.append(Note(
+                id: "administrator",
+                symbol: "lock.open",
+                tint: .controlAccentColor,
+                text: "Reading \(DiskFormat.count(administrator, "folder")) as an administrator…"
+            ))
+        } else if administrator > 0 {
+            notes.append(Note(
+                id: "administrator",
+                symbol: "lock",
+                tint: .systemOrange,
+                text: "\(DiskFormat.count(administrator, "folder")) can be opened only by macOS or another user, so "
+                    + "\(administrator == 1 ? "its" : "their") space is not counted. Full Disk Access does not change that.",
+                button: "Read as Administrator…"
+            ) { [weak self] in self?.model.readAsAdministrator() })
+        }
+        let protected = summary.protectedFolders
+        if protected > 0 {
+            notes.append(Note(
+                id: "protected",
+                symbol: "lock.shield",
+                tint: .secondaryLabelColor,
+                text: "\(DiskFormat.count(protected, "folder")) \(protected == 1 ? "is" : "are") protected by macOS. Full Disk "
+                    + "Access opens personal data such as Mail; System Integrity Protection keeps the rest from every app.",
+                button: "Full Disk Access…"
+            ) { SystemLinks.open(SystemLinks.fullDiskAccess) })
+        }
+        let others = summary.unreadableFolders - administrator - protected
+        if others > 0 {
+            notes.append(Note(
+                id: "unreadable",
+                symbol: "exclamationmark.triangle",
+                tint: .systemOrange,
+                text: "\(DiskFormat.count(others, "folder")) could not be read, so \(others == 1 ? "its" : "their") space is not counted."
+            ))
+        }
+        return notes
     }
 
     func updateBanners(isScan: Bool) {

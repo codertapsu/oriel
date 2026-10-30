@@ -25,7 +25,10 @@ nonisolated struct ScanReport {
                 + "\(DiskFormat.count(summary.folders, "folder")), scanned in \(DiskFormat.duration(summary.duration))",
         ]
         if summary.unreadableFolders > 0 {
-            lines.append("\(DiskFormat.count(summary.unreadableFolders, "folder")) could not be read; Full Disk Access shows them.")
+            lines.append(
+                "\(DiskFormat.count(summary.unreadableFolders, "folder")) could not be read: \(summary.administratorFolders) only "
+                    + "an administrator can open, \(summary.protectedFolders) protected by macOS."
+            )
         }
         lines.append("")
         lines.append("Largest items:")
@@ -51,6 +54,8 @@ nonisolated struct ScanReport {
             "files": summary.files,
             "folders": summary.folders,
             "unreadableFolders": summary.unreadableFolders,
+            "administratorOnlyFolders": summary.administratorFolders,
+            "protectedFolders": summary.protectedFolders,
             "cloudOnlyFiles": summary.cloudOnlyFiles,
             "cloudOnlyBytes": summary.cloudOnlyBytes,
             "seconds": Double(summary.duration.components.seconds) + Double(summary.duration.components.attoseconds) / 1e18,

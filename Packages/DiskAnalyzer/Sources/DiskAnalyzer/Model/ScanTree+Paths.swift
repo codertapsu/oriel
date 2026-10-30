@@ -23,20 +23,26 @@ nonisolated extension ScanTree {
         return false
     }
 
-    /// The path on disk. An aggregate of smaller files and the synthetic nodes have their folder's path.
+    /// The path on disk. An aggregate of smaller files and the synthetic nodes have their folder's path; below an anchor
+    /// (`anchors`), paths start at the anchor's.
     func path(of index: Int32) -> String {
         var components: [String] = []
         var current = index
+        var base = rootPath
         while current != ScanTree.rootIndex, current != ScanNode.none {
+            if !anchors.isEmpty, let anchor = anchors[current] {
+                base = anchor
+                break
+            }
             let node = nodes[Int(current)]
             if !node.kind.isSynthetic {
                 components.append(names[Int(node.name)])
             }
             current = node.parent
         }
-        guard !components.isEmpty else { return rootPath }
+        guard !components.isEmpty else { return base }
         let tail = components.reversed().joined(separator: "/")
-        return rootPath == "/" ? "/" + tail : rootPath + "/" + tail
+        return base == "/" ? "/" + tail : base + "/" + tail
     }
 
     /// The path as the rest of macOS shows it: `/Users/me` rather than `/System/Volumes/Data/Users/me`.
@@ -44,11 +50,17 @@ nonisolated extension ScanTree {
         firmlinks.visiblePath(for: path(of: index))
     }
 
-    /// The node at `path`, given in either form; nil when it is not part of the scan.
+    /// The node at `path`, given in either form; nil when it is not part of the scan. Below the root first, then below
+    /// the anchors, the longest path first.
     func index(ofPath path: String) -> Int32? {
         let candidates = [path, firmlinks.dataPath(for: path)]
         for candidate in candidates {
             if let index = walk(candidate) {
+                return index
+            }
+        }
+        for (anchor, base) in anchors.sorted(by: { $0.value.count > $1.value.count }) where contains(anchor) {
+            if let index = walk(path, from: anchor, base: base) {
                 return index
             }
         }
@@ -82,9 +94,9 @@ nonisolated extension ScanTree {
         return nil
     }
 
-    private func walk(_ path: String) -> Int32? {
-        guard let relative = relativeComponents(of: path) else { return nil }
-        var current = ScanTree.rootIndex
+    private func walk(_ path: String, from start: Int32 = ScanTree.rootIndex, base: String? = nil) -> Int32? {
+        guard let relative = relativeComponents(of: path, base: base ?? rootPath) else { return nil }
+        var current = start
         for component in relative {
             guard let next = child(named: component, of: current) else { return nil }
             current = next
@@ -92,12 +104,13 @@ nonisolated extension ScanTree {
         return current
     }
 
-    private func relativeComponents(of path: String) -> [Substring]? {
+    private func relativeComponents(of path: String, base: String? = nil) -> [Substring]? {
+        let base = base ?? rootPath
         let trimmed = path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
-        if trimmed == rootPath {
+        if trimmed == base {
             return []
         }
-        let prefix = rootPath == "/" ? "/" : rootPath + "/"
+        let prefix = base == "/" ? "/" : base + "/"
         guard trimmed.hasPrefix(prefix) else { return nil }
         return trimmed.dropFirst(prefix.count).split(separator: "/")
     }

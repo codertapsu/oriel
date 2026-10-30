@@ -91,7 +91,25 @@ extension InspectorViewController {
         let flags = item.flags
         var notes: [String] = []
         if flags.contains(.unreadable) {
-            notes.append("Oriel could not read this folder, so what it holds is not counted. Full Disk Access usually helps.")
+            let why = switch UnreadableReason(flags: flags) {
+            case .needsAdministrator:
+                "Only its owner, macOS or another user, can open this folder, so what it holds is not counted. Full Disk Access "
+                    + "does not change that; Read as Administrator, in the note above the views, does."
+            case .protectedByMacOS:
+                "macOS protects this folder, so what it holds is not counted. Full Disk Access opens it if it holds personal "
+                    + "data; System Integrity Protection keeps it from every app."
+            case .other:
+                "Oriel could not read this folder, so what it holds is not counted."
+            }
+            notes.append(why)
+        }
+        if flags.contains(.readAsAdministrator) {
+            notes.append(
+                "Read with an administrator's rights. It stays as it was read until the next scan, and Oriel changes nothing in it."
+            )
+        }
+        if flags.contains(.macOSVolume) {
+            notes.append("Part of macOS's own volumes (the sealed system, Preboot, VM, Update): counted, never removed or moved.")
         }
         if flags.contains(.partial) {
             notes.append("Reading this folder stopped part way, so some of it is not counted.")
@@ -114,7 +132,9 @@ extension InspectorViewController {
             notes.append("Excluded from scans in Settings, so its size is not counted.")
         }
         if flags.contains(.mountPoint) {
-            notes.append("Another volume is mounted here; scan that volume to see it.")
+            notes.append(item.firstChild == ScanNode.none
+                ? "Another volume is mounted here; scan that volume to see it."
+                : "Another volume is mounted here; its files are counted too.")
         }
         if flags.contains(.firmlink) {
             notes.append("A firmlink of macOS: its contents are counted where it points, on the data volume.")

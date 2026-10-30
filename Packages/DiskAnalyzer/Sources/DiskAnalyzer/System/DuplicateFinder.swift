@@ -15,9 +15,10 @@ nonisolated enum DuplicateFinder {
         var totalBytes: Int64
     }
 
-    /// The files of `tree` below `folder` worth comparing.
+    /// The files of `tree` below `folder` worth comparing: not macOS's own, which repeat files by design and stay, nor
+    /// those read as an administrator, which the user's rights cannot open to compare.
     static func candidates(in tree: ScanTree, under folder: Int32, minimumSize: Int64) -> [DuplicateGrouper.Candidate] {
-        let excluded: ScanNodeFlags = [.cloudOnly, .duplicateLink]
+        let excluded: ScanNodeFlags = [.cloudOnly, .duplicateLink, .macOSVolume, .readAsAdministrator]
         return tree.files(under: folder).compactMap { index in
             let node = tree[index]
             guard node.flags.isDisjoint(with: excluded), node.logicalSize >= minimumSize else { return nil }

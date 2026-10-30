@@ -9,6 +9,12 @@ nonisolated struct ExclusionRules: Sendable, Equatable {
 
     init() {}
 
+    /// Paths and names already worked out, as Read as Administrator hands them to its root process.
+    init(paths: Set<String>, names: Set<String>) {
+        self.paths = paths
+        self.names = names
+    }
+
     /// `firmlinks` adds the data-volume form of each path, which is what a scan of the startup volume sees.
     init(_ entries: [String], home: String, firmlinks: FirmlinkMap = .empty) {
         for entry in entries {

@@ -16,6 +16,9 @@ nonisolated struct ScanTree: Sendable {
     let rootPath: String
     /// How paths are shown and checked: through the firmlinks, for the startup volume.
     let firmlinks: FirmlinkMap
+    /// Folders read from somewhere other than below `rootPath`, with that path: the folder of macOS's own volumes, read
+    /// at `/` next to the startup volume's data volume (`MacOSVolumes`). Paths below one start there.
+    private(set) var anchors: [Int32: String] = [:]
     /// Bumped when node indices change, so whoever holds an index looks it up again by path.
     private(set) var generation = 0
     /// Removed nodes still in the array.
@@ -80,6 +83,19 @@ nonisolated struct ScanTree: Sendable {
         link(node, to: parent)
     }
 
+    /// Adds a folder read from `path` rather than from below the root (`anchors`).
+    @discardableResult
+    mutating func appendAnchor(_ item: DirectoryDigest.Item, path: String, to parent: Int32 = rootIndex) -> Int32 {
+        let index = append(item, to: parent)
+        anchors[index] = path
+        return index
+    }
+
+    /// Whether macOS's own volumes were read file by file, so they need no system block.
+    var hasMacOSVolumes: Bool {
+        anchors.keys.contains { contains($0) && nodes[Int($0)].flags.contains(.macOSVolume) }
+    }
+
     /// Adds a node that stands for space rather than files: the macOS system block, or what no file accounts for.
     @discardableResult
     mutating func appendSynthetic(_ kind: ScanNodeKind, name: String, size: Int64, to parent: Int32 = rootIndex) -> Int32 {
@@ -104,6 +120,16 @@ nonisolated struct ScanTree: Sendable {
 
     mutating func insertFlags(_ flags: ScanNodeFlags, at index: Int32) {
         nodes[Int(index)].flags.formUnion(flags)
+    }
+
+    mutating func removeFlags(_ flags: ScanNodeFlags, at index: Int32) {
+        nodes[Int(index)].flags.subtract(flags)
+    }
+
+    /// Marks a folder unreadable for `reason`, in place of whatever reason it had.
+    mutating func setUnreadable(_ reason: UnreadableReason, at index: Int32) {
+        removeFlags(UnreadableReason.allFlags, at: index)
+        insertFlags(reason.flags, at: index)
     }
 
     mutating func setRootDates(created: Int32, modified: Int32, accessed: Int32) {
@@ -203,10 +229,11 @@ nonisolated struct ScanTree: Sendable {
         removedCount += count
     }
 
-    mutating func replaceStorage(nodes: [ScanNode], names: [String], removedCount: Int) {
+    mutating func replaceStorage(nodes: [ScanNode], names: [String], removedCount: Int, anchors: [Int32: String]) {
         self.nodes = nodes
         self.names = names
         self.removedCount = removedCount
+        self.anchors = anchors
         nameIndex = nil
         generation += 1
     }

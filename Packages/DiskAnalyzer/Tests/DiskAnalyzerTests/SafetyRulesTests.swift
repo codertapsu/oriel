@@ -42,6 +42,11 @@ struct SafetyRulesTests {
         ("/Applications/Oriel.app", .oriel),
         ("/System/Volumes/Data/Users/me", .homeFolder),
         ("/System/Volumes/Data/.Spotlight-V100", .system),
+        ("/.file", .system),
+        ("/.VolumeIcon.icns", .system),
+        ("/pkg", .system),
+        ("/System/Volumes/VM/sleepimage", .system),
+        ("/System/Volumes/Preboot/Cryptexes", .system),
         ("/Users/me/Documents/../Desktop", .homeTopLevel),
     ])
     func refuses(_ path: String, _ refusal: SafetyRules.Refusal) {

@@ -11,7 +11,13 @@ extension DiskAnalyzerModel {
         cancellation = flag
         let path = ExclusionRules.normalize(path, home: NSHomeDirectory())
         let dataVolume = FileManager.default.fileExists(atPath: FirmlinkMap.dataVolume)
-        let target = ScanTarget.resolve(path: path, volumes: volumes, dataVolumeExists: dataVolume, firmlinks: firmlinks)
+        let target = ScanTarget.resolve(
+            path: path,
+            volumes: volumes,
+            dataVolumeExists: dataVolume,
+            firmlinks: firmlinks,
+            macOSVolumes: settings[DiskSettings.countsMacOSFiles] ? MacOSVolumes.startup(helperMounts: helperMounts) : nil
+        )
         let options = DiskSettings.scanOptions(in: settings, firmlinks: firmlinks)
         self.target = target
         source = source(for: target)
@@ -23,6 +29,7 @@ extension DiskAnalyzerModel {
         lastOpened = [:]
         askedLastOpened = []
         hiddenNotes = []
+        isReadingAsAdministrator = false
         hogs = [:]
         selection = []
         focus = ScanTree.rootIndex
@@ -83,13 +90,16 @@ extension DiskAnalyzerModel {
         }
     }
 
-    /// Adds the startup volume's system block and the used space no file accounts for, so a volume's scan adds up to
-    /// what Finder calls used.
+    /// Adds the startup volume's system block, unless macOS's own volumes were read file by file, and the used space no
+    /// file accounts for, so a volume's scan adds up to what Finder calls used. Blocks added before are replaced.
     nonisolated static func addingVolumeBlocks(to tree: ScanTree, volume: VolumeInfo) -> ScanTree {
-        let fresh = VolumeService.info(for: volume.url)?.usage ?? volume.usage
-        let system = volume.kind == .startup ? VolumeService.systemBytes() : 0
-        let blocks = VolumeAccounting.blocks(volumeUsed: fresh.used, scanned: tree.root.size, system: system)
         var tree = tree
+        for block in tree.children(of: ScanTree.rootIndex) where tree[block].kind == .system || tree[block].kind == .unaccounted {
+            tree.remove(block)
+        }
+        let fresh = VolumeService.info(for: volume.url)?.usage ?? volume.usage
+        let system = volume.kind == .startup && !tree.hasMacOSVolumes ? VolumeService.systemBytes() : 0
+        let blocks = VolumeAccounting.blocks(volumeUsed: fresh.used, scanned: tree.root.size, system: system)
         if blocks.system > 0 {
             tree.appendSynthetic(.system, name: "macOS (system)", size: blocks.system)
         }

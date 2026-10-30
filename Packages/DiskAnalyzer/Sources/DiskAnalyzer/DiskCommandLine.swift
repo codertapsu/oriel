@@ -48,10 +48,16 @@ enum DiskCommandLine {
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue else {
             return .failure(request, "There is no folder at \(path).")
         }
-        let found = await Task.detached(priority: .userInitiated) { (VolumeService.mountedVolumes(), VolumeService.firmlinks()) }.value
-        let target = ScanTarget.resolve(path: path, volumes: found.0, dataVolumeExists: FileManager.default.fileExists(
-            atPath: FirmlinkMap.dataVolume
-        ), firmlinks: found.1)
+        let found = await Task.detached(priority: .userInitiated) {
+            (VolumeService.mountedVolumes(), VolumeService.firmlinks(), VolumeService.helperVolumeMounts())
+        }.value
+        let target = ScanTarget.resolve(
+            path: path,
+            volumes: found.0,
+            dataVolumeExists: FileManager.default.fileExists(atPath: FirmlinkMap.dataVolume),
+            firmlinks: found.1,
+            macOSVolumes: settings[DiskSettings.countsMacOSFiles] ? MacOSVolumes.startup(helperMounts: found.2) : nil
+        )
         let options = DiskSettings.scanOptions(in: settings, firmlinks: found.1)
         let outcome = await ScanEngine.scan(target, options: options, cancellation: CancellationFlag())
         var tree = outcome.tree

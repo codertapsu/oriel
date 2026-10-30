@@ -21,6 +21,8 @@ final nonisolated class ScanEngine: @unchecked Sendable {
         var path: String
         var inherited: FileCategory?
         var mode: Mode = .merge
+        /// On macOS's own volumes: their rules (`MacOSVolumes`).
+        var macOS: MacOSVolumes?
     }
 
     struct Outcome: Sendable {
@@ -71,7 +73,7 @@ final nonisolated class ScanEngine: @unchecked Sendable {
 
     // MARK: Entry points
 
-    /// Reads `target` from scratch.
+    /// Reads `target` from scratch, with macOS's own volumes in a folder of their own when it names them.
     static func scan(
         _ target: ScanTarget,
         options: ScanOptions,
@@ -88,10 +90,19 @@ final nonisolated class ScanEngine: @unchecked Sendable {
                 accessed: ScanNode.encode(secondsSince1970: Int64(info.st_atimespec.tv_sec))
             )
         }
-        let root = WorkItem(node: ScanTree.rootIndex, path: target.scanPath, inherited: nil)
+        var work = [WorkItem(node: ScanTree.rootIndex, path: target.scanPath, inherited: nil)]
+        if let macOS = target.macOSVolumes {
+            let folder = DirectoryDigest.Item(name: macOS.displayName, kind: .folder, flags: .macOSVolume)
+            let anchor = tree.appendAnchor(folder, path: macOS.systemPath)
+            work.append(WorkItem(node: anchor, path: macOS.systemPath, inherited: nil, macOS: macOS))
+            for mount in macOS.blockMounts.sorted() {
+                let size = VolumeService.spaceUsed(mount) ?? 0
+                tree.appendSynthetic(.system, name: (mount as NSString).lastPathComponent, size: size, to: anchor)
+            }
+        }
         return await run(
             tree: tree,
-            work: [root],
+            work: work,
             options: options,
             cancellation: cancellation,
             readerMode: readerMode,
@@ -101,7 +112,8 @@ final nonisolated class ScanEngine: @unchecked Sendable {
     }
 
     /// Reads `folders` of `tree` again after the file system reported changes there. Their subfolders keep what they
-    /// held unless listed in `recursive`, which are read again all the way down.
+    /// held unless listed in `recursive`, which are read again all the way down. Folders read as an administrator stay
+    /// as they were read, since the user's rights cannot read them again, and so do macOS's own volumes.
     static func refresh(
         _ tree: ScanTree,
         folders: Set<Int32>,
@@ -109,7 +121,9 @@ final nonisolated class ScanEngine: @unchecked Sendable {
         options: ScanOptions,
         cancellation: CancellationFlag
     ) async -> Outcome {
-        let work = folders.union(recursive).filter(tree.contains).map { folder in
+        let kept: ScanNodeFlags = [.readAsAdministrator, .macOSVolume]
+        let readable = folders.union(recursive).filter { tree.contains($0) && tree[$0].flags.isDisjoint(with: kept) }
+        let work = readable.map { folder in
             WorkItem(
                 node: folder,
                 path: tree.path(of: folder),
@@ -217,7 +231,8 @@ final nonisolated class ScanEngine: @unchecked Sendable {
             options: options,
             categories: &categories,
             isFirstLink: { device, inode in self.links.withLock { $0.isFirstLink(device: device, inode: inode) } },
-            canCrossInto: MountCheck.canCross
+            canCrossInto: MountCheck.canCross,
+            macOS: item.macOS
         )
     }
 
@@ -227,8 +242,9 @@ final nonisolated class ScanEngine: @unchecked Sendable {
         switch read {
         case let .unreadable(error):
             if error != ENOENT {
-                tree.insertFlags(.unreadable, at: item.node)
-                summary.noteUnreadable(tree.firmlinks.visiblePath(for: item.path))
+                let reason = UnreadableReason(error: error)
+                tree.setUnreadable(reason, at: item.node)
+                summary.noteUnreadable(tree.firmlinks.visiblePath(for: item.path), reason: reason)
             }
         case let .listed(_, error):
             if error != 0 {
@@ -244,7 +260,10 @@ final nonisolated class ScanEngine: @unchecked Sendable {
             dirty.insert(item.node)
             for (index, child) in next {
                 stack.append(WorkItem(
-                    node: index, path: DirectoryDigest.childPath(item.path, child.name), inherited: child.inheritedCategory
+                    node: index,
+                    path: DirectoryDigest.childPath(item.path, child.name),
+                    inherited: child.inheritedCategory,
+                    macOS: item.macOS
                 ))
             }
             current.files += digest.items.count { $0.kind == .file } + digest.small.count

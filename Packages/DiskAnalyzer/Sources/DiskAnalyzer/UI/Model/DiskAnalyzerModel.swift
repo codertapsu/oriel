@@ -56,6 +56,8 @@ final class DiskAnalyzerModel {
     var categoryRequest: FileCategory?
     /// The notes above the views the user hid for this scan.
     var hiddenNotes = Set<String>()
+    /// While Read as Administrator runs (`readAsAdministrator()`).
+    var isReadingAsAdministrator = false
 
     var duplicates = DuplicateSearch.idle
     /// The copies marked for removal in Duplicates.
@@ -80,6 +82,8 @@ final class DiskAnalyzerModel {
     /// Opens Settings at Disk Space Analyzer; from the module.
     @ObservationIgnored var openSettings: (() -> Void)?
     @ObservationIgnored private(set) var firmlinks = FirmlinkMap.empty
+    /// Preboot, VM, Update…: entered when macOS's own volumes are counted file by file.
+    @ObservationIgnored private(set) var helperMounts = Set<String>()
     @ObservationIgnored var cancellation: CancellationFlag?
     @ObservationIgnored var operationCancellation: CancellationFlag?
     @ObservationIgnored var duplicateCancellation: CancellationFlag?
@@ -120,6 +124,7 @@ final class DiskAnalyzerModel {
         cancellation?.cancel()
         duplicateCancellation?.cancel()
         scanTask = nil
+        isReadingAsAdministrator = false
         tree = nil
         summary = nil
         target = nil
@@ -157,11 +162,17 @@ final class DiskAnalyzerModel {
     func refreshSources() {
         Task {
             let found = await Task.detached(priority: .userInitiated) {
-                (VolumeService.mountedVolumes(), VolumeService.firmlinks(), CloudLocator.locations(home: NSHomeDirectory()))
+                (
+                    VolumeService.mountedVolumes(),
+                    VolumeService.firmlinks(),
+                    CloudLocator.locations(home: NSHomeDirectory()),
+                    VolumeService.helperVolumeMounts()
+                )
             }.value
             volumes = found.0
             firmlinks = found.1
             clouds = found.2
+            helperMounts = found.3
             records = await store.records()
         }
     }

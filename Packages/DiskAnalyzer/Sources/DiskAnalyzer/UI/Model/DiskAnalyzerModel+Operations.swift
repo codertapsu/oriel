@@ -48,6 +48,12 @@ extension DiskAnalyzerModel {
             return "It is the folder you scanned."
         }
         guard !tree[node].kind.isSynthetic else { return "It is not a file or folder." }
+        if tree[node].flags.contains(.macOSVolume) {
+            return SafetyRules.Refusal.system.message
+        }
+        if tree[node].flags.contains(.readAsAdministrator) {
+            return "Only its owner, macOS or another user, may change it. Oriel read it as an administrator and changes nothing."
+        }
         let destination = tree[node].kind == .symlink ? try? FileManager.default
             .destinationOfSymbolicLink(atPath: displayPath(of: node)) : nil
         return safetyRules().refusal(for: displayPath(of: node), isFolder: tree[node].kind.isContainer, symlinkDestination: destination)?

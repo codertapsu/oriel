@@ -79,8 +79,8 @@ extension DiskWindowController: DiskActions {
             title: "macOS may ask about some folders",
             text: """
             The first time Oriel reads Desktop, Documents, Downloads, iCloud Drive or another app's files, macOS asks whether \
-            it may. Choose Allow to count them. Folders you keep private are counted as folders that could not be read, \
-            and Full Disk Access lets Oriel see everything.
+            it may. Choose Allow to count them. Folders you keep private are counted as folders that could not be read; \
+            Full Disk Access lets Oriel read all of your files without asking.
             """,
             button: "Scan"
         ) { [weak self] in self?.model.scan(path: path) }

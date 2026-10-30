@@ -60,6 +60,13 @@ struct DiskSettingsView: View {
                 .foregroundStyle(.secondary)
             Toggle("Include hidden files and folders", isOn: settings.binding(DiskSettings.includesHiddenFiles))
             Text("Hidden folders such as ~/.npm or ~/.cache are often among the largest.").font(.caption).foregroundStyle(.secondary)
+            Toggle("Count macOS's own files one by one", isOn: settings.binding(DiskSettings.countsMacOSFiles))
+            Text("""
+            A scan of the startup disk also reads the sealed system volume and the volumes macOS keeps for itself (Preboot, \
+            VM with the swap files, Update), in a folder named macOS. Off, they are one block and scans are a little faster.
+            """)
+            .font(.caption)
+            .foregroundStyle(.secondary)
             Toggle("Go into other volumes inside the folder", isOn: settings.binding(DiskSettings.crossesVolumes))
             Text("Only local volumes you mounted are entered; network shares and the disk images macOS mounts for itself never are.")
                 .font(.caption)
@@ -89,8 +96,10 @@ struct DiskSettingsView: View {
     private var access: some View {
         Section("Full Disk Access") {
             Text("""
-            Without it, macOS keeps a few folders from Oriel (Mail, Messages, Safari, other apps' data and other users), \
-            and a scan counts them as folders it could not read. Granting it is optional.
+            Without it, macOS keeps your private data from Oriel (Mail, Messages, Safari, other apps' data), and a scan \
+            counts those folders as unreadable. Granting it is optional; quit and reopen Oriel afterwards. It does not open \
+            folders only macOS or another user may open: Read as Administrator in the window reads those. Folders System \
+            Integrity Protection guards stay closed to every app.
             """)
             .font(.caption)
             .foregroundStyle(.secondary)
