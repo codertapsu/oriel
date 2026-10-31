@@ -184,6 +184,30 @@ struct ElevatedReadTests {
         #expect(read.summary.categories.totalBytes == expected)
     }
 
+    /// What root read was part of the volume's Other space, which is summed again, so the volume still adds up. A scan
+    /// stopped part way gets no Other space, as after the scan, since most of what it holds would be in it.
+    @Test(arguments: [false, true])
+    func whatWasReadIsTakenOutOfOtherSpace(stopped: Bool) throws {
+        var tree = Fixtures.tree(["Open/a.bin": 2_000_000, "Locked/": 0])
+        try tree.setUnreadable(.needsAdministrator, at: #require(Fixtures.index("Locked", in: tree)))
+        var summary = ScanSummary()
+        summary.recountUnreadable(in: tree)
+        summary.wasCancelled = stopped
+        let volume = Fixtures.volume(used: 1_000_000_000)
+        if !stopped {
+            tree = DiskAnalyzerModel.addingVolumeBlocks(to: tree, volume: volume)
+            #expect(tree.root.size == volume.usage.used)
+        }
+        var digest = DirectoryDigest()
+        digest.items = [Item(name: "secret.bin", kind: .file, size: 300_000_000, logicalSize: 300_000_000)]
+        let result = ElevatedRead.Result(listings: [ElevatedRead.Listing(path: "/Root/Locked", digest: digest)])
+        let read = DiskAnalyzerModel.adding(result, folders: ["/Root/Locked"], to: tree, summary: summary, volume: volume)
+        let other = read.tree.children(of: ScanTree.rootIndex).first { read.tree[$0].kind == .unaccounted }
+        #expect(read.tree.root.size == (stopped ? 302_000_000 : volume.usage.used))
+        #expect(other.map { read.tree[$0].size } == (stopped ? nil : 698_000_000))
+        #expect(read.summary.bytes == read.tree.root.size)
+    }
+
     /// A folder taken out of the scan since, or no longer waiting for an administrator, is left alone.
     @Test func onlyFoldersStillWaitingForAnAdministratorTakeWhatWasRead() throws {
         var tree = Fixtures.tree(["Open/": 0])

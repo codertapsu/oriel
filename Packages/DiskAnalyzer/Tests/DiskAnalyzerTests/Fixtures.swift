@@ -111,6 +111,12 @@ enum Fixtures {
         var info = stat()
         return lstat(url.path, &info) == 0 ? Int64(info.st_blocks) * 512 : 0
     }
+
+    /// A volume of the test's own with `used` bytes used. Nothing is mounted at its path, so its figures are these.
+    static func volume(used: Int64, total: Int64 = 4_000_000_000_000) -> VolumeInfo {
+        let usage = VolumeUsage(total: total, available: total - used, availableForImportantUsage: nil, availableForOpportunisticUsage: nil)
+        return VolumeInfo(path: "/Volumes/Oriel Test \(UUID().uuidString)", name: "Test", format: "APFS", usage: usage, kind: .external)
+    }
 }
 
 /// A folder of its own in the temporary directory, removed (permissions restored first) when the test is done.

@@ -157,7 +157,7 @@ extension DiskAnalyzerModel {
     }
 
     /// A tree and summary with what Read as Administrator found in them: totals, the summary and the volume's blocks
-    /// summed again.
+    /// summed again (`recounting`).
     nonisolated static func adding(
         _ result: ElevatedRead.Result,
         folders: [String],
@@ -170,15 +170,7 @@ extension DiskAnalyzerModel {
         let dirty = ElevatedRead.apply(result, folders: folders, to: &tree, summary: &summary)
         tree.recomputeTotals(dirty: dirty)
         tree.finishBuilding()
-        if let volume {
-            tree = addingVolumeBlocks(to: tree, volume: volume)
-        }
-        summary.files = Int(tree.root.fileCount)
-        summary.folders = Int(tree.root.folderCount)
-        summary.bytes = tree.root.size
-        summary.logicalBytes = tree.root.logicalSize
-        summary.recountUnreadable(in: tree)
-        return (tree, summary)
+        return recounting(tree, summary: summary, volume: volume)
     }
 }
 

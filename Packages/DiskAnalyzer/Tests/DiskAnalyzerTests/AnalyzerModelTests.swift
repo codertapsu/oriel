@@ -127,6 +127,38 @@ struct AnalyzerModelTests {
         #expect(model.tree?.root.fileCount == 1)
     }
 
+    /// A scan of a whole volume adds up to its used space with Other space, what no file accounts for. A refresh sums it
+    /// again, as the scan summed it, so the volume still adds up, and the summary follows.
+    @Test func aRefreshSumsOtherSpaceAgain() async throws {
+        let store = try TemporaryFolder()
+        let folder = try TemporaryFolder()
+        try folder.file("Open/a.bin", size: 1_000_000)
+        var target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let volume = Fixtures.volume(used: scanned.tree.root.size + 500_000_000)
+        target.volume = volume
+        let tree = DiskAnalyzerModel.addingVolumeBlocks(to: scanned.tree, volume: volume)
+        #expect(tree.root.size == volume.usage.used)
+        let model = try DiskAnalyzerModel(settings: Fixtures.memorySettings(), store: ScanSnapshotStore(directory: store.url))
+        model.target = target
+        model.phase = .ready(stopped: false)
+        model.adopt(tree)
+        model.summary = scanned.summary
+
+        let added = try folder.file("Open/b.bin", size: 3_000_000)
+        model.filesChanged(ScanWatcher.Change(folders: [folder.path + "/Open"], deepFolders: [], rootChanged: false))
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.summary?.files != 2, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let refreshed = try #require(model.tree)
+        let other = try #require(refreshed.children(of: ScanTree.rootIndex).first { refreshed[$0].kind == .unaccounted })
+        #expect(refreshed.root.size == volume.usage.used)
+        #expect(refreshed[other].size == 500_000_000 - Fixtures.allocated(added))
+        #expect(model.summary?.files == 2)
+        #expect(model.summary?.bytes == volume.usage.used)
+    }
+
     @Test func namesAndPathsAsTheUserKnowsThem() throws {
         let model = try model(with: tree)
         let code = try #require(Fixtures.index("Code", in: tree))

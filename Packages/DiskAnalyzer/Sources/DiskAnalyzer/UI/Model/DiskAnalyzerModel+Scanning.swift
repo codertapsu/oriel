@@ -112,6 +112,27 @@ extension DiskAnalyzerModel {
         return tree
     }
 
+    /// A tree and summary after an edit of the tree, summed again as the scan summed them: the volume's blocks for a
+    /// complete scan of a whole volume (`addingVolumeBlocks`), so it still adds up to the volume's used space, then the
+    /// summary's counts and the folders still closed, from the tree.
+    nonisolated static func recounting(
+        _ tree: ScanTree,
+        summary: ScanSummary,
+        volume: VolumeInfo?
+    ) -> (tree: ScanTree, summary: ScanSummary) {
+        var tree = tree
+        var summary = summary
+        if let volume, !summary.wasCancelled {
+            tree = addingVolumeBlocks(to: tree, volume: volume)
+        }
+        summary.files = Int(tree.root.fileCount)
+        summary.folders = Int(tree.root.folderCount)
+        summary.bytes = tree.root.size
+        summary.logicalBytes = tree.root.logicalSize
+        summary.recountUnreadable(in: tree)
+        return (tree, summary)
+    }
+
     /// Saves a summary of the scan and works out what grew since the one before.
     private func remember(_ tree: ScanTree, target: ScanTarget, flag: CancellationFlag) {
         let store = store
@@ -184,17 +205,13 @@ extension DiskAnalyzerModel {
                 options: options,
                 cancellation: CancellationFlag()
             )
-            var updated = outcome.tree
-            if updated.needsCompaction {
-                updated = await Task.detached(priority: .utility) { [updated] in updated.compacted() }.value
-            }
-            // The folders still closed are counted again, so the notes about them, Read as Administrator's among them,
-            // follow what the refresh found.
-            let counted = await Task.detached(priority: .utility) { [updated, summary] in
-                var summary = summary
-                summary?.bytes = updated.root.size
-                summary?.recountUnreadable(in: updated)
-                return summary
+            // Summed again as the scan summed it: the volume's blocks, since the files changed, and the summary, whose
+            // folders still closed, Read as Administrator's among them, give the notes about them.
+            let volume = target?.volume
+            let (updated, counted) = await Task.detached(priority: .utility) { [summary] in
+                let refreshed = outcome.tree.needsCompaction ? outcome.tree.compacted() : outcome.tree
+                let recounted = summary.map { Self.recounting(refreshed, summary: $0, volume: volume) }
+                return (recounted?.tree ?? refreshed, recounted?.summary)
             }.value
             guard flag === cancellation, self.tree?.generation == tree.generation else { return }
             adopt(updated)
