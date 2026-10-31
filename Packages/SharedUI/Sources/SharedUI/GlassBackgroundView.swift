@@ -7,19 +7,23 @@ public final class GlassBackgroundView: NSView {
     /// Lay subviews out in here.
     public let contentView = NSView()
     public var cornerRadius: CGFloat {
-        didSet { applyStyle() }
+        didSet { apply(display) }
     }
+
+    /// The options it is drawn for: the system's, followed live.
+    public private(set) var display: AccessibilityDisplay
 
     private var glass: NSGlassEffectView?
     private var observation: NSObjectProtocol?
 
     public init(cornerRadius: CGFloat = 16) {
         self.cornerRadius = cornerRadius
+        display = .current
         super.init(frame: .zero)
         wantsLayer = true
         contentView.translatesAutoresizingMaskIntoConstraints = false
-        applyStyle()
-        observation = AccessibilityDisplay.observe { [weak self] _ in self?.applyStyle() }
+        apply(display)
+        observation = AccessibilityDisplay.observe { [weak self] display in self?.apply(display) }
     }
 
     @available(*, unavailable)
@@ -27,27 +31,40 @@ public final class GlassBackgroundView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    private func applyStyle() {
+    /// Draws glass, or the opaque fill when `display` asks for a solid background. The system's changes arrive here by
+    /// themselves; tests pass options of their own.
+    public func apply(_ display: AccessibilityDisplay) {
+        self.display = display
         contentView.removeFromSuperview()
         glass?.removeFromSuperview()
         glass = nil
-        let options = AccessibilityDisplay.current
-        if options.allowsGlass {
+        if display.allowsGlass {
             let glass = NSGlassEffectView()
             glass.cornerRadius = cornerRadius
             glass.contentView = contentView
             pin(glass)
             self.glass = glass
-            layer?.backgroundColor = nil
             layer?.borderWidth = 0
         } else {
             pin(contentView)
-            layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-            layer?.borderColor = NSColor.separatorColor.cgColor
             layer?.borderWidth = 1
         }
+        updateColors()
         layer?.cornerRadius = cornerRadius
-        layer?.masksToBounds = !options.allowsGlass
+        layer?.masksToBounds = !display.allowsGlass
+    }
+
+    override public func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateColors()
+    }
+
+    /// A layer keeps the color a `cgColor` had when it was read, so the fill is resolved again for each appearance.
+    private func updateColors() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            layer?.backgroundColor = display.allowsGlass ? nil : NSColor.windowBackgroundColor.cgColor
+            layer?.borderColor = NSColor.separatorColor.cgColor
+        }
     }
 
     private func pin(_ view: NSView) {

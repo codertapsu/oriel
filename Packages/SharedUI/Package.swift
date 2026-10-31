@@ -14,7 +14,10 @@ let package = Package(
             dependencies: [.product(name: "OrielCore", package: "OrielCore")],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
-        .testTarget(name: "SharedUITests", dependencies: ["SharedUI"]),
+        .testTarget(
+            name: "SharedUITests",
+            dependencies: ["SharedUI", .product(name: "OrielTestSupport", package: "OrielCore")]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
