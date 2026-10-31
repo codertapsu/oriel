@@ -11,8 +11,9 @@ nonisolated extension ScanTree {
     }
 
     /// Replaces what `folder` holds directly with `digest`, a fresh listing of it. Subfolders that are still there
-    /// keep their contents unless `keepsSubfolders` is false; new folders are returned to be read, and must then be
-    /// passed to `recomputeTotals(dirty:)` with `folder` once read.
+    /// keep their contents unless `keepsSubfolders` is false, except those read as an administrator, which always do:
+    /// the user's rights cannot read them again. New folders are returned to be read, and must then be passed to
+    /// `recomputeTotals(dirty:)` with `folder` once read.
     mutating func replaceContents(
         of folder: Int32,
         with digest: DirectoryDigest,
@@ -30,7 +31,7 @@ nonisolated extension ScanTree {
             let next = node.nextSibling
             if node.kind == .system || node.kind == .unaccounted || anchors[child] != nil {
                 blocks.append(child)
-            } else if keepsSubfolders, node.kind.isContainer {
+            } else if node.kind.isContainer, keepsSubfolders || node.flags.contains(.readAsAdministrator) {
                 kept[names[Int(node.name)]] = child
             } else {
                 removed += markRemoved(child)

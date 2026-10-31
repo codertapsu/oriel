@@ -188,9 +188,17 @@ extension DiskAnalyzerModel {
             if updated.needsCompaction {
                 updated = await Task.detached(priority: .utility) { [updated] in updated.compacted() }.value
             }
+            // The folders still closed are counted again, so the notes about them, Read as Administrator's among them,
+            // follow what the refresh found.
+            let counted = await Task.detached(priority: .utility) { [updated, summary] in
+                var summary = summary
+                summary?.bytes = updated.root.size
+                summary?.recountUnreadable(in: updated)
+                return summary
+            }.value
             guard flag === cancellation, self.tree?.generation == tree.generation else { return }
             adopt(updated)
-            summary?.bytes = updated.root.size
+            summary = counted
         }
     }
 }

@@ -102,6 +102,36 @@ struct ElevatedReadTests {
         #expect(tree.root.size == 6_000_000)
     }
 
+    /// A refresh that reads the folder around one read as an administrator all the way down, as when the file system
+    /// dropped events there, keeps what root read: the user's rights would only find it closed again.
+    @Test func aDeepRefreshKeepsWhatWasReadAsAdministrator() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("Open/a.bin", size: 1_000_000)
+        try folder.file("Locked/secret.bin", size: 3_000_000)
+        #expect(chmod(folder.path + "/Locked", 0) == 0)
+        defer { chmod(folder.path + "/Locked", 0o755) }
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        var digest = DirectoryDigest()
+        digest.items = [Item(name: "secret.bin", kind: .file, size: 3_000_000, logicalSize: 3_000_000)]
+        let result = ElevatedRead.Result(listings: [ElevatedRead.Listing(path: folder.path + "/Locked", digest: digest)])
+        let read = DiskAnalyzerModel.adding(
+            result, folders: [folder.path + "/Locked"], to: scanned.tree, summary: scanned.summary, volume: nil
+        )
+        #expect(read.summary.administratorFolders == 0)
+
+        let refreshed = await ScanEngine.refresh(
+            read.tree, folders: [], recursive: [ScanTree.rootIndex], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        let tree = refreshed.tree
+        let locked = try #require(tree.index(ofPath: folder.path + "/Locked"))
+        #expect(tree[locked].flags.contains(.readAsAdministrator))
+        #expect(tree[locked].flags.isDisjoint(with: UnreadableReason.allFlags))
+        #expect(tree[locked].size == 3_000_000)
+        #expect(tree.index(ofPath: folder.path + "/Locked/secret.bin") != nil)
+        #expect(tree.root.size == read.tree.root.size)
+    }
+
     /// A folder taken out of the scan since, or no longer waiting for an administrator, is left alone.
     @Test func onlyFoldersStillWaitingForAnAdministratorTakeWhatWasRead() throws {
         var tree = Fixtures.tree(["Open/": 0])

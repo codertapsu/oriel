@@ -44,4 +44,30 @@ struct ReadAsAdministratorTests {
         #expect(settings[DiskSettings.helperBuild] == forgotten)
         #expect(model.helperStatus == .unavailable)
     }
+
+    /// A refresh counts again the folders it could not read, so the note offering Read as Administrator follows the
+    /// scan: one that appeared since, closed to the user, is counted.
+    @Test func aRefreshCountsTheFoldersOnlyAnAdministratorCanOpen() async throws {
+        let store = try TemporaryFolder()
+        let folder = try TemporaryFolder()
+        try folder.file("Open/a.bin", size: 1_000_000)
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let model = try DiskAnalyzerModel(settings: Fixtures.memorySettings(), store: ScanSnapshotStore(directory: store.url))
+        model.target = target
+        model.phase = .ready(stopped: false)
+        model.adopt(scanned.tree)
+        model.summary = scanned.summary
+        try folder.file("Locked/secret.bin", size: 2_000_000)
+        #expect(chmod(folder.path + "/Locked", 0) == 0)
+        defer { chmod(folder.path + "/Locked", 0o755) }
+
+        model.filesChanged(ScanWatcher.Change(folders: [folder.path], deepFolders: [], rootChanged: false))
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.summary?.administratorFolders != 1, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(model.summary?.administratorFolders == 1)
+        #expect(model.summary?.samples(.needsAdministrator) == [folder.path + "/Locked"])
+    }
 }
