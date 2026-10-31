@@ -126,6 +126,9 @@ nonisolated enum FileCategory: UInt8, CaseIterable, Sendable, Codable, Comparabl
                 "swiftmodule", "dsym", "xcarchive", "pch", "map", "wasm", "class", "lock", "framework", "xcodeproj",
                 "xcworkspace", "playground",
             ]),
+            // Extensions whose UTType says the wrong thing for what they hold now: macOS takes `.bin` for MacBinary, an
+            // archive, but it is firmware, model weights or any binary data.
+            (.other, ["bin"]),
         ]
         for (category, extensions) in groups {
             for ext in extensions {

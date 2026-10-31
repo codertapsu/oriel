@@ -102,6 +102,7 @@ struct SystemTextTests {
         ("clip.MOV", FileCategory.video), ("song.flac", .audio), ("IMG_1.HEIC", .image), ("report.pdf", .document),
         ("backup.tar", .archive), ("Xcode.xip", .archive), ("macOS.dmg", .diskImage), ("Tool.pkg", .application),
         ("main.swift", .code), ("README", .other), (".zshrc", .other), ("weird.qwertyuiop", .other),
+        ("model.bin", .other),
     ])
     func filesAreSortedIntoCategories(_ name: String, _ category: FileCategory) {
         #expect(FileCategory.of(name: name) == category)
