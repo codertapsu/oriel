@@ -178,15 +178,16 @@ public nonisolated enum ElevatedRead {
     }
 
     /// Lists the folders and every folder below them the scan's rules enter, depth first, with the scan's own reader,
-    /// counting (`DirectoryDigest`) and I/O rules (`ScanIOPolicy`: no downloads of cloud files, no access times).
-    static func read(_ request: Request) -> Result {
+    /// counting (`DirectoryDigest`) and I/O rules (`ScanIOPolicy`: no downloads of cloud files, no access times). It stops
+    /// once `cancellation` is set, as the helper sets it when Oriel stops waiting.
+    static func read(_ request: Request, cancellation: CancellationFlag = CancellationFlag()) -> Result {
         ScanIOPolicy.applyToCurrentThread()
         let reader = DirectoryReader()
         var categories = FileCategoryCache()
         var links = HardLinkRegistry()
         var listings: [Listing] = []
         var stack: [(path: String, inherited: FileCategory?)] = request.folders.reversed().map { ($0, nil) }
-        while let (path, inherited) = stack.popLast() {
+        while !cancellation.isCancelled, let (path, inherited) = stack.popLast() {
             switch reader.read(path) {
             case let .unreadable(error):
                 listings.append(Listing(path: path, error: error))

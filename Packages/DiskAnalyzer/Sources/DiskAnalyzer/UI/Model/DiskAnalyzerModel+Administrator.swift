@@ -100,21 +100,38 @@ extension DiskAnalyzerModel {
     }
 
     /// Reads through the helper while macOS says it is allowed, registering it again first after an update. A request
-    /// that fails is sent once more, for a helper that was just exiting, and then once after registering it again.
+    /// whose connection failed is sent once more, for a helper that was just exiting, and then once after registering it
+    /// again. One the helper did not finish in time is not: it would be read twice at once, or the helper killed.
     private func readThroughHelper(_ request: ElevatedRead.Request) async -> ElevatedRead.Outcome {
         guard await helperIsAllowed() else { return .failed("Oriel's helper is not allowed.") }
         if settings[DiskSettings.helperBuild] != PrivilegedReader.build {
-            await Task.detached(priority: .userInitiated) { PrivilegedReader.reinstall() }.value
+            if let failure = await reinstallHelper() {
+                return failure
+            }
             settings[DiskSettings.helperBuild] = PrivilegedReader.build
         }
-        var outcome = await PrivilegedReader.read(request)
-        if outcome.failed {
-            outcome = await PrivilegedReader.read(request)
+        var answer = await PrivilegedReader.read(request)
+        if answer.connectionFailed {
+            answer = await PrivilegedReader.read(request)
         }
-        guard outcome.failed, await helperIsAllowed() else { return outcome }
-        log.error("Oriel's helper did not answer; registering it again")
-        await Task.detached(priority: .userInitiated) { PrivilegedReader.reinstall() }.value
-        return await PrivilegedReader.read(request)
+        guard answer.connectionFailed, await helperIsAllowed() else { return answer.outcome }
+        log.error("Oriel's helper could not be reached; registering it again")
+        if let failure = await reinstallHelper() {
+            return failure
+        }
+        return await PrivilegedReader.read(request).outcome
+    }
+
+    /// Registers the helper again; why not, when macOS refuses, which leaves it unregistered.
+    private func reinstallHelper() async -> ElevatedRead.Outcome? {
+        do {
+            try await PrivilegedReader.reinstall()
+            return nil
+        } catch {
+            log.error("Oriel's helper could not be registered again: \(error.localizedDescription, privacy: .public)")
+            _ = await helperIsAllowed()
+            return .failed("Oriel's helper could not be registered again: \(error.localizedDescription)")
+        }
     }
 
     /// Asks macOS for the helper's state before using or registering it, as `SMAppService`'s header advises: the window's

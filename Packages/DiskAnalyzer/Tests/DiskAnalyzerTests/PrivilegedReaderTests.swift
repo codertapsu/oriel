@@ -31,16 +31,29 @@ struct PrivilegedReaderTests {
         let userIDs = Mutex<[uid_t]>([])
     }
 
+    /// Whether a read saw that it was to stop.
+    private final class StopLog: Sendable {
+        let stopped = Mutex(false)
+    }
+
     private func listener(
         requirement: String?,
         admits: @escaping @Sendable (uid_t) -> Bool = { _ in true },
+        read: @escaping @Sendable (ElevatedRead.Request, CancellationFlag) -> ElevatedRead.Result = ElevatedRead.read(_:cancellation:),
         idle: IdleLog = IdleLog()
     ) -> (NSXPCListener, PrivilegedReaderListener) {
-        let delegate = PrivilegedReaderListener(requirement: requirement, admits: admits) { idle.count.withLock { $0 += 1 } }
+        let delegate = PrivilegedReaderListener(requirement: requirement, admits: admits, read: read) { idle.count.withLock { $0 += 1 } }
         let listener = NSXPCListener.anonymous()
         listener.delegate = delegate
         listener.resume()
         return (listener, delegate)
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while !condition(), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     @Test func theHelperListsFoldersOverXPCAndIdlesOutWhenOrielHangsUp() async throws {
@@ -51,7 +64,7 @@ struct PrivilegedReaderTests {
         let (listener, delegate) = listener(requirement: nil, idle: idle)
         defer { listener.invalidate() }
         let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
-        let outcome = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
+        let outcome = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection).outcome
         guard case let .read(result) = outcome else {
             Issue.record("expected listings, got \(outcome)")
             return
@@ -72,8 +85,9 @@ struct PrivilegedReaderTests {
         let (listener, delegate) = listener(requirement: requirement)
         defer { listener.invalidate() }
         let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
-        let outcome = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
-        #expect(outcome.failed)
+        let answer = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
+        #expect(answer.outcome.failed)
+        #expect(answer.connectionFailed)
         withExtendedLifetime(delegate) {}
     }
 
@@ -88,8 +102,8 @@ struct PrivilegedReaderTests {
         })
         defer { listener.invalidate() }
         let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
-        let outcome = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
-        #expect(outcome.failed)
+        let answer = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
+        #expect(answer.outcome.failed)
         #expect(asked.userIDs.withLock { $0 } == [geteuid()])
         withExtendedLifetime(delegate) {}
     }
@@ -160,7 +174,8 @@ struct PrivilegedReaderTests {
         #expect(!PrivilegedReaderDaemon.isHelper(environment: [:], userID: 0, parentID: 4321, label: label))
     }
 
-    /// A helper that never answers is given up on, and the request fails instead of waiting for ever.
+    /// A helper that never answers is given up on, and the request fails instead of waiting for ever. It is not sent
+    /// again: the helper may still be reading.
     @Test func aHelperThatNeverAnswersIsGivenUpOn() async throws {
         let folder = try TemporaryFolder()
         let listener = NSXPCListener.anonymous()
@@ -170,7 +185,32 @@ struct PrivilegedReaderTests {
         defer { listener.invalidate() }
         let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
         let request = ElevatedRead.Request(folders: [folder.path])
-        let outcome = await PrivilegedReader.read(request, over: connection, timeout: .milliseconds(200))
-        #expect(outcome.failed)
+        let answer = await PrivilegedReader.read(request, over: connection, timeout: .milliseconds(200))
+        #expect(answer.outcome.failed)
+        #expect(!answer.connectionFailed)
+    }
+
+    /// When Oriel stops waiting, the helper stops reading rather than go on as root with nobody to answer, and, its last
+    /// connection closed, idles out at once: a read on the connection's own queue would hold back both until its end.
+    @Test func theHelperStopsReadingWhenOrielStopsWaiting() async throws {
+        let idle = IdleLog()
+        let log = StopLog()
+        let (listener, delegate) = listener(requirement: nil, read: { _, cancellation in
+            // A read of millions of files, as far as this test waits.
+            while !cancellation.isCancelled {
+                usleep(1000)
+            }
+            log.stopped.withLock { $0 = true }
+            return ElevatedRead.Result(listings: [])
+        }, idle: idle)
+        defer { listener.invalidate() }
+        let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
+        let answer = await PrivilegedReader.read(ElevatedRead.Request(folders: ["/x"]), over: connection, timeout: .milliseconds(200))
+        #expect(answer.outcome.failed)
+        #expect(!answer.connectionFailed)
+        try await waitUntil { log.stopped.withLock { $0 } && idle.count.withLock { $0 } == 1 }
+        #expect(log.stopped.withLock { $0 })
+        #expect(idle.count.withLock { $0 } == 1)
+        withExtendedLifetime(delegate) {}
     }
 }

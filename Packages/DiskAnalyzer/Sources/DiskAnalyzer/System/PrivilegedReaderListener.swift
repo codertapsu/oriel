@@ -7,18 +7,21 @@ import Synchronization
 final nonisolated class PrivilegedReaderListener: NSObject, NSXPCListenerDelegate, Sendable {
     private let requirement: String?
     private let admits: @Sendable (uid_t) -> Bool
+    private let read: @Sendable (ElevatedRead.Request, CancellationFlag) -> ElevatedRead.Result
     private let onIdle: @Sendable () -> Void
     private let open = Mutex(0)
 
     /// A nil `requirement` accepts any client: only tests do that, on an anonymous listener. `admits` says whose
-    /// processes, by effective user ID, may ask.
+    /// processes, by effective user ID, may ask; `read` lists the folders (`PrivilegedReaderService`).
     init(
         requirement: String?,
         admits: @escaping @Sendable (uid_t) -> Bool = Administrators.contains,
+        read: @escaping @Sendable (ElevatedRead.Request, CancellationFlag) -> ElevatedRead.Result = ElevatedRead.read(_:cancellation:),
         onIdle: @escaping @Sendable () -> Void
     ) {
         self.requirement = requirement
         self.admits = admits
+        self.read = read
         self.onIdle = onIdle
     }
 
@@ -31,9 +34,14 @@ final nonisolated class PrivilegedReaderListener: NSObject, NSXPCListenerDelegat
             connection.setCodeSigningRequirement(requirement)
         }
         connection.exportedInterface = NSXPCInterface(with: PrivilegedReading.self)
-        connection.exportedObject = PrivilegedReaderService()
+        let cancellation = CancellationFlag()
+        connection.exportedObject = PrivilegedReaderService(cancellation: cancellation, read: read)
         open.withLock { $0 += 1 }
-        connection.invalidationHandler = { [weak self] in self?.closed() }
+        connection.invalidationHandler = { [weak self] in
+            // Oriel stopped waiting, or quit: the read in progress, if any, stops.
+            cancellation.cancel()
+            self?.closed()
+        }
         connection.resume()
         return true
     }

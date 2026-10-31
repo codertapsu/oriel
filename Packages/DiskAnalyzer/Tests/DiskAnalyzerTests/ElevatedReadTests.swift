@@ -55,6 +55,15 @@ struct ElevatedReadTests {
         #expect(byPath[folder.path + "/A/B"]?.digest?.small.count == 1)
     }
 
+    /// The helper sets the flag when Oriel stops waiting; the listing reads nothing more.
+    @Test func aStoppedListingReadsNoFurther() throws {
+        let folder = try TemporaryFolder()
+        try folder.file("A/big.bin", size: 2_000_000)
+        let cancellation = CancellationFlag()
+        cancellation.cancel()
+        #expect(ElevatedRead.read(ElevatedRead.Request(folders: [folder.path]), cancellation: cancellation).listings.isEmpty)
+    }
+
     @Test func theListingsSurviveJSON() throws {
         let folder = try TemporaryFolder()
         try folder.file("x/é ü 名前 \"quoted\".bin", size: 2_000_000)
