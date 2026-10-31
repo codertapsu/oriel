@@ -67,30 +67,49 @@ enum Fixtures {
         return entry
     }
 
+    /// What a scan keeps of a folder holding `entries`. Its files with several hard links are counted as the first
+    /// listing of a scan counts them, unless `countsLinks` is false, which leaves them waiting in `links`.
     static func digest(
         _ entries: [DirectoryEntry],
         parentPath: String = "/Root",
         options: ScanOptions = ScanOptions(),
         inherited: FileCategory? = nil,
-        registry: HardLinkRegistry = HardLinkRegistry(),
+        countsLinks: Bool = true,
         canCross: @escaping (String) -> Bool = { _ in false }
     ) -> DirectoryDigest {
         var categories = FileCategoryCache()
-        var registry = registry
-        return DirectoryDigest.make(
+        let digest = DirectoryDigest.make(
             entries: entries,
             parentPath: parentPath,
             inheritedCategory: inherited,
             options: options,
             categories: &categories,
-            isFirstLink: { registry.isFirstLink(device: $0, inode: $1) },
             canCrossInto: canCross
         )
+        return countsLinks ? counted([digest])[0] : digest
+    }
+
+    /// `digests` with their files with several hard links counted as one scan counts the listings of its folders, one
+    /// after another: a file at its first link.
+    static func counted(_ digests: [DirectoryDigest]) -> [DirectoryDigest] {
+        var tree = ScanTree(rootName: "Root", rootPath: "/Root")
+        return digests.enumerated().map { number, digest in
+            var digest = digest
+            let folder = tree.append(DirectoryDigest.Item(name: "Folder \(number)", kind: .folder), to: ScanTree.rootIndex)
+            _ = tree.merge(&digest, into: folder)
+            return digest
+        }
     }
 
     /// The index of the node at `relative` in `tree`.
     static func index(_ relative: String, in tree: ScanTree) -> Int32? {
         tree.index(ofPath: relative.isEmpty ? tree.rootPath : tree.rootPath + "/" + relative)
+    }
+
+    /// The bytes a file takes on disk, as a scan counts them.
+    static func allocated(_ url: URL) -> Int64 {
+        var info = stat()
+        return lstat(url.path, &info) == 0 ? Int64(info.st_blocks) * 512 : 0
     }
 }
 

@@ -13,7 +13,9 @@ import Foundation
 public nonisolated enum ElevatedRead {
     /// The argument that starts the listing mode; Oriel checks for it first thing at launch.
     public static let argument = "--disk-read-folders"
-    static let version = 1
+    /// The listings' format. 2: files with several hard links come with their device and inode, uncounted
+    /// (`DirectoryDigest.links`), so they are counted against the scan's.
+    static let version = 2
     /// At most this many folders per run, which keeps the command short; a scan of a whole Mac has a few hundred.
     static let folderLimit = 2000
 
@@ -24,6 +26,8 @@ public nonisolated enum ElevatedRead {
         var error: Int32 = 0
         /// Non-zero when the listing stopped part way.
         var partialError: Int32 = 0
+        /// What it holds, by the scan's rules; its files with several hard links are counted only when it goes into the
+        /// scan, against the files counted there (`apply`).
         var digest: DirectoryDigest?
     }
 
@@ -112,7 +116,7 @@ public nonisolated enum ElevatedRead {
         let result = await ProcessRunner.run(AdminCommand.osascript, ["-e", script])
         if result.succeeded {
             let output = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let decoded = try? JSONDecoder().decode(Result.self, from: Data(output.utf8)), decoded.version == version else {
+            guard let decoded = Self.result(from: Data(output.utf8)) else {
                 return .failed("Oriel could not make sense of what the folders gave.")
             }
             return .read(decoded)
@@ -124,9 +128,16 @@ public nonisolated enum ElevatedRead {
         return .failed(result.error.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
-    /// Puts what was read into `tree` at `folders`, the folders it was asked for, counting as a scan counts, marks what it
-    /// added `readAsAdministrator` (and `macOSVolume` below a folder of macOS's), and adds the digests to `summary`. A
-    /// folder still unreadable takes the reason root got. Returns the folders whose totals must be summed again.
+    /// What the listing mode printed, read back; nil for anything else, a listing in another Oriel's format included.
+    static func result(from data: Data) -> Result? {
+        guard let result = try? JSONDecoder().decode(Result.self, from: data), result.version == version else { return nil }
+        return result
+    }
+
+    /// Puts what was read into `tree` at `folders`, the folders it was asked for, counting as a scan counts (a file with
+    /// several hard links counted elsewhere in the scan adds nothing again), marks what it added `readAsAdministrator`
+    /// (and `macOSVolume` below a folder of macOS's), and adds the digests to `summary`. A folder still unreadable takes
+    /// the reason root got. Returns the folders whose totals must be summed again.
     static func apply(_ result: Result, folders: [String], to tree: inout ScanTree, summary: inout ScanSummary) -> Set<Int32> {
         let listings = Dictionary(result.listings.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
         var dirty = Set<Int32>()
@@ -149,13 +160,16 @@ public nonisolated enum ElevatedRead {
             for index in digest.items.indices {
                 digest.items[index].flags.formUnion(added)
             }
+            for index in digest.links.indices {
+                digest.links[index].item.flags.formUnion(added)
+            }
             tree.removeFlags(UnreadableReason.allFlags.union(.partial), at: node)
             tree.insertFlags(listing.partialError == 0 ? added : added.union(.partial), at: node)
-            summary.absorb(digest)
             dirty.insert(node)
-            for (child, item) in tree.merge(digest, into: node) {
+            for (child, item) in tree.merge(&digest, into: node) {
                 stack.append((child, DirectoryDigest.childPath(path, item.name)))
             }
+            summary.absorb(digest)
         }
         return dirty
     }
@@ -178,13 +192,13 @@ public nonisolated enum ElevatedRead {
     }
 
     /// Lists the folders and every folder below them the scan's rules enter, depth first, with the scan's own reader,
-    /// counting (`DirectoryDigest`) and I/O rules (`ScanIOPolicy`: no downloads of cloud files, no access times). It stops
-    /// once `cancellation` is set, as the helper sets it when Oriel stops waiting.
+    /// counting (`DirectoryDigest`) and I/O rules (`ScanIOPolicy`: no downloads of cloud files, no access times). Files
+    /// with several hard links are left for the scan to count. It stops once `cancellation` is set, as the helper sets
+    /// it when Oriel stops waiting.
     static func read(_ request: Request, cancellation: CancellationFlag = CancellationFlag()) -> Result {
         ScanIOPolicy.applyToCurrentThread()
         let reader = DirectoryReader()
         var categories = FileCategoryCache()
-        var links = HardLinkRegistry()
         var listings: [Listing] = []
         var stack: [(path: String, inherited: FileCategory?)] = request.folders.reversed().map { ($0, nil) }
         while !cancellation.isCancelled, let (path, inherited) = stack.popLast() {
@@ -198,7 +212,6 @@ public nonisolated enum ElevatedRead {
                     inheritedCategory: inherited,
                     options: request.options,
                     categories: &categories,
-                    isFirstLink: { links.isFirstLink(device: $0, inode: $1) },
                     canCrossInto: MountCheck.canCross
                 )
                 listings.append(Listing(path: path, partialError: error, digest: digest))

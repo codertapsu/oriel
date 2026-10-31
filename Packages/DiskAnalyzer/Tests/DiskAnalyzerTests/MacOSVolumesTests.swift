@@ -25,7 +25,6 @@ struct MacOSVolumesTests {
             inheritedCategory: nil,
             options: ScanOptions(),
             categories: &categories,
-            isFirstLink: { _, _ in true },
             macOS: MacOSVolumes(helperMounts: ["/System/Volumes/Preboot"])
         )
         #expect(digest.items.map(\.name).sorted() == ["Library", "Preboot", "swapfile0"])
@@ -74,7 +73,7 @@ struct MacOSVolumesTests {
         // A fresh listing of the data volume's top keeps the folder of macOS's volumes, which is read from elsewhere.
         var listing = DirectoryDigest()
         listing.items = [Item(name: "Users", kind: .folder)]
-        _ = tree.replaceContents(of: ScanTree.rootIndex, with: listing)
+        _ = tree.replaceContents(of: ScanTree.rootIndex, with: &listing)
         #expect(tree.children(of: ScanTree.rootIndex).contains(macOS))
         #expect(!tree.contains(gone))
 

@@ -190,6 +190,20 @@ struct PrivilegedReaderTests {
         #expect(!answer.connectionFailed)
     }
 
+    /// A helper left from an older Oriel lists in an older format, which this Oriel cannot count by: its answer is refused
+    /// rather than misread, as the password route refuses one.
+    @Test func anAnswerInAnOlderFormatIsRefused() async {
+        let (listener, delegate) = listener(requirement: nil, read: { _, _ in
+            ElevatedRead.Result(version: ElevatedRead.version - 1, listings: [])
+        })
+        defer { listener.invalidate() }
+        let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
+        let answer = await PrivilegedReader.read(ElevatedRead.Request(folders: ["/x"]), over: connection)
+        #expect(answer.outcome.failed)
+        #expect(!answer.connectionFailed)
+        withExtendedLifetime(delegate) {}
+    }
+
     /// When Oriel stops waiting, the helper stops reading rather than go on as root with nobody to answer, and, its last
     /// connection closed, idles out at once: a read on the connection's own queue would hold back both until its end.
     @Test func theHelperStopsReadingWhenOrielStopsWaiting() async throws {

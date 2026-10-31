@@ -98,6 +98,35 @@ struct AnalyzerModelTests {
         #expect(model.focus == Fixtures.index("Movies", in: tree))
     }
 
+    /// Oriel's own removals are not in the file system's events, so when one takes the link that carried a hard-linked
+    /// file's size, the window reads the folder holding its other link again, and that link then carries it.
+    @Test func removingTheCountedLinkCountsTheFileAtTheOther() async throws {
+        let store = try TemporaryFolder()
+        let folder = try TemporaryFolder()
+        let original = try folder.file("a/original.bin", size: 4_000_000)
+        let size = Fixtures.allocated(original)
+        try folder.folder("b")
+        #expect(link(original.path, folder.path + "/b/link.bin") == 0)
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let model = try DiskAnalyzerModel(settings: Fixtures.memorySettings(), store: ScanSnapshotStore(directory: store.url))
+        model.target = target
+        model.phase = .ready(stopped: false)
+        model.adopt(scanned.tree)
+        model.summary = scanned.summary
+        // The link kept one by one is the one that carries the size; the other is among its folder's smaller files.
+        let counted = try #require(scanned.tree.files(under: ScanTree.rootIndex).first)
+        try FileManager.default.removeItem(atPath: scanned.tree.path(of: counted))
+        model.remove([counted])
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.tree?.contains(counted) != false || model.tree?.root.size != size, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(model.tree?.contains(counted) == false)
+        #expect(model.tree?.root.size == size)
+        #expect(model.tree?.root.fileCount == 1)
+    }
+
     @Test func namesAndPathsAsTheUserKnowsThem() throws {
         let model = try model(with: tree)
         let code = try #require(Fixtures.index("Code", in: tree))

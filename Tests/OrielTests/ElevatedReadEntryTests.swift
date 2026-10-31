@@ -22,7 +22,7 @@ struct ElevatedReadEntryTests {
 
         #expect(process.terminationStatus == 0)
         let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        #expect(json["version"] as? Int == 1)
+        #expect(json["version"] as? Int == 2)
         let listings = try #require(json["listings"] as? [[String: Any]])
         #expect(Set(listings.compactMap { $0["path"] as? String }) == [folder.path, folder.path + "/Inner"])
     }

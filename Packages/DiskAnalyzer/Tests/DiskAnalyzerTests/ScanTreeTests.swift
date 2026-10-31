@@ -81,7 +81,7 @@ struct ScanTreeTests {
             DirectoryDigest.Item(name: "New", kind: .folder, descends: true),
             DirectoryDigest.Item(name: "edit.mov", kind: .file, size: 4_000_000, logicalSize: 4_000_000),
         ]
-        let next = tree.replaceContents(of: movies, with: digest)
+        let next = tree.replaceContents(of: movies, with: &digest)
         #expect(next.map(\.item.name) == ["New"])
         tree.recomputeTotals(dirty: Set([movies] + next.map(\.index)))
         // trip.mov (8 MB) went, edit.mov (4 MB) came, Old (3 MB) stayed.
@@ -89,6 +89,60 @@ struct ScanTreeTests {
         #expect(tree.root.size == 10_900_000)
         #expect(Fixtures.index("Movies/Old/1999.avi", in: tree) != nil)
         #expect(Fixtures.index("Movies/trip.mov", in: tree) == nil)
+    }
+
+    /// A file with several hard links is counted once across every listing that goes into the tree: its link in another
+    /// folder adds nothing, and the folder that counted it goes on counting it when it is listed again.
+    @Test func aHardLinkedFileIsCountedOnceAcrossListings() throws {
+        var tree = Fixtures.tree(["A/": 0, "B/": 0])
+        let folderA = try #require(Fixtures.index("A", in: tree))
+        let folderB = try #require(Fixtures.index("B", in: tree))
+        var first = linkListing("x.bin")
+        _ = tree.merge(&first, into: folderA)
+        var further = linkListing("y.bin")
+        _ = tree.replaceContents(of: folderB, with: &further)
+        var again = linkListing("x.bin")
+        _ = tree.replaceContents(of: folderA, with: &again)
+        tree.recomputeTotals(dirty: [folderA, folderB])
+        #expect(tree.root.size == 3_000_000)
+        #expect(tree[folderA].size == 3_000_000)
+        #expect(tree.root.fileCount == 2)
+        #expect(further.duplicateLinks == 1)
+        #expect(further.categoryTotals.totalBytes == 0)
+        #expect(again.duplicateLinks == 0)
+        #expect(again.categoryTotals.totalBytes == 3_000_000)
+    }
+
+    /// Compaction renumbers the nodes that carry the files' sizes. When a file's counted link is removed, the folder
+    /// holding another link is handed out, once, to be read again, and that listing counts the file.
+    @Test func theCountedLinksFollowCompactionAndRemoval() throws {
+        var tree = Fixtures.tree(["A/": 0, "B/": 0, "Gone/old.bin": 2_000_000])
+        var counted = linkListing("x.bin")
+        _ = try tree.merge(&counted, into: #require(Fixtures.index("A", in: tree)))
+        var held = linkListing("y.bin")
+        _ = try tree.merge(&held, into: #require(Fixtures.index("B", in: tree)))
+        try tree.remove(#require(Fixtures.index("Gone", in: tree)))
+        tree = tree.compacted()
+        let folderB = try #require(Fixtures.index("B", in: tree))
+        var again = linkListing("y.bin")
+        _ = tree.replaceContents(of: folderB, with: &again)
+        #expect(again.duplicateLinks == 1)
+        #expect(tree.foldersToRecount().isEmpty)
+
+        try tree.remove(#require(Fixtures.index("A/x.bin", in: tree)))
+        #expect(tree.foldersToRecount() == [folderB])
+        #expect(tree.foldersToRecount().isEmpty)
+        var recount = linkListing("y.bin")
+        _ = tree.replaceContents(of: folderB, with: &recount)
+        tree.recomputeTotals(dirty: [folderB])
+        #expect(recount.duplicateLinks == 0)
+        #expect(tree.root.size == 3_000_000)
+        #expect(tree[folderB].size == 3_000_000)
+    }
+
+    /// The listing of a folder holding `name`, a link of a 3 MB file with another link.
+    private func linkListing(_ name: String) -> DirectoryDigest {
+        Fixtures.digest([Fixtures.entry(name, size: 3_000_000, inode: 42, links: 2)], countsLinks: false)
     }
 
     @Test func compactionDropsRemovedNodesAndKeepsEverythingElse() throws {

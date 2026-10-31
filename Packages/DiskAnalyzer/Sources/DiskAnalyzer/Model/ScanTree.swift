@@ -3,8 +3,9 @@
 ///
 /// A node's children always have higher indices than the node, so totals are summed in one backward pass. Children
 /// are a linked list, so a folder's contents can be replaced (a rescan after a change, a file moved to the Trash)
-/// without moving other nodes; removed nodes stay until `compacted()`. Names are interned. A value type: the scanner
-/// edits its copy, and the window keeps the one it last received.
+/// without moving other nodes; removed nodes stay until `compacted()`. Names are interned. A file with several hard
+/// links is counted once across every listing that goes into the tree (`hardLinks`). A value type: the scanner edits
+/// its copy, and the window keeps the one it last received.
 nonisolated struct ScanTree: Sendable {
     static let rootIndex: Int32 = 0
 
@@ -23,6 +24,9 @@ nonisolated struct ScanTree: Sendable {
     private(set) var generation = 0
     /// Removed nodes still in the array.
     private(set) var removedCount = 0
+    /// Where each file with several hard links is counted, for as long as the tree lives: every listing added to it,
+    /// the scan's, a refresh's or Read as Administrator's, counts its links against it.
+    private(set) var hardLinks = HardLinkRegistry()
 
     init(rootName: String, rootPath: String, firmlinks: FirmlinkMap = .empty) {
         self.rootPath = rootPath
@@ -72,15 +76,16 @@ nonisolated struct ScanTree: Sendable {
         return link(node, to: parent)
     }
 
-    /// Adds the aggregate of a folder's smaller files, if it has any.
-    mutating func append(_ small: DirectoryDigest.SmallFiles, to parent: Int32) {
-        guard small.count > 0 else { return }
+    /// Adds the aggregate of a folder's smaller files, if it has any, and returns its index.
+    @discardableResult
+    mutating func append(_ small: DirectoryDigest.SmallFiles, to parent: Int32) -> Int32? {
+        guard small.count > 0 else { return nil }
         var node = ScanNode(name: 1, parent: parent, kind: .smallFiles)
         node.size = small.size
         node.logicalSize = small.logicalSize
         node.fileCount = Int32(clamping: small.count)
         node.modified = small.newest
-        link(node, to: parent)
+        return link(node, to: parent)
     }
 
     /// Adds a folder read from `path` rather than from below the root (`anchors`).
@@ -105,8 +110,10 @@ nonisolated struct ScanTree: Sendable {
         return link(node, to: parent)
     }
 
-    /// Adds everything `digest` keeps to `folder`, and returns the folders to read next with what they inherit.
-    mutating func merge(_ digest: DirectoryDigest, into folder: Int32) -> [(index: Int32, item: DirectoryDigest.Item)] {
+    /// Adds everything `digest` keeps to `folder`, and returns the folders to read next with what they inherit. Its files
+    /// with several hard links are counted against those the tree counted already, and `digest` comes back with them
+    /// counted, for the summary.
+    mutating func merge(_ digest: inout DirectoryDigest, into folder: Int32) -> [(index: Int32, item: DirectoryDigest.Item)] {
         var next: [(index: Int32, item: DirectoryDigest.Item)] = []
         for item in digest.items {
             let index = append(item, to: folder)
@@ -114,8 +121,45 @@ nonisolated struct ScanTree: Sendable {
                 next.append((index, item))
             }
         }
-        append(digest.small, to: folder)
+        appendLinksAndSmallFiles(of: &digest, to: folder)
         return next
+    }
+
+    /// Adds `digest`'s files with several hard links and its smaller files to `folder`, after its other items. A file the
+    /// tree has not counted, or whose counted link is no longer in it, is counted at its first link here; any other link
+    /// gets no size. The node that carries the size is recorded, and smaller files with a further link as holding it.
+    mutating func appendLinksAndSmallFiles(of digest: inout DirectoryDigest, to folder: Int32) {
+        var summed: [HardLinkRegistry.Identity] = []
+        var held: [HardLinkRegistry.Identity] = []
+        var countedHere = Set<HardLinkRegistry.Identity>()
+        let links = digest.links
+        digest.links = []
+        for link in links {
+            let isCounted = hardLinks.counter(of: link.file).map(contains) ?? false
+            let isFirstLink = !isCounted && countedHere.insert(link.file).inserted
+            if let item = digest.count(link, isFirstLink: isFirstLink) {
+                hardLinks.count(link.file, at: append(item, to: folder))
+            } else if isFirstLink {
+                summed.append(link.file)
+            } else {
+                held.append(link.file)
+            }
+        }
+        guard let small = append(digest.small, to: folder) else { return }
+        for file in summed {
+            hardLinks.count(file, at: small)
+        }
+        for file in held {
+            hardLinks.hold(file, at: small)
+        }
+    }
+
+    /// The folders to read again because their smaller files hold a further link of a file whose counted link has left
+    /// the tree: deleted, moved, or no longer in its folder's listing. Read again, one of them counts the file. Each
+    /// folder is handed out once for a file; a file no folder holds is forgotten, so the next listing of a link counts it.
+    mutating func foldersToRecount() -> Set<Int32> {
+        let holders = hardLinks.takeRecounts(isLive: contains)
+        return Set(holders.map { nodes[Int($0)].parent }.filter(contains))
     }
 
     mutating func insertFlags(_ flags: ScanNodeFlags, at index: Int32) {
@@ -229,11 +273,18 @@ nonisolated struct ScanTree: Sendable {
         removedCount += count
     }
 
-    mutating func replaceStorage(nodes: [ScanNode], names: [String], removedCount: Int, anchors: [Int32: String]) {
+    mutating func replaceStorage(
+        nodes: [ScanNode],
+        names: [String],
+        removedCount: Int,
+        anchors: [Int32: String],
+        hardLinks: HardLinkRegistry
+    ) {
         self.nodes = nodes
         self.names = names
         self.removedCount = removedCount
         self.anchors = anchors
+        self.hardLinks = hardLinks
         nameIndex = nil
         generation += 1
     }

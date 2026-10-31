@@ -26,17 +26,36 @@ struct DirectoryDigestTests {
         #expect(digest.small.count == 1)
     }
 
+    /// Which link of a file carries its size depends on what the rest of the scan counted, so a listing leaves its files
+    /// with several links to be counted, with what they are.
+    @Test func filesWithSeveralLinksWaitToBeCounted() {
+        let digest = Fixtures.digest(
+            [Fixtures.entry("a.bin", size: 3_000_000, inode: 42, links: 2), Fixtures.entry("b.txt", size: 10, inode: 43, links: 3)],
+            countsLinks: false
+        )
+        #expect(digest.items.isEmpty)
+        #expect(digest.small.count == 0)
+        #expect(digest.categoryTotals.totalCount == 0)
+        #expect(digest.links.map(\.file) == [.init(device: 1, inode: 42), .init(device: 1, inode: 43)])
+        #expect(digest.links.map(\.isKept) == [true, false])
+        #expect(digest.links.allSatisfy { $0.item.flags.contains(.hardLink) && $0.item.size > 0 })
+    }
+
     @Test func aHardLinkedFileIsCountedOnce() {
-        var registry = HardLinkRegistry()
-        let first = Fixtures.digest([Fixtures.entry("a.bin", size: 3_000_000, inode: 42, links: 2)], registry: registry)
-        _ = registry.isFirstLink(device: 1, inode: 42)
-        let second = Fixtures.digest([Fixtures.entry("b.bin", size: 3_000_000, inode: 42, links: 2)], registry: registry)
+        let digests = Fixtures.counted([
+            Fixtures.digest([Fixtures.entry("a.bin", size: 3_000_000, inode: 42, links: 2)], countsLinks: false),
+            Fixtures.digest([Fixtures.entry("b.bin", size: 3_000_000, inode: 42, links: 2)], countsLinks: false),
+        ])
+        let first = digests[0]
+        let second = digests[1]
         #expect(first.items.first?.size == 3_000_000)
         #expect(first.items.first?.flags.contains(.hardLink) == true)
         #expect(second.items.isEmpty)
         #expect(second.small.count == 1)
         #expect(second.small.size == 0)
         #expect(second.duplicateLinks == 1)
+        #expect(second.categoryTotals.totalCount == 1)
+        #expect(second.categoryTotals.totalBytes == 0)
     }
 
     @Test func linksWithinOneFolderAreCountedOnceToo() {

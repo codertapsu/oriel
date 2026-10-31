@@ -149,9 +149,7 @@ public nonisolated enum PrivilegedReader {
                 return
             }
             proxy.readFolders(request.arguments) { data, reason in
-                guard let data, let result = try? JSONDecoder().decode(ElevatedRead.Result.self, from: data),
-                      result.version == ElevatedRead.version
-                else {
+                guard let data, let result = ElevatedRead.result(from: data) else {
                     answer.give(Answer(outcome: .failed(reason ?? "Oriel could not make sense of what its helper read.")))
                     return
                 }

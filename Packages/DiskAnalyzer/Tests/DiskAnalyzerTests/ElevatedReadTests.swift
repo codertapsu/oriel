@@ -64,6 +64,25 @@ struct ElevatedReadTests {
         #expect(ElevatedRead.read(ElevatedRead.Request(folders: [folder.path]), cancellation: cancellation).listings.isEmpty)
     }
 
+    /// Listings in the format before files with several hard links came uncounted, or in any format but this Oriel's,
+    /// are refused: the scan could not count those links against its own.
+    @Test func listingsInAnotherFormatAreRefused() throws {
+        var digest = DirectoryDigest()
+        digest.links = [DirectoryDigest.Link(file: .init(device: 1, inode: 2), item: Item(name: "a", kind: .file), isKept: false)]
+        let current = try JSONEncoder().encode(ElevatedRead.Result(listings: [ElevatedRead.Listing(path: "/x", digest: digest)]))
+        #expect(ElevatedRead.result(from: current)?.listings.first?.digest == digest)
+        var object = try #require(JSONSerialization.jsonObject(with: current) as? [String: Any])
+        var listings = try #require(object["listings"] as? [[String: Any]])
+        var previous = try #require(listings[0]["digest"] as? [String: Any])
+        previous["links"] = nil
+        listings[0]["digest"] = previous
+        object["listings"] = listings
+        object["version"] = 1
+        #expect(try ElevatedRead.result(from: JSONSerialization.data(withJSONObject: object)) == nil)
+        let newer = ElevatedRead.Result(version: ElevatedRead.version + 1, listings: [])
+        #expect(try ElevatedRead.result(from: JSONEncoder().encode(newer)) == nil)
+    }
+
     @Test func theListingsSurviveJSON() throws {
         let folder = try TemporaryFolder()
         try folder.file("x/é ü 名前 \"quoted\".bin", size: 2_000_000)
@@ -139,6 +158,30 @@ struct ElevatedReadTests {
         #expect(tree[locked].size == 3_000_000)
         #expect(tree.index(ofPath: folder.path + "/Locked/secret.bin") != nil)
         #expect(tree.root.size == read.tree.root.size)
+    }
+
+    /// A folder read as an administrator that holds a link of a file the scan counted elsewhere adds nothing for it, as
+    /// a scan of the whole would: the listing says which file each link is, and they are counted against the scan's.
+    @Test func whatWasReadCountsAFileCountedElsewhereOnce() async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("Open/original.bin", size: 4_000_000)
+        let own = try folder.file("Locked/own.bin", size: 2_000_000)
+        #expect(link(original.path, folder.path + "/Locked/link.bin") == 0)
+        let expected = Fixtures.allocated(original) + Fixtures.allocated(own)
+        // What root lists, read here while the folder is still open, and sent as the helper sends it.
+        let listed = ElevatedRead.read(ElevatedRead.Request(folders: [folder.path + "/Locked"]))
+        let result = try JSONDecoder().decode(ElevatedRead.Result.self, from: JSONEncoder().encode(listed))
+        #expect(chmod(folder.path + "/Locked", 0) == 0)
+        defer { chmod(folder.path + "/Locked", 0o755) }
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let read = DiskAnalyzerModel.adding(
+            result, folders: [folder.path + "/Locked"], to: scanned.tree, summary: scanned.summary, volume: nil
+        )
+        #expect(read.tree.root.size == expected)
+        #expect(read.tree.root.fileCount == 3)
+        #expect(read.summary.duplicateLinks == 1)
+        #expect(read.summary.categories.totalBytes == expected)
     }
 
     /// A folder taken out of the scan since, or no longer waiting for an administrator, is left alone.

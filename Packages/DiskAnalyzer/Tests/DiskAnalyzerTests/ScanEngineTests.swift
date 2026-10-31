@@ -57,6 +57,75 @@ struct ScanEngineTests {
         #expect(outcome.tree.root.fileCount == 2)
     }
 
+    /// A folder read again after a change counts a link of a file counted in another folder as a further link, as the
+    /// scan did, and the folder that counted it goes on counting it: whichever folders are read again, one by one or
+    /// all the way down from the top (none named), the file is counted once.
+    @Test(arguments: [["a"], ["b"], ["a", "b"], []])
+    func aRefreshCountsAHardLinkedFileOnce(_ changed: [String]) async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("a/original.bin", size: 4_000_000)
+        try folder.folder("b")
+        #expect(link(original.path, folder.path + "/b/link.bin") == 0)
+        let first = await scan(folder)
+        let shallow = try Set(changed.map { try #require(first.tree.index(ofPath: folder.path + "/" + $0)) })
+        let refreshed = await ScanEngine.refresh(
+            first.tree,
+            folders: shallow,
+            recursive: changed.isEmpty ? [ScanTree.rootIndex] : [],
+            options: ScanOptions(),
+            cancellation: CancellationFlag()
+        )
+        #expect(refreshed.tree.root.size == allocated(original))
+        #expect(refreshed.tree.root.fileCount == 2)
+    }
+
+    /// When the link that carried a file's size goes, the file is counted at its other link, as a scan would count it,
+    /// though only the folder it went from is read again.
+    @Test func aFileIsCountedAtItsOtherLinkWhenTheCountedOneGoes() async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("a/original.bin", size: 4_000_000)
+        let size = allocated(original)
+        try folder.folder("b")
+        #expect(link(original.path, folder.path + "/b/link.bin") == 0)
+        let first = await scan(folder)
+        let folderA = try #require(first.tree.index(ofPath: folder.path + "/a"))
+        let folderB = try #require(first.tree.index(ofPath: folder.path + "/b"))
+        // Which link carries the size depends on which thread read its folder first.
+        let counted = first.tree[folderA].size > 0 ? folderA : folderB
+        let other = counted == folderA ? folderB : folderA
+        try FileManager.default.removeItem(atPath: counted == folderA ? original.path : folder.path + "/b/link.bin")
+        let refreshed = await ScanEngine.refresh(
+            first.tree, folders: [counted], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        #expect(refreshed.tree.root.size == size)
+        #expect(refreshed.tree[other].size == size)
+        #expect(refreshed.tree[counted].size == 0)
+    }
+
+    /// A folder moved with hard links inside is counted once whichever of the two folders is read first: here the one
+    /// it went to, while its old copy is still in the scan, and only then the one it left.
+    @Test func aFolderMovedWithItsLinksIsCountedOnce() async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("A/S/x.bin", size: 4_000_000)
+        let size = allocated(original)
+        #expect(link(original.path, folder.path + "/A/S/y.bin") == 0)
+        try folder.folder("B")
+        let first = await scan(folder)
+        let origin = try #require(first.tree.index(ofPath: folder.path + "/A"))
+        let destination = try #require(first.tree.index(ofPath: folder.path + "/B"))
+        try FileManager.default.moveItem(atPath: folder.path + "/A/S", toPath: folder.path + "/B/S")
+        let arrived = await ScanEngine.refresh(
+            first.tree, folders: [destination], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        #expect(arrived.tree.root.size == size)
+        let left = await ScanEngine.refresh(
+            arrived.tree, folders: [origin], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        #expect(left.tree.root.size == size)
+        #expect(left.tree[destination].size == size)
+        #expect(left.tree.index(ofPath: folder.path + "/A/S") == nil)
+    }
+
     @Test func symbolicLinksAreNeverFollowed() async throws {
         let outside = try TemporaryFolder()
         try outside.file("huge.bin", size: 5_000_000)

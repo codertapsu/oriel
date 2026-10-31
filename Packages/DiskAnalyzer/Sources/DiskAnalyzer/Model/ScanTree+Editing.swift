@@ -1,7 +1,8 @@
 /// Changes after a scan: items moved to the Trash or deleted, and folders read again after the file system reported a
 /// change. Removed nodes stay in the array, marked, until `compacted()` drops them.
 nonisolated extension ScanTree {
-    /// Takes `index` and everything below it out of the tree and updates the totals above it. The root stays.
+    /// Takes `index` and everything below it out of the tree and updates the totals above it. The root stays. A file with
+    /// several hard links counted there waits to be counted at another link (`foldersToRecount()`).
     mutating func remove(_ index: Int32) {
         guard index != ScanTree.rootIndex, contains(index) else { return }
         let parent = nodes[Int(index)].parent
@@ -12,14 +13,19 @@ nonisolated extension ScanTree {
 
     /// Replaces what `folder` holds directly with `digest`, a fresh listing of it. Subfolders that are still there
     /// keep their contents unless `keepsSubfolders` is false, except those read as an administrator, which always do:
-    /// the user's rights cannot read them again. New folders are returned to be read, and must then be passed to
-    /// `recomputeTotals(dirty:)` with `folder` once read.
+    /// the user's rights cannot read them again. What goes is taken out before the listing's files with several hard
+    /// links are counted (`merge(_:into:)`), so a file counted only in what went is counted again here. New folders are
+    /// returned to be read, and must then be passed to `recomputeTotals(dirty:)` with `folder` once read.
     mutating func replaceContents(
         of folder: Int32,
-        with digest: DirectoryDigest,
+        with digest: inout DirectoryDigest,
         keepsSubfolders: Bool = true
     ) -> [(index: Int32, item: DirectoryDigest.Item)] {
         guard contains(folder), nodes[Int(folder)].kind.isContainer else { return [] }
+        var listed: [String: ScanNodeKind] = [:]
+        for item in digest.items where item.kind.isContainer {
+            listed[item.name] = item.kind
+        }
         var kept: [String: Int32] = [:]
         // The system and "Other space" blocks of a volume's scan are not on disk, and the folder of macOS's own volumes is
         // read from elsewhere, so a listing never has them.
@@ -29,10 +35,12 @@ nonisolated extension ScanTree {
         while child != ScanNode.none {
             let node = nodes[Int(child)]
             let next = node.nextSibling
+            let name = names[Int(node.name)]
+            let staysIfListed = node.kind.isContainer && (keepsSubfolders || node.flags.contains(.readAsAdministrator))
             if node.kind == .system || node.kind == .unaccounted || anchors[child] != nil {
                 blocks.append(child)
-            } else if node.kind.isContainer, keepsSubfolders || node.flags.contains(.readAsAdministrator) {
-                kept[names[Int(node.name)]] = child
+            } else if staysIfListed, listed[name] == node.kind, kept[name] == nil {
+                kept[name] = child
             } else {
                 removed += markRemoved(child)
             }
@@ -44,8 +52,7 @@ nonisolated extension ScanTree {
         setNode(node, at: folder)
         var next: [(index: Int32, item: DirectoryDigest.Item)] = []
         for item in digest.items {
-            if item.kind.isContainer, let existing = kept[item.name], nodes[Int(existing)].kind == item.kind {
-                kept[item.name] = nil
+            if item.kind.isContainer, let existing = kept.removeValue(forKey: item.name) {
                 relink(existing, to: folder, flags: item.flags)
                 continue
             }
@@ -54,18 +61,16 @@ nonisolated extension ScanTree {
                 next.append((index, item))
             }
         }
-        append(digest.small, to: folder)
+        appendLinksAndSmallFiles(of: &digest, to: folder)
         for block in blocks {
             relink(block, to: folder, flags: nodes[Int(block)].flags)
-        }
-        for gone in kept.values {
-            removed += markRemoved(gone)
         }
         noteRemoved(removed)
         return next
     }
 
-    /// A copy without the removed nodes, renumbered. Its `generation` is one higher.
+    /// A copy without the removed nodes, renumbered, with its hard links' counters renumbered too. Its `generation` is
+    /// one higher.
     func compacted() -> ScanTree {
         var renumbered: [Int32: Int32] = [ScanTree.rootIndex: ScanTree.rootIndex]
         var kept: [ScanNode] = [nodes[0]]
@@ -89,7 +94,13 @@ nonisolated extension ScanTree {
         }
         var copy = self
         let movedAnchors = anchors.compactMap { index, path in renumbered[index].map { ($0, path) } }
-        copy.replaceStorage(nodes: kept, names: names, removedCount: 0, anchors: Dictionary(uniqueKeysWithValues: movedAnchors))
+        copy.replaceStorage(
+            nodes: kept,
+            names: names,
+            removedCount: 0,
+            anchors: Dictionary(uniqueKeysWithValues: movedAnchors),
+            hardLinks: hardLinks.renumbered(by: renumbered)
+        )
         return copy
     }
 

@@ -1,14 +1,14 @@
 import Darwin
 import Foundation
-import Synchronization
 
 /// Reads a folder tree with a few threads of its own. Reading a directory is a blocking system call, so the work runs
 /// on plain threads rather than Swift's cooperative pool, which it would starve.
 ///
 /// Folders to read sit on a stack (depth first, so it stays short); each thread takes one, reads it without a lock,
-/// works out what to keep (`DirectoryDigest`), then takes the lock only to add the nodes and push the subfolders.
-/// Progress is reported from inside that step when enough time has passed since the last report: no timer. The last
-/// thread to finish sums the totals and hands over the result.
+/// works out what to keep (`DirectoryDigest`), then takes the lock only to add the nodes, count the files with several
+/// hard links against those the tree counted already, and push the subfolders. Progress is reported from inside that
+/// step when enough time has passed since the last report: no timer. The last thread to finish sums the totals and
+/// hands over the result.
 final nonisolated class ScanEngine: @unchecked Sendable {
     /// One folder to read: added to (`merge`), or listed again after a change (`replace`).
     struct WorkItem: Sendable {
@@ -31,7 +31,6 @@ final nonisolated class ScanEngine: @unchecked Sendable {
     }
 
     private let condition = NSCondition()
-    private let links = Mutex(HardLinkRegistry())
     private let options: ScanOptions
     private let cancellation: CancellationFlag
     private let progress: @Sendable (ScanProgress) -> Void
@@ -47,6 +46,8 @@ final nonisolated class ScanEngine: @unchecked Sendable {
     private var active = 0
     private var finishedThreads = 0
     private var dirty = Set<Int32>()
+    /// Whether the tree changed since a refresh last looked for files to count at another link.
+    private var mayNeedRecounts = true
     private var current = ScanProgress()
     private var lastReport: ContinuousClock.Instant
     private var completion: (@Sendable (Outcome) -> Void)?
@@ -113,7 +114,8 @@ final nonisolated class ScanEngine: @unchecked Sendable {
 
     /// Reads `folders` of `tree` again after the file system reported changes there. Their subfolders keep what they
     /// held unless listed in `recursive`, which are read again all the way down. Folders read as an administrator stay
-    /// as they were read, since the user's rights cannot read them again, and so do macOS's own volumes.
+    /// as they were read, since the user's rights cannot read them again, and so do macOS's own volumes. A file with
+    /// several hard links whose counted link went is then counted at another (`ScanTree.foldersToRecount()`).
     static func refresh(
         _ tree: ScanTree,
         folders: Set<Int32>,
@@ -121,15 +123,8 @@ final nonisolated class ScanEngine: @unchecked Sendable {
         options: ScanOptions,
         cancellation: CancellationFlag
     ) async -> Outcome {
-        let kept: ScanNodeFlags = [.readAsAdministrator, .macOSVolume]
-        let readable = folders.union(recursive).filter { tree.contains($0) && tree[$0].flags.isDisjoint(with: kept) }
-        let work = readable.map { folder in
-            WorkItem(
-                node: folder,
-                path: tree.path(of: folder),
-                inherited: inheritedCategory(of: folder, in: tree),
-                mode: .replace(keepsSubfolders: !recursive.contains(folder))
-            )
+        let work = folders.union(recursive).filter { canReadAgain($0, in: tree) }.map { folder in
+            rereading(folder, in: tree, keepsSubfolders: !recursive.contains(folder))
         }
         return await run(
             tree: tree,
@@ -163,6 +158,20 @@ final nonisolated class ScanEngine: @unchecked Sendable {
             )
             engine.start { continuation.resume(returning: $0) }
         }
+    }
+
+    /// Whether a refresh may list `folder` again: not what was read as an administrator, nor macOS's own volumes.
+    private static func canReadAgain(_ folder: Int32, in tree: ScanTree) -> Bool {
+        tree.contains(folder) && tree[folder].flags.isDisjoint(with: [.readAsAdministrator, .macOSVolume])
+    }
+
+    private static func rereading(_ folder: Int32, in tree: ScanTree, keepsSubfolders: Bool) -> WorkItem {
+        WorkItem(
+            node: folder,
+            path: tree.path(of: folder),
+            inherited: inheritedCategory(of: folder, in: tree),
+            mode: .replace(keepsSubfolders: keepsSubfolders)
+        )
     }
 
     /// The category files inside `folder` take: that of the package it is in, if any.
@@ -211,11 +220,18 @@ final nonisolated class ScanEngine: @unchecked Sendable {
         }
     }
 
-    /// The next folder to read, waiting while others are still being read; nil when the work is done or cancelled.
-    /// Called with the lock held.
+    /// The next folder to read, waiting while others are still being read; nil when the work is done or cancelled. When
+    /// a refresh runs out of folders, the folders holding a further link of a file whose counted link it took out are
+    /// read again, so that one counts it. Called with the lock held.
     private func nextItem() -> WorkItem? {
         while stack.isEmpty, active > 0, !cancellation.isCancelled {
             condition.wait()
+        }
+        if stack.isEmpty, mayNeedRecounts, !isFullScan, !cancellation.isCancelled {
+            mayNeedRecounts = false
+            stack = tree.foldersToRecount().filter { Self.canReadAgain($0, in: tree) }.map { folder in
+                Self.rereading(folder, in: tree, keepsSubfolders: true)
+            }
         }
         guard !cancellation.isCancelled, let item = stack.popLast() else { return nil }
         active += 1
@@ -230,7 +246,6 @@ final nonisolated class ScanEngine: @unchecked Sendable {
             inheritedCategory: item.inherited,
             options: options,
             categories: &categories,
-            isFirstLink: { device, inode in self.links.withLock { $0.isFirstLink(device: device, inode: inode) } },
             canCrossInto: MountCheck.canCross,
             macOS: item.macOS
         )
@@ -251,13 +266,14 @@ final nonisolated class ScanEngine: @unchecked Sendable {
                 tree.insertFlags(.partial, at: item.node)
             }
         }
-        if let digest {
-            summary.absorb(digest)
+        if var digest {
             let next: [(index: Int32, item: DirectoryDigest.Item)] = switch item.mode {
-            case .merge: tree.merge(digest, into: item.node)
-            case let .replace(keepsSubfolders): tree.replaceContents(of: item.node, with: digest, keepsSubfolders: keepsSubfolders)
+            case .merge: tree.merge(&digest, into: item.node)
+            case let .replace(keepsSubfolders): tree.replaceContents(of: item.node, with: &digest, keepsSubfolders: keepsSubfolders)
             }
+            summary.absorb(digest)
             dirty.insert(item.node)
+            mayNeedRecounts = true
             for (index, child) in next {
                 stack.append(WorkItem(
                     node: index,
