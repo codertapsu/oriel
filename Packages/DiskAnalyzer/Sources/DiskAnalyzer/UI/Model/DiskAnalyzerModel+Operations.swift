@@ -106,6 +106,9 @@ extension DiskAnalyzerModel {
         if !report.trashed.isEmpty {
             registerUndo(of: report.trashed)
         }
+        if plan.operation.kind.takesItemsAway {
+            remeasureHogs(touching: report.completed.map(\.path))
+        }
         if report.hasProblems {
             show(problems(in: report, kind: plan.operation.kind))
         } else if !report.wasCancelled {

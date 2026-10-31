@@ -62,6 +62,23 @@ extension DiskAnalyzerModel {
         !hogs.isEmpty
     }
 
+    /// Measures again, once they were measured, the space hogs a change at `paths` may have resized: after Clean Up or
+    /// a removal, so their rows say what is left.
+    func remeasureHogs(touching paths: [String]) {
+        guard hasMeasuredHogs else { return }
+        let home = NSHomeDirectory()
+        let touched = SpaceHogCatalog.touched(by: paths, home: home)
+        guard !touched.isEmpty else { return }
+        for hog in touched {
+            hogs[hog.id] = .measuring
+        }
+        Task {
+            for hog in touched {
+                hogs[hog.id] = await SpaceHogMeter.measure(hog, home: home, tree: tree)
+            }
+        }
+    }
+
     /// Runs a hog's action on what was found; removals go through the usual confirmation first (`plan(paths:)`).
     func deleteUnavailableSimulators() {
         Task {

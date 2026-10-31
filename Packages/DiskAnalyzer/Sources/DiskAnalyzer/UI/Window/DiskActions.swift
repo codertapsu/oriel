@@ -22,4 +22,6 @@ protocol DiskActions: AnyObject {
     func readAsAdministrator()
     /// Checks a folder and offers the safest way to get its space back (PLAN §7.10 item 19).
     func cleanUp(_ node: Int32)
+    /// The same for a folder that need not be in the scan, such as a space hog's.
+    func cleanUp(path: String)
 }

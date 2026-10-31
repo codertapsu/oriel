@@ -31,6 +31,14 @@ nonisolated struct FileOperation: Sendable, Equatable {
         var isDestructive: Bool {
             self == .trash || self == .delete
         }
+
+        /// Whether the items leave where they were: everything but a copy.
+        var takesItemsAway: Bool {
+            if case .copy = self {
+                return false
+            }
+            return true
+        }
     }
 
     var kind: Kind

@@ -1,34 +1,44 @@
 import AppKit
 import SharedUI
 
-/// Clean Up (PLAN §7.10 item 19): the sheet, and carrying out what the user chose. Whatever goes is checked again for
-/// processes using it, then goes through the usual confirmation to the Trash.
+/// Clean Up (PLAN §7.10 item 19): the sheet, and carrying out what the user chose, for a folder of the scan or any other
+/// (a space hog's). Whatever goes is checked again for processes using it, then goes through the usual confirmation to
+/// the Trash.
 extension DiskWindowController {
     func cleanUp(_ node: Int32) {
-        guard let window, let tree = model.tree, tree.contains(node), tree[node].kind.isContainer else { return }
+        guard let tree = model.tree, tree.contains(node), tree[node].kind.isContainer else { return }
         let path = model.displayPath(of: node)
-        let sheet = CleanupSheetController(
-            name: model.displayName(of: node), path: path, icon: NodeIcons().icon(for: node, in: tree) { path }
-        )
+        cleanUp(path: path, icon: NodeIcons().icon(for: node, in: tree) { path })
+    }
+
+    func cleanUp(path: String) {
+        cleanUp(path: path, icon: NSWorkspace.shared.icon(forFile: path))
+    }
+
+    private func cleanUp(path: String, icon: NSImage) {
+        guard let window else { return }
+        let sheet = CleanupSheetController(name: (path as NSString).lastPathComponent, path: path, icon: icon)
+        let cancellation = CancellationFlag()
         cleanupSheet = sheet
         sheet.onChoose = { [weak self] method, facts in
             // Let the sheet go before a confirmation comes.
-            Task { @MainActor in self?.carryOut(method, facts: facts, on: node) }
+            Task { @MainActor in self?.carryOut(method, facts: facts) }
         }
-        sheet.onReveal = { [weak self] in self?.model.revealInFinder([node]) }
-        sheet.onQuit = { [weak self] apps in self?.quit(apps, thenCheck: node) }
+        sheet.onReveal = { SystemLinks.reveal([URL(fileURLWithPath: path)]) }
+        sheet.onQuit = { [weak self] apps in self?.quit(apps, thenCheck: path) }
         window.beginSheet(sheet.panel) { [weak self] _ in
+            cancellation.cancel()
             guard let self, cleanupSheet === sheet else { return }
             cleanupSheet = nil
             stopWaitingForApps()
         }
-        check(node, in: sheet)
+        check(path, in: sheet, cancellation: cancellation)
     }
 
     /// The advice, then Apple Intelligence's reading for a folder Oriel does not know, which can only make it more careful.
-    private func check(_ node: Int32, in sheet: CleanupSheetController) {
+    private func check(_ path: String, in sheet: CleanupSheetController, cancellation: CancellationFlag = CancellationFlag()) {
         Task {
-            guard let result = await model.adviseCleanup(for: node), cleanupSheet === sheet else {
+            guard let result = await model.adviseCleanup(of: path, cancellation: cancellation), cleanupSheet === sheet else {
                 sheet.close()
                 return
             }
@@ -50,10 +60,18 @@ extension DiskWindowController {
         }
     }
 
-    private func carryOut(_ method: CleanupMethod, facts: CleanupFacts, on node: Int32) {
+    private func carryOut(_ method: CleanupMethod, facts: CleanupFacts) {
+        let node = model.tree?.index(ofPath: facts.path)
         switch method.action {
         case .trashFolder:
-            trashUnlessInUse([facts.path], in: facts.path) { [weak self] in self?.trash([node]) }
+            trashUnlessInUse([facts.path], in: facts.path) { [weak self] in
+                guard let self else { return }
+                if let node {
+                    trash([node])
+                } else {
+                    trash(paths: [facts.path], bytes: facts.bytes, title: "“\(facts.name)”")
+                }
+            }
         case .trashContents:
             let busy = facts.busyItems
             let paths = facts.names.filter { !busy.contains($0) && $0 != ".DS_Store" && $0 != ".localized" }.sorted()
@@ -76,11 +94,16 @@ extension DiskWindowController {
         case let .openApp(bundleID, _):
             model.openApp(bundleID)
         case .showOldFiles:
-            model.focus = node
             model.search = ""
             model.view = .old
+            if let node {
+                model.focus = node
+            } else {
+                // Not in the open scan: scan it, and Old Files lists it.
+                scan(facts.path)
+            }
         case .reveal:
-            model.revealInFinder([node])
+            SystemLinks.reveal([URL(fileURLWithPath: facts.path)])
         }
     }
 
@@ -98,7 +121,7 @@ extension DiskWindowController {
     }
 
     /// Asks the apps to quit, as their Quit command does, and checks the folder again as each one quits.
-    private func quit(_ apps: [CleanupFacts.App], thenCheck node: Int32) {
+    private func quit(_ apps: [CleanupFacts.App], thenCheck path: String) {
         stopWaitingForApps()
         let ids = Set(apps.map(\.bundleID))
         cleanupObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -108,7 +131,7 @@ extension DiskWindowController {
             guard let id = app?.bundleIdentifier, ids.contains(id) else { return }
             MainActor.assumeIsolated {
                 guard let self, let sheet = self.cleanupSheet else { return }
-                self.check(node, in: sheet)
+                self.check(path, in: sheet)
             }
         }
         for app in apps {

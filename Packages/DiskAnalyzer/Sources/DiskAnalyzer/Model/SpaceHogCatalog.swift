@@ -1,5 +1,14 @@
 /// The space hogs Oriel knows, in the order they are listed.
 nonisolated enum SpaceHogCatalog {
+    /// The hogs a change at `paths` may have resized: those whose folder is one of them, holds one or is inside one, and
+    /// those found by name in the scan, which its edits change.
+    static func touched(by paths: [String], home: String) -> [SpaceHog] {
+        all.filter { hog in
+            guard let folder = hog.folder(home: home) else { return true }
+            return paths.contains { $0 == folder || $0.hasPrefix(folder + "/") || folder.hasPrefix($0 + "/") }
+        }
+    }
+
     static let all: [SpaceHog] = [
         SpaceHog(
             id: "caches", title: "App caches",
@@ -60,7 +69,7 @@ nonisolated enum SpaceHogCatalog {
         SpaceHog(
             id: "installers", title: "Installers in Downloads",
             detail: "Disk images and installer packages. Once the app is installed, they are usually no longer needed.",
-            symbol: "shippingbox", location: .files(in: "Downloads", extensions: ["dmg", "pkg", "mpkg", "iso", "xip"]),
+            symbol: "shippingbox", location: .files(in: "Downloads", extensions: CleanupCatalog.installerExtensions),
             action: .trashItems, isRebuilt: false
         ),
         SpaceHog(

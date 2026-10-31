@@ -25,6 +25,26 @@ struct AnalyzerModelTests {
         "notes.pdf": 1_500_000,
     ], small: ["Code": (count: 12, size: 400_000)])
 
+    @Test func cleanUpReadsAFolderOfTheScanFromIt() async throws {
+        let model = try model(with: tree)
+        let result = try #require(await model.adviseCleanup(of: "/Root/Movies", cancellation: CancellationFlag()))
+        #expect(result.facts.bytes == 11_000_000)
+        #expect(result.facts.children.map(\.name) == ["trip.mov", "Old"])
+    }
+
+    @Test func cleanUpScansAFolderOutsideTheScan() async throws {
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        try folder.file("Cache/blob", size: 3_000_000)
+        try folder.file("notes.txt", size: 100)
+        let model = try DiskAnalyzerModel(settings: Fixtures.memorySettings(), store: ScanSnapshotStore(directory: folder.url))
+        let result = try #require(await model.adviseCleanup(of: folder.path, cancellation: CancellationFlag()))
+        #expect(result.facts.bytes >= 3_000_000)
+        #expect(result.facts.cacheFolders.map(\.name) == ["Cache"])
+        #expect(result.facts.names.contains("notes.txt"))
+        #expect(await model.adviseCleanup(of: folder.path + "/notes.txt", cancellation: CancellationFlag()) == nil)
+    }
+
     @Test func aPlanTakesEachItemOnceAndNeverTheRootOrABlock() throws {
         let model = try model(with: tree)
         let movies = try #require(Fixtures.index("Movies", in: tree))

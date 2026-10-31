@@ -174,6 +174,13 @@ nonisolated enum CleanupCatalog {
             methods: { _ in [.reveal] }
         ),
         CleanupRule(
+            id: "downloads",
+            matches: [.path("~/Downloads")],
+            verdict: .review,
+            summary: "What you downloaded: your own files, and installers that are usually not needed once their app is installed.",
+            methods: { facts in [installers(facts), .showOldFiles, .reveal].compactMap(\.self) }
+        ),
+        CleanupRule(
             id: "trash",
             matches: [.path("~/.Trash")],
             verdict: .careful,
@@ -235,6 +242,9 @@ nonisolated enum CleanupCatalog {
 
     // MARK: Methods the rules share
 
+    /// Disk images and installer packages, as Space Hogs finds them in Downloads.
+    static let installerExtensions: Set = ["dmg", "pkg", "mpkg", "iso", "xip"]
+
     static let contents: @Sendable (CleanupFacts) -> [CleanupMethod] = { [.trashContents($0)] }
     static let folder: @Sendable (CleanupFacts) -> [CleanupMethod] = { [.trashFolder($0)] }
 
@@ -253,12 +263,28 @@ nonisolated enum CleanupCatalog {
         )
     }
 
-    /// For the items named with a version (`9.1.0`, `AndroidStudio2025.3.2`, `gradle-8.5-bin`), every version but the
+    /// The disk images and installer packages it holds, those in use left out; nil when there is none.
+    static func installers(_ facts: CleanupFacts) -> CleanupMethod? {
+        let busy = facts.busyItems
+        let items = facts.children.filter { child in
+            !child.isFolder && !busy.contains(child.name)
+                && FileCategory.fileExtension(of: child.name).map(installerExtensions.contains) == true
+        }
+        return .trashItems(
+            items, id: "installers", title: "Move the installers to the Trash",
+            detail: "\(DiskFormat.count(items.count, "disk image or package", plural: "disk images and packages")). Once "
+                + "their app is installed, they are usually no longer needed."
+        )
+    }
+
+    /// For the folders named with a version (`9.1.0`, `AndroidStudio2025.3.2`, `gradle-8.5-bin`), every version but the
     /// newest of each name; nil when there is none.
     static func olderVersions(_ facts: CleanupFacts, of thing: String) -> CleanupMethod? {
+        // Folders only: tools keep a folder per version, while files named with one are what the user downloaded.
+        let folders = facts.children.filter(\.isFolder)
         let busy = facts.busyItems
-        let older = VersionedNames.older(among: facts.children).filter { !busy.contains($0.name) }
-        let kept = VersionedNames.newest(among: facts.children).map(\.name)
+        let older = VersionedNames.older(among: folders).filter { !busy.contains($0.name) }
+        let kept = VersionedNames.newest(among: folders).map(\.name)
         return .trashItems(
             older, id: "olderVersions", title: "Move the \(thing) of older versions to the Trash",
             detail: older.map(\.name).sorted()

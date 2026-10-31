@@ -125,6 +125,33 @@ struct CleanupAdvisorTests {
         #expect(CleanupAdvisor.advise(environment).ruleID == "pythonEnvironment")
     }
 
+    @Test func downloadsOffersItsInstallersButNotOlderFiles() {
+        let folder = Self.home + "/Downloads"
+        var children = ["Xcode_16.1.xip", "Xcode_16.2.xip", "Tool.dmg", "report.pdf"].map { name in
+            CleanupFacts.Child(name: name, path: folder + "/" + name, bytes: 100_000_000, isFolder: false, lastUsed: Self.now)
+        }
+        children.append(Self.child("Project 2.0", in: folder))
+        children.append(Self.child("Project 3.0", in: folder))
+        var facts = Self.facts(folder, children: children)
+        facts.refusal = SafetyRules.Refusal.homeTopLevel.message
+        let advice = CleanupAdvisor.advise(facts)
+        #expect(advice.ruleID == "downloads" && advice.verdict == .review)
+        // Folders named with versions are offered; files named with versions are the user's downloads.
+        #expect(Self.paths(of: advice.methods.first { $0.id == "olderVersions" }) == ["Project 2.0"])
+        #expect(Self.paths(of: advice.methods.first { $0.id == "installers" }) == ["Tool.dmg", "Xcode_16.1.xip", "Xcode_16.2.xip"])
+        #expect(advice.methods.contains(.showOldFiles))
+        #expect(!advice.methods.contains { $0.action == .trashFolder })
+    }
+
+    @Test func aChangeResizesTheHogsWhoseFolderItTouches() {
+        let ids = { (paths: [String]) in Set(SpaceHogCatalog.touched(by: paths, home: Self.home).map(\.id)) }
+        let byName: Set = ["nodeModules", "swiftBuild"]
+        #expect(ids([Self.home + "/.gradle/caches/9.1.0"]) == byName.union(["gradleCache"]))
+        #expect(ids([Self.home + "/Library/Developer"]).isSuperset(of: ["derivedData", "archives", "simulators", "simulatorCaches"]))
+        #expect(ids([Self.home + "/Downloads/Tool.dmg"]) == byName.union(["installers"]))
+        #expect(ids(["/Volumes/Backup/old"]) == byName)
+    }
+
     // MARK: Folders Oriel judges
 
     @Test func appDataStaysButLeftoversInsideGo() {

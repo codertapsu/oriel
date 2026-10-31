@@ -1,14 +1,33 @@
 import AppKit
 import SharedUI
 
-/// Clean Up (PLAN §7.10 item 19): checks a folder of the scan and recommends the safest way to get its space back. The
-/// facts are gathered off the main thread, the judgment is `CleanupAdvisor`'s, and what goes goes to the Trash through
-/// the usual confirmation.
+/// Clean Up (PLAN §7.10 item 19): checks a folder and recommends the safest way to get its space back, a folder of the
+/// open scan or any other (a space hog's), which gets a scan of its own. The facts are gathered off the main thread, the
+/// judgment is `CleanupAdvisor`'s, and what goes goes to the Trash through the usual confirmation.
 extension DiskAnalyzerModel {
-    /// Checks `node`: what the window knows here, the rest off the main thread.
-    func adviseCleanup(for node: Int32) async -> (facts: CleanupFacts, advice: CleanupAdvice)? {
-        guard let tree, let base = cleanupBase(for: node) else { return nil }
-        let facts = await Task.detached(priority: .userInitiated) { CleanupInspector.gather(base, node: node, in: tree) }.value
+    /// Checks the folder at `path`: from the open scan when it is in it, else from a scan of the folder by the window's
+    /// settings, which `cancellation` stops.
+    func adviseCleanup(of path: String, cancellation: CancellationFlag) async -> (facts: CleanupFacts, advice: CleanupAdvice)? {
+        if let tree, let node = tree.index(ofPath: path), tree[node].kind.isContainer {
+            let base = cleanupBase(path: path, flags: tree[node].flags, refusal: refusal(for: node))
+            let facts = await Task.detached(priority: .userInitiated) { CleanupInspector.gather(base, node: node, in: tree) }.value
+            return (facts, CleanupAdvisor.advise(facts))
+        }
+        var isFolder: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue else { return nil }
+        let base = cleanupBase(path: path, flags: [], refusal: safetyRules().refusal(for: path, isFolder: true)?.message)
+        let options = DiskSettings.scanOptions(in: settings, firmlinks: firmlinks)
+        let target = ScanTarget(
+            requestedPath: path,
+            scanPath: path,
+            displayName: (path as NSString).lastPathComponent,
+            firmlinks: firmlinks
+        )
+        let tree = await ScanEngine.scan(target, options: options, cancellation: cancellation).tree
+        guard !cancellation.isCancelled else { return nil }
+        let facts = await Task.detached(priority: .userInitiated) {
+            CleanupInspector.gather(base, node: ScanTree.rootIndex, in: tree)
+        }.value
         return (facts, CleanupAdvisor.advise(facts))
     }
 
@@ -46,6 +65,7 @@ extension DiskAnalyzerModel {
                 ))
             }
             refreshFolders([folder])
+            remeasureHogs(touching: [folder])
             refreshSources()
         }
     }
@@ -60,13 +80,10 @@ extension DiskAnalyzerModel {
     }
 
     /// What the window knows about the folder: where it is, what Oriel refuses, the apps running and those its path names.
-    private func cleanupBase(for node: Int32) -> CleanupFacts? {
-        guard let tree, tree.contains(node), tree[node].kind.isContainer else { return nil }
-        let path = displayPath(of: node)
+    private func cleanupBase(path: String, flags: ScanNodeFlags, refusal: String?) -> CleanupFacts {
         let home = NSHomeDirectory()
         var facts = CleanupFacts(path: path, home: home, bytes: 0, fileCount: 0, folderCount: 0, children: [])
-        facts.refusal = refusal(for: node)
-        let flags = tree[node].flags
+        facts.refusal = refusal
         facts.refusesContents = flags.contains(.macOSVolume) || flags.contains(.readAsAdministrator)
             || safetyRules().refusal(for: path + "/item", isFolder: false) != nil
         facts.isInCloud = [home + "/Library/Mobile Documents", home + "/Library/CloudStorage"].contains { path.hasPrefix($0 + "/") }

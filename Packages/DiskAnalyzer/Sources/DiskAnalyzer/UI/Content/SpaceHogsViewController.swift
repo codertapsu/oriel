@@ -1,8 +1,9 @@
 import AppKit
 
 /// Space Hogs: the usual suspects — caches, Xcode's build data, simulators, device backups, installers, `node_modules`
-/// — with what each is, whether it comes back by itself, how much it takes here, and one safe action. Measured only
-/// when asked, since reading some of these folders makes macOS ask for access.
+/// — with what each is, whether it comes back by itself, how much it takes here, one safe action, and Clean Up, which
+/// checks the folder first (PLAN §7.10 item 19). Measured only when asked, since reading some of these folders makes
+/// macOS ask for access.
 final class SpaceHogsViewController: NSViewController, DiskContentController, NSTableViewDataSource, NSTableViewDelegate {
     weak var actions: DiskActions?
     private let model: DiskAnalyzerModel
@@ -25,7 +26,7 @@ final class SpaceHogsViewController: NSViewController, DiskContentController, NS
         NodeColumns.add([
             NodeColumns.Spec(id: "hog", title: "What", width: 340, key: nil),
             NodeColumns.Spec(id: "size", title: "Size here", width: 150, key: nil, alignment: .right),
-            NodeColumns.Spec(id: "action", title: "", width: 150, key: nil),
+            NodeColumns.Spec(id: "action", title: "", width: 290, key: nil),
         ], to: table)
         table.dataSource = self
         table.delegate = self
@@ -85,7 +86,7 @@ final class SpaceHogsViewController: NSViewController, DiskContentController, NS
         switch column.identifier.rawValue {
         case "hog": return HogCellView(hog: hog)
         case "size": return TableCells.number(in: tableView, sizeText(hog, measurement))
-        case "action": return actionButton(for: hog, measurement: measurement, row: row)
+        case "action": return actions(for: hog, measurement: measurement, row: row)
         default: return nil
         }
     }
@@ -104,7 +105,57 @@ final class SpaceHogsViewController: NSViewController, DiskContentController, NS
         }
     }
 
-    private func actionButton(for hog: SpaceHog, measurement: HogMeasurement?, row: Int) -> NSView {
+    /// The hog's own action, then Clean Up.
+    private func actions(for hog: SpaceHog, measurement: HogMeasurement?, row: Int) -> NSView {
+        let stack = NSStackView(views: [
+            actionButton(for: hog, measurement: measurement, row: row), cleanUpControl(for: hog, measurement: measurement, row: row),
+        ])
+        stack.spacing = 6
+        let container = NSView()
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
+            stack.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+        ])
+        return container
+    }
+
+    /// Clean Up of the hog's folder (for installers, of Downloads, where they are); for folders found by name, a menu of
+    /// them. Available once the hog was measured and found.
+    private func cleanUpControl(for hog: SpaceHog, measurement: HogMeasurement?, row: Int) -> NSControl {
+        let found = if case let .measured(_, items)? = measurement {
+            items
+        } else {
+            [String]()
+        }
+        guard case .foldersNamed = hog.location else {
+            let button = NSButton(title: "Clean Up…", target: self, action: #selector(cleanUp(_:)))
+            button.tag = row
+            button.controlSize = .small
+            button.bezelStyle = .push
+            button.isEnabled = !found.isEmpty
+            return button
+        }
+        let menu = NSPopUpButton(frame: .zero, pullsDown: true)
+        menu.controlSize = .small
+        menu.addItem(withTitle: "Clean Up")
+        for path in found.prefix(20) {
+            let item = NSMenuItem(
+                title: (path as NSString).abbreviatingWithTildeInPath,
+                action: #selector(cleanUpFolder(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = path
+            menu.menu?.addItem(item)
+        }
+        menu.isEnabled = !found.isEmpty
+        menu.setAccessibilityLabel("Clean Up a \(hog.title) folder")
+        return menu
+    }
+
+    private func actionButton(for hog: SpaceHog, measurement: HogMeasurement?, row: Int) -> NSButton {
         let title = switch hog.action {
         case .trashContents, .trashItems: "Move to Trash…"
         case .reveal: "Show in Finder"
@@ -122,14 +173,7 @@ final class SpaceHogsViewController: NSViewController, DiskContentController, NS
         case .deleteUnavailableSimulators: button.isEnabled = Simulators.exist()
         case .openTrash: button.isEnabled = true
         }
-        let container = NSView()
-        button.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(button)
-        NSLayoutConstraint.activate([
-            button.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 4),
-            button.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-        ])
-        return container
+        return button
     }
 
     @objc private func act(_ sender: NSButton) {
@@ -147,6 +191,16 @@ final class SpaceHogsViewController: NSViewController, DiskContentController, NS
         case .openTrash:
             SystemLinks.openTrash()
         }
+    }
+
+    @objc private func cleanUp(_ sender: NSButton) {
+        guard hogs.indices.contains(sender.tag), let folder = hogs[sender.tag].folder(home: NSHomeDirectory()) else { return }
+        actions?.cleanUp(path: folder)
+    }
+
+    @objc private func cleanUpFolder(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        actions?.cleanUp(path: path)
     }
 
     @objc private func reveal() {
