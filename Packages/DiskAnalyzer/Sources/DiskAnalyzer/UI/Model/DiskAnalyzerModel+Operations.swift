@@ -105,6 +105,8 @@ extension DiskAnalyzerModel {
         }
         if !report.trashed.isEmpty {
             registerUndo(of: report.trashed)
+            // Oriel's own moves are not in the file system's events: the Trash, when the scan holds it, is read again.
+            refreshFolders(Array(Set(report.trashed.map { $0.inTrash.deletingLastPathComponent().path })))
         }
         if plan.operation.kind.takesItemsAway {
             remeasureHogs(touching: report.completed.map(\.path))
@@ -157,12 +159,12 @@ extension DiskAnalyzerModel {
         undoManager.setActionName(items.count == 1 ? "Move to Trash" : "Move \(items.count) Items to Trash")
     }
 
-    /// Undo: puts trashed items back and reads their folders again.
+    /// Undo: puts trashed items back and reads their folders and the Trash again.
     func restore(_ items: [TrashedItem]) {
         let fileOperator = FileOperator(rules: safetyRules())
         Task {
             let failures = await fileOperator.restore(items)
-            refreshFolders(items.map { $0.original.deletingLastPathComponent().path })
+            refreshFolders(Array(Set(items.flatMap { [$0.original, $0.inTrash].map { $0.deletingLastPathComponent().path } })))
             refreshSources()
             if !failures.isEmpty {
                 show(Message(
