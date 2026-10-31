@@ -290,7 +290,7 @@ struct ScanEngineTests {
         try FileManager.default.createSymbolicLink(atPath: folder.path + "/Code/latest", withDestinationPath: "main.swift")
         let outcome = await scan(folder)
         var recounted = outcome.summary
-        recounted.recountCategories(in: outcome.tree)
+        recounted.recountListings(in: outcome.tree)
         #expect(recounted.categories == outcome.summary.categories)
         #expect(recounted.duplicateLinks == outcome.summary.duplicateLinks)
         #expect(recounted.duplicateLinks == 1)
@@ -327,6 +327,35 @@ struct ScanEngineTests {
         #expect(summary.categories.count(of: .video) == 1)
         #expect(summary.duplicateLinks == fresh.duplicateLinks)
         #expect(summary.duplicateLinks == 0)
+    }
+
+    /// A refresh lists a folder again in place of what it held, so the files only in the cloud and the entries with errors
+    /// that folder held leave the summary, summed again from the tree, as a fresh scan of the same files shows. A test
+    /// cannot make either on disk, so the scan it refreshes held them in memory.
+    @Test func aRefreshSumsTheFilesOnlyInTheCloudAndTheFailedEntriesAgain() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("Work/notes.txt", size: 3000)
+        let scanned = Fixtures.scan([
+            "": [Fixtures.entry("Work", .directory)],
+            "Work": [
+                Fixtures.entry("notes.txt", size: 3000),
+                Fixtures.cloudFile("lecture.mp4", content: 900_000_000),
+                Fixtures.cloudFile("slides.pdf", content: 400_000),
+                Fixtures.failedEntry("broken"),
+            ],
+        ], rootPath: folder.path)
+        let work = try #require(scanned.tree.index(ofPath: folder.path + "/Work"))
+        let refreshed = await ScanEngine.refresh(
+            scanned.tree, folders: [work], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        let summary = DiskAnalyzerModel.recounting(refreshed.tree, summary: scanned.summary, volume: nil).summary
+        let fresh = await scan(folder).summary
+        #expect(scanned.summary.cloudOnlyFiles == 2)
+        #expect(scanned.summary.entryErrors == 1)
+        #expect(summary.cloudOnlyFiles == fresh.cloudOnlyFiles)
+        #expect(summary.cloudOnlyBytes == fresh.cloudOnlyBytes)
+        #expect(summary.entryErrors == fresh.entryErrors)
+        #expect(summary.files == fresh.files)
     }
 }
 

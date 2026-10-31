@@ -53,14 +53,24 @@ nonisolated struct ScanSummary: Sendable, Equatable {
         }
     }
 
-    /// Sums the file types and the further links again from the tree, as the scan summed them from its listings
-    /// (`absorb`): its files kept one by one, and the kinds of its smaller files. After an edit of the tree, which takes
-    /// files out of it as well as adding them.
-    mutating func recountCategories(in tree: ScanTree) {
-        (categories, duplicateLinks) = tree.smallFileKinds.totals(isLive: tree.contains)
+    /// Sums what the scan summed from its listings (`absorb`) again, from the tree: the file types, the further links and
+    /// the files only in the cloud from its files kept one by one and the records of its smaller files, and the entries
+    /// that could not be read from its folders' latest listings. After an edit of the tree, which takes files out of it as
+    /// well as adding them.
+    mutating func recountListings(in tree: ScanTree) {
+        let small = tree.smallFileKinds.totals(isLive: tree.contains)
+        categories = small.categories
+        duplicateLinks = small.duplicateLinks
+        cloudOnlyFiles = small.cloudOnlyFiles
+        cloudOnlyBytes = small.cloudOnlyBytes
         for node in tree.nodes where node.kind == .file && !node.isRemoved {
             categories.add(node.category, bytes: node.size)
+            if node.flags.contains(.cloudOnly) {
+                cloudOnlyFiles += 1
+                cloudOnlyBytes += node.logicalSize
+            }
         }
+        entryErrors = tree.entryErrors.values.reduce(0) { $0 + Int($1) }
     }
 
     /// Counts the folders that could not be read again, from the tree: after some were read as an administrator.

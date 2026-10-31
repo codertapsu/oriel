@@ -4,9 +4,10 @@
 /// A node's children always have higher indices than the node, so totals are summed in one backward pass. Children
 /// are a linked list, so a folder's contents can be replaced (a rescan after a change, a file moved to the Trash)
 /// without moving other nodes; removed nodes stay until `compacted()`. Names are interned. A file with several hard
-/// links is counted once across every listing that goes into the tree (`hardLinks`), and the aggregates keep the kinds
-/// of the files they sum (`smallFileKinds`), so File Types can be summed from the tree. A value type: the scanner edits
-/// its copy, and the window keeps the one it last received.
+/// links is counted once across every listing that goes into the tree (`hardLinks`), the aggregates keep the kinds of
+/// the files they sum (`smallFileKinds`) and the folders the entries their listings could not read (`entryErrors`), so
+/// what the scan summed from its listings can be summed from the tree. A value type: the scanner edits its copy, and the
+/// window keeps the one it last received.
 nonisolated struct ScanTree: Sendable {
     static let rootIndex: Int32 = 0
 
@@ -30,6 +31,9 @@ nonisolated struct ScanTree: Sendable {
     private(set) var hardLinks = HardLinkRegistry()
     /// The kinds of the files each aggregate of smaller files sums, from which File Types is summed again after an edit.
     private(set) var smallFileKinds = SmallFileKinds()
+    /// How many entries each folder's latest listing could not read, for the few folders that have any: replaced when the
+    /// folder is listed again, dropped when it is taken out, renumbered by compaction.
+    private(set) var entryErrors: [Int32: Int32] = [:]
 
     init(rootName: String, rootPath: String, firmlinks: FirmlinkMap = .empty) {
         self.rootPath = rootPath
@@ -127,6 +131,7 @@ nonisolated struct ScanTree: Sendable {
             }
         }
         appendLinksAndSmallFiles(of: &digest, to: folder)
+        setEntryErrors(digest.entryErrors, of: folder)
         return next
     }
 
@@ -278,13 +283,20 @@ nonisolated struct ScanTree: Sendable {
         removedCount += count
     }
 
+    /// Keeps `count`, the entries a listing of `folder` could not read, in place of what an earlier listing left; 0 drops
+    /// the folder's, as when it is taken out.
+    mutating func setEntryErrors(_ count: Int, of folder: Int32) {
+        entryErrors[folder] = count > 0 ? Int32(clamping: count) : nil
+    }
+
     mutating func replaceStorage(
         nodes: [ScanNode],
         names: [String],
         removedCount: Int,
         anchors: [Int32: String],
         hardLinks: HardLinkRegistry,
-        smallFileKinds: SmallFileKinds
+        smallFileKinds: SmallFileKinds,
+        entryErrors: [Int32: Int32]
     ) {
         self.nodes = nodes
         self.names = names
@@ -292,6 +304,7 @@ nonisolated struct ScanTree: Sendable {
         self.anchors = anchors
         self.hardLinks = hardLinks
         self.smallFileKinds = smallFileKinds
+        self.entryErrors = entryErrors
         nameIndex = nil
         generation += 1
     }

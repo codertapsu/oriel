@@ -165,7 +165,7 @@ struct ScanTreeTests {
         scanned.absorb(songs)
         scanned.absorb(listing)
         var summary = ScanSummary()
-        summary.recountCategories(in: tree)
+        summary.recountListings(in: tree)
         #expect(summary.categories == scanned.categories)
         #expect(summary.duplicateLinks == 1)
         #expect(summary.categories.totalCount == 5)
@@ -173,7 +173,7 @@ struct ScanTreeTests {
         #expect(summary.categories.bytes(of: .audio) == 9000)
 
         tree.remove(work)
-        summary.recountCategories(in: tree)
+        summary.recountListings(in: tree)
         #expect(summary.categories == songs.categoryTotals)
         #expect(summary.duplicateLinks == 0)
     }
@@ -189,18 +189,76 @@ struct ScanTreeTests {
         _ = tree.replaceContents(of: work, with: &again)
         try tree.remove(#require(Fixtures.index("Gone", in: tree)))
         var summary = ScanSummary()
-        summary.recountCategories(in: tree)
+        summary.recountListings(in: tree)
         #expect(summary.categories == again.categoryTotals)
 
         let compacted = tree.compacted()
         var after = ScanSummary()
-        after.recountCategories(in: compacted)
+        after.recountListings(in: compacted)
         #expect(after.categories == again.categoryTotals)
         #expect(compacted.smallFileKinds.byteCount < tree.smallFileKinds.byteCount)
     }
 
-    /// The kinds are kept as variable-length numbers: a folder's smaller files of one kind take 5 bytes. Large counts and
-    /// sizes, every category and further links come back exact, after renumbering too.
+    /// Files only in the cloud, kept one by one (a 900 MB lecture) or among the smaller files, and entries the file system
+    /// reported errors for are summed from the tree after every edit as a fresh scan of the same folders sums them: a
+    /// folder listed again counts what its new listing holds and no longer what its old one held, a removal takes out what
+    /// it removed, and compaction, which moves Lectures, moves its count with it. A test cannot make either on disk, so the
+    /// folders are in memory.
+    @Test func theFilesOnlyInTheCloudAndTheFailedEntriesAreSummedFromTheTree() throws {
+        var listings: [String: [DirectoryEntry]] = [
+            "": [Fixtures.entry("Music", .directory), Fixtures.entry("Lectures", .directory), Fixtures.failedEntry("lost")],
+            "Lectures": [
+                Fixtures.cloudFile("week 1.mp4", content: 900_000_000),
+                Fixtures.cloudFile("notes.pdf", content: 300_000),
+                Fixtures.entry("summary.txt", size: 4000),
+                Fixtures.failedEntry("broken"),
+            ],
+            "Music": [
+                Fixtures.cloudFile("song.m4a", content: 7_000_000),
+                Fixtures.cloudFile("demo.m4a", content: 600_000),
+                Fixtures.failedEntry("scratched"),
+            ],
+        ]
+        let scanned = Fixtures.scan(listings)
+        #expect(scanned.summary.cloudOnlyFiles == 4)
+        #expect(scanned.summary.cloudOnlyBytes == 907_900_000)
+        #expect(scanned.summary.entryErrors == 3)
+        var tree = scanned.tree
+        func expectSummedAsAFreshScan(_ tree: ScanTree) {
+            let summary = DiskAnalyzerModel.recounting(tree, summary: scanned.summary, volume: nil).summary
+            let fresh = Fixtures.scan(listings).summary
+            #expect(summary.cloudOnlyFiles == fresh.cloudOnlyFiles)
+            #expect(summary.cloudOnlyBytes == fresh.cloudOnlyBytes)
+            #expect(summary.entryErrors == fresh.entryErrors)
+        }
+
+        // The lecture was downloaded and the notes removed; slides came, only in the cloud, and two entries failed.
+        listings["Lectures"] = [
+            Fixtures.entry("week 1.mp4", size: 900_000_000),
+            Fixtures.cloudFile("slides.key", content: 450_000),
+            Fixtures.entry("summary.txt", size: 4000),
+            Fixtures.failedEntry("other"),
+            Fixtures.failedEntry("another"),
+        ]
+        try Fixtures.relist(#require(Fixtures.index("Lectures", in: tree)), in: &tree, with: listings["Lectures"] ?? [])
+        expectSummedAsAFreshScan(tree)
+
+        try tree.remove(#require(Fixtures.index("Music", in: tree)))
+        listings["Music"] = nil
+        listings[""] = [Fixtures.entry("Lectures", .directory), Fixtures.failedEntry("lost")]
+        expectSummedAsAFreshScan(tree)
+
+        var compacted = tree.compacted()
+        #expect(Fixtures.index("Lectures", in: compacted) != Fixtures.index("Lectures", in: tree))
+        expectSummedAsAFreshScan(compacted)
+        listings["Lectures"] = [Fixtures.failedEntry("last")]
+        try Fixtures.relist(#require(Fixtures.index("Lectures", in: compacted)), in: &compacted, with: listings["Lectures"] ?? [])
+        expectSummedAsAFreshScan(compacted)
+    }
+
+    /// The kinds are kept as variable-length numbers: a folder's smaller files of one kind take 5 bytes, and nothing more
+    /// for having no files only in the cloud. Large counts and sizes, every category, further links and files only in the
+    /// cloud come back exact, after renumbering too.
     @Test func theKindsSurviveTheirCompactForm() {
         var code = DirectoryDigest.SmallFiles()
         code.categories.add(.code, bytes: 0, count: 1)
@@ -213,25 +271,38 @@ struct ScanTreeTests {
             everything.categories.add(category, bytes: 5_000_000_000 + Int64(category.rawValue), count: 300 + Int(category.rawValue))
         }
         everything.duplicateLinks = 7
+        everything.cloudOnlyFiles = 40
+        everything.cloudOnlyBytes = 70_000_000_000
         var links = DirectoryDigest.SmallFiles()
         links.count = 3 // symbolic links only: no kind to keep
+        var cloud = DirectoryDigest.SmallFiles()
+        cloud.categories.add(.document, bytes: 0, count: 2)
+        cloud.cloudOnlyFiles = 2
+        cloud.cloudOnlyBytes = 600_000
         var kinds = SmallFileKinds()
         kinds.record(everything, at: 5)
         kinds.record(links, at: 6)
+        kinds.record(cloud, at: 8)
         kinds.record(code, at: 70000)
         var expected = everything.categories
+        expected.merge(cloud.categories)
         expected.merge(code.categories)
-        #expect(kinds.totals { _ in true }.categories == expected)
-        #expect(kinds.totals { _ in true }.duplicateLinks == 7)
-        #expect(kinds.totals { $0 != 5 }.categories == code.categories)
-        #expect(kinds.totals { $0 != 5 }.duplicateLinks == 0)
+        let all = kinds.totals { _ in true }
+        #expect(all.categories == expected)
+        #expect(all.duplicateLinks == 7)
+        #expect(all.cloudOnlyFiles == 42)
+        #expect(all.cloudOnlyBytes == 70_000_600_000)
+        #expect(kinds.totals { $0 == 70000 } == SmallFileKinds.Totals(categories: code.categories))
+        #expect(kinds.totals { $0 == 8 }.cloudOnlyBytes == 600_000)
 
         // Compaction turns their order around and drops what it did not keep.
-        let renumbered = kinds.renumbered(by: [70000: 1, 5: 9])
-        #expect(renumbered.totals { _ in true }.categories == expected)
+        let renumbered = kinds.renumbered(by: [70000: 1, 8: 4, 5: 9])
+        #expect(renumbered.totals { _ in true } == all)
         #expect(renumbered.totals { $0 == 1 }.categories == code.categories)
+        #expect(renumbered.totals { $0 == 4 }.cloudOnlyFiles == 2)
         #expect(renumbered.totals { $0 == 9 }.duplicateLinks == 7)
-        #expect(kinds.renumbered(by: [70000: 2]).totals { _ in true }.categories == code.categories)
+        #expect(renumbered.totals { $0 == 9 }.cloudOnlyBytes == 70_000_000_000)
+        #expect(kinds.renumbered(by: [70000: 2]).totals { _ in true } == SmallFileKinds.Totals(categories: code.categories))
     }
 
     /// Beside a node's 56 bytes (PLAN §9), the kinds take a few bytes a node: here 3,000 folders whose smaller files are of

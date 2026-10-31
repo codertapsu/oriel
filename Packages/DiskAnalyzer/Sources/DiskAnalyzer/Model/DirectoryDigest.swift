@@ -39,6 +39,10 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
         var categories = CategoryTotals()
         /// How many of the files are further links of a file counted elsewhere, with no size.
         var duplicateLinks = 0
+        /// How many of the files are only in the cloud, and their content size, which takes no space on this Mac: a further
+        /// link of one adds no content, as it adds no size. The tree keeps them with the aggregate too.
+        var cloudOnlyFiles = 0
+        var cloudOnlyBytes: Int64 = 0
 
         /// Adds a symbolic link or a device, which has no category.
         mutating func add(_ entry: DirectoryEntry, size: Int64, logicalSize: Int64) {
@@ -49,6 +53,9 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
         mutating func add(_ entry: DirectoryEntry, category: FileCategory) {
             add(entry, size: entry.allocatedSize, logicalSize: entry.logicalSize)
             categories.add(category, bytes: entry.allocatedSize)
+            if entry.isDataless {
+                addCloudOnly(content: entry.logicalSize)
+            }
         }
 
         /// Adds a link of a file with several, as `count(_:isFirstLink:)` counted it: a further link has no size.
@@ -58,6 +65,14 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
             if link.flags.contains(.duplicateLink) {
                 duplicateLinks += 1
             }
+            if link.flags.contains(.cloudOnly) {
+                addCloudOnly(content: link.logicalSize)
+            }
+        }
+
+        private mutating func addCloudOnly(content: Int64) {
+            cloudOnlyFiles += 1
+            cloudOnlyBytes += content
         }
 
         private mutating func add(size: Int64, logicalSize: Int64, modified: Int32) {
@@ -80,9 +95,7 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
     var small = SmallFiles()
     /// The files with several hard links, until `count(_:isFirstLink:)` counts each into `items` or `small`.
     var links: [Link] = []
-    var cloudOnlyFiles = 0
-    var cloudOnlyBytes: Int64 = 0
-    /// Entries the file system reported an error for, which are left out.
+    /// Entries the file system reported an error for, which are left out. The tree keeps them with the folder.
     var entryErrors = 0
 
     /// Files and bytes per category over the files it counted: those kept one by one and the smaller ones. The tree sums
@@ -98,6 +111,17 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
     /// Further links to files counted elsewhere, all among the smaller files.
     var duplicateLinks: Int {
         small.duplicateLinks
+    }
+
+    /// Files only in the cloud among those it counted, those kept one by one and the smaller ones. The tree sums them the
+    /// same way, from its files and its aggregates' records.
+    var cloudOnlyFiles: Int {
+        small.cloudOnlyFiles + items.count { $0.kind == .file && $0.flags.contains(.cloudOnly) }
+    }
+
+    /// The content size of `cloudOnlyFiles`, which takes no space on this Mac.
+    var cloudOnlyBytes: Int64 {
+        items.reduce(small.cloudOnlyBytes) { $0 + ($1.kind == .file && $1.flags.contains(.cloudOnly) ? $1.logicalSize : 0) }
     }
 
     /// Folds `entries`, the contents of the directory at `parentPath`, into what the scan keeps.
@@ -223,8 +247,6 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
         }
         if entry.isDataless {
             flags.insert(.cloudOnly)
-            cloudOnlyFiles += 1
-            cloudOnlyBytes += entry.logicalSize
         }
         if entry.extendedFlags & DirectoryEntry.mayShareBlocks != 0 {
             flags.insert(.sharesBlocks)

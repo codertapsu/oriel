@@ -1,17 +1,31 @@
 /// The kinds of the files each aggregate of smaller files sums, which its node has no room for: per category, how many
-/// files and bytes, and how many of the files are further links of a file counted elsewhere. A scan sums File Types from
-/// its listings as it reads them; after an edit of the tree, which takes files out as well as adding them, they are
-/// summed again from the tree, from its files kept one by one and these (`ScanSummary.recountCategories(in:)`).
+/// files and bytes, how many of the files are further links of a file counted elsewhere, and how many are only in the
+/// cloud, with their content size. A scan sums File Types, the further links and the files only in the cloud from its
+/// listings as it reads them; after an edit of the tree, which takes files out as well as adding them, they are summed
+/// again from the tree, from its files kept one by one and these (`ScanSummary.recountListings(in:)`).
 ///
 /// A scan has about one aggregate per folder, so they are kept compact: only aggregates that have files, each as a few
 /// variable-length numbers, seven bits a byte: how far its node is from the one recorded before, which categories it
-/// has (a bit each, and one for further links), each of those categories' files and bytes, then its further links. An
-/// aggregate of one kind takes 5 bytes this way and one of four about 20, where a `CategoryTotals` takes over 200: on a
-/// tree of folders of mixed kinds, under 5 bytes a node beside the node's 56. Like the nodes, the kinds of an aggregate
-/// taken out of the tree stay until it is compacted (`renumbered(by:)`).
+/// has (a bit each, one for further links and one for files only in the cloud), each of those categories' files and
+/// bytes, then its further links, then its files only in the cloud and their content size. An aggregate of one kind takes
+/// 5 bytes this way and one of four about 20, where a `CategoryTotals` takes over 200: on a tree of folders of mixed
+/// kinds, under 5 bytes a node beside the node's 56. Files only in the cloud add 4–7 bytes, their count and content size,
+/// to the few aggregates that have any, and nothing to the others. Like the nodes, the kinds of an aggregate taken out
+/// of the tree stay until it is compacted (`renumbered(by:)`).
 nonisolated struct SmallFileKinds: Sendable {
+    /// What the aggregates `totals(isLive:)` accepts sum.
+    struct Totals: Sendable, Equatable {
+        var categories = CategoryTotals()
+        var duplicateLinks = 0
+        var cloudOnlyFiles = 0
+        /// The content size of the files only in the cloud.
+        var cloudOnlyBytes: Int64 = 0
+    }
+
     /// The bit after the categories' that says an aggregate holds further links.
     private static let furtherLinksBit = UInt64(1) << UInt64(FileCategory.allCases.count)
+    /// The bit after that, which says it holds files only in the cloud.
+    private static let cloudOnlyBit = furtherLinksBit << 1
 
     private var encoded: [UInt8] = []
     /// The node recorded last, which the next one's distance is from.
@@ -27,6 +41,9 @@ nonisolated struct SmallFileKinds: Sendable {
         let kinds = small.categories
         guard kinds.totalCount > 0 else { return }
         var mask: UInt64 = small.duplicateLinks > 0 ? Self.furtherLinksBit : 0
+        if small.cloudOnlyFiles > 0 {
+            mask |= Self.cloudOnlyBit
+        }
         for category in FileCategory.allCases where kinds.count(of: category) > 0 {
             mask |= Self.bit(category)
         }
@@ -39,12 +56,15 @@ nonisolated struct SmallFileKinds: Sendable {
         if small.duplicateLinks > 0 {
             write(Int64(small.duplicateLinks))
         }
+        if small.cloudOnlyFiles > 0 {
+            write(Int64(small.cloudOnlyFiles))
+            write(small.cloudOnlyBytes)
+        }
     }
 
-    /// The kinds and further links of the aggregates `isLive` accepts, summed.
-    func totals(isLive: (Int32) -> Bool) -> (categories: CategoryTotals, duplicateLinks: Int) {
-        var categories = CategoryTotals()
-        var duplicateLinks = 0
+    /// The kinds, further links and files only in the cloud of the aggregates `isLive` accepts, summed.
+    func totals(isLive: (Int32) -> Bool) -> Totals {
+        var totals = Totals()
         var cursor = Cursor(encoded)
         while let node = cursor.nextNode() {
             let isCounted = isLive(node)
@@ -53,17 +73,25 @@ nonisolated struct SmallFileKinds: Sendable {
                 let count = cursor.nextInteger()
                 let bytes = cursor.nextInteger()
                 if isCounted {
-                    categories.add(category, bytes: bytes, count: Int(count))
+                    totals.categories.add(category, bytes: bytes, count: Int(count))
                 }
             }
             if mask & Self.furtherLinksBit != 0 {
                 let links = cursor.nextInteger()
                 if isCounted {
-                    duplicateLinks += Int(links)
+                    totals.duplicateLinks += Int(links)
+                }
+            }
+            if mask & Self.cloudOnlyBit != 0 {
+                let files = cursor.nextInteger()
+                let bytes = cursor.nextInteger()
+                if isCounted {
+                    totals.cloudOnlyFiles += Int(files)
+                    totals.cloudOnlyBytes += bytes
                 }
             }
         }
-        return (categories, duplicateLinks)
+        return totals
     }
 
     /// The kinds for a tree whose nodes were renumbered (`ScanTree.compacted()`): `map` gives each kept node's new index.
@@ -134,8 +162,14 @@ nonisolated struct SmallFileKinds: Sendable {
         /// Steps over an aggregate's kinds, which follow its node.
         mutating func skipKinds() {
             let mask = next()
-            let categories = (mask & (SmallFileKinds.furtherLinksBit - 1)).nonzeroBitCount
-            for _ in 0 ..< 2 * categories + (mask & SmallFileKinds.furtherLinksBit != 0 ? 1 : 0) {
+            var numbers = 2 * (mask & (SmallFileKinds.furtherLinksBit - 1)).nonzeroBitCount
+            if mask & SmallFileKinds.furtherLinksBit != 0 {
+                numbers += 1
+            }
+            if mask & SmallFileKinds.cloudOnlyBit != 0 {
+                numbers += 2
+            }
+            for _ in 0 ..< numbers {
                 _ = next()
             }
         }

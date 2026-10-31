@@ -67,6 +67,51 @@ enum Fixtures {
         return entry
     }
 
+    /// A file only in the cloud (dataless): no blocks on this Mac, `content` bytes of content. No test can make one on
+    /// disk without a cloud provider.
+    static func cloudFile(_ name: String, content: Int64, inode: UInt64 = 0, links: UInt32 = 1) -> DirectoryEntry {
+        var entry = entry(name, inode: inode, links: links, flags: DirectoryEntry.datalessFlag)
+        entry.logicalSize = content
+        return entry
+    }
+
+    /// An entry the file system reported an error for, which a listing leaves out and counts.
+    static func failedEntry(_ name: String) -> DirectoryEntry {
+        var entry = entry(name)
+        entry.error = EIO
+        return entry
+    }
+
+    /// A scan of folders held in memory, as `ScanEngine` scans folders on disk: `listings` gives each folder's entries by
+    /// its path below the root ("" for the root), each listing goes into the tree as the engine adds it, and the summary
+    /// sums their digests. For what no folder on disk in a test can hold: files only in the cloud, entries with errors.
+    static func scan(_ listings: [String: [DirectoryEntry]], rootPath: String = "/Root") -> (tree: ScanTree, summary: ScanSummary) {
+        var tree = ScanTree(rootName: "Root", rootPath: rootPath)
+        var summary = ScanSummary()
+        var stack: [(node: Int32, relative: String)] = [(ScanTree.rootIndex, "")]
+        while let (node, relative) = stack.popLast() {
+            var listing = digest(listings[relative] ?? [], parentPath: tree.path(of: node), countsLinks: false)
+            for (child, item) in tree.merge(&listing, into: node) {
+                stack.append((child, relative.isEmpty ? item.name : relative + "/" + item.name))
+            }
+            summary.absorb(listing)
+        }
+        tree.computeTotals()
+        tree.finishBuilding()
+        summary.files = Int(tree.root.fileCount)
+        summary.folders = Int(tree.root.folderCount)
+        summary.bytes = tree.root.size
+        summary.logicalBytes = tree.root.logicalSize
+        return (tree, summary)
+    }
+
+    /// Lists `folder` of `tree` again with `entries`, as a refresh does, and sums its totals again.
+    static func relist(_ folder: Int32, in tree: inout ScanTree, with entries: [DirectoryEntry]) {
+        var listing = digest(entries, parentPath: tree.path(of: folder), countsLinks: false)
+        _ = tree.replaceContents(of: folder, with: &listing)
+        tree.recomputeTotals(dirty: [folder])
+    }
+
     /// What a scan keeps of a folder holding `entries`. Its files with several hard links are counted as the first
     /// listing of a scan counts them, unless `countsLinks` is false, which leaves them waiting in `links`.
     static func digest(

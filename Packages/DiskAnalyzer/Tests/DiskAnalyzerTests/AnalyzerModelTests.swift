@@ -159,6 +159,39 @@ struct AnalyzerModelTests {
         #expect(model.summary?.folders == fresh.folders)
     }
 
+    /// Oriel's own removals take the files only in the cloud and the entries with errors of what they removed out of the
+    /// summary, summed again from the tree, as a fresh scan of what is left shows. A test cannot make either on disk, so
+    /// the scan is in memory, as is the removal.
+    @Test func aRemovalSumsTheFilesOnlyInTheCloudAndTheFailedEntriesAgain() async throws {
+        var listings: [String: [DirectoryEntry]] = [
+            "": [Fixtures.entry("Lectures", .directory), Fixtures.entry("Music", .directory)],
+            "Lectures": [
+                Fixtures.entry("Old", .directory),
+                Fixtures.cloudFile("week 1.mp4", content: 900_000_000),
+                Fixtures.cloudFile("notes.pdf", content: 300_000),
+                Fixtures.failedEntry("broken"),
+            ],
+            "Lectures/Old": [Fixtures.failedEntry("older")],
+            "Music": [Fixtures.cloudFile("song.m4a", content: 7_000_000), Fixtures.failedEntry("lost")],
+        ]
+        let scanned = Fixtures.scan(listings)
+        let model = try model(with: scanned.tree)
+        model.summary = scanned.summary
+        let lectures = try #require(Fixtures.index("Lectures", in: scanned.tree))
+        model.remove([lectures])
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.tree?.contains(lectures) != false, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        listings = ["": [Fixtures.entry("Music", .directory)], "Music": listings["Music"] ?? []]
+        let fresh = Fixtures.scan(listings).summary
+        #expect(scanned.summary.cloudOnlyFiles == 3)
+        #expect(scanned.summary.entryErrors == 3)
+        #expect(model.summary?.cloudOnlyFiles == fresh.cloudOnlyFiles)
+        #expect(model.summary?.cloudOnlyBytes == fresh.cloudOnlyBytes)
+        #expect(model.summary?.entryErrors == fresh.entryErrors)
+    }
+
     /// A removal leaves a volume's Other space as it was: what was deleted left the volume's used space with it, and what
     /// went to the Trash is still on the volume until the Trash is read again, so summing it now would show it there.
     @Test func aRemovalLeavesOtherSpaceAsItWas() async throws {

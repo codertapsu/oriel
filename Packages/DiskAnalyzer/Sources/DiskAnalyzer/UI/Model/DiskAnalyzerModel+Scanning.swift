@@ -114,7 +114,8 @@ extension DiskAnalyzerModel {
 
     /// A tree and summary after an edit of the tree, summed again as the scan summed them: the volume's blocks for a
     /// complete scan of a whole volume (`addingVolumeBlocks`), so it still adds up to the volume's used space, then the
-    /// summary's counts, its file types and further links, and the folders still closed, from the tree.
+    /// summary's counts, its file types, further links, files only in the cloud and entries that could not be read, and the
+    /// folders still closed, from the tree.
     nonisolated static func recounting(
         _ tree: ScanTree,
         summary: ScanSummary,
@@ -129,7 +130,7 @@ extension DiskAnalyzerModel {
         summary.folders = Int(tree.root.folderCount)
         summary.bytes = tree.root.size
         summary.logicalBytes = tree.root.logicalSize
-        summary.recountCategories(in: tree)
+        summary.recountListings(in: tree)
         summary.recountUnreadable(in: tree)
         return (tree, summary)
     }

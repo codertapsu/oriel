@@ -64,17 +64,27 @@ struct ElevatedReadTests {
         #expect(ElevatedRead.read(ElevatedRead.Request(folders: [folder.path]), cancellation: cancellation).listings.isEmpty)
     }
 
-    /// Listings in an earlier format are refused: before the smaller files came with their kinds (2), the scan could not
-    /// sum File Types again after an edit, and before files with several hard links came uncounted (1), it could not
-    /// count those links against its own. So are listings in any format but this Oriel's.
+    /// Listings in an earlier format are refused: before the smaller files came with their files only in the cloud (3) or
+    /// their kinds (2), the scan could not sum those again after an edit, and before files with several hard links came
+    /// uncounted (1), it could not count those links against its own. So are listings in any format but this Oriel's.
     @Test func listingsInAnotherFormatAreRefused() throws {
         var digest = DirectoryDigest()
         digest.links = [DirectoryDigest.Link(file: .init(device: 1, inode: 2), item: Item(name: "a", kind: .file), isKept: false)]
         digest.small.add(Fixtures.entry("b.txt", size: 10), category: .document)
+        digest.small.add(Fixtures.cloudFile("c.pdf", content: 20000), category: .document)
         let current = try JSONEncoder().encode(ElevatedRead.Result(listings: [ElevatedRead.Listing(path: "/x", digest: digest)]))
         #expect(ElevatedRead.result(from: current)?.listings.first?.digest == digest)
+        #expect(ElevatedRead.result(from: current)?.listings.first?.digest?.small.cloudOnlyBytes == 20000)
+        // Format 3 sent the files only in the cloud summed over the digest, none with the smaller files.
+        let third = try earlier(current, version: 3) { digest in
+            var small = digest["small"] as? [String: Any] ?? [:]
+            digest["cloudOnlyFiles"] = small.removeValue(forKey: "cloudOnlyFiles")
+            digest["cloudOnlyBytes"] = small.removeValue(forKey: "cloudOnlyBytes")
+            digest["small"] = small
+        }
+        #expect(ElevatedRead.result(from: third) == nil)
         // Format 2 sent the kinds summed over the digest, none with the smaller files.
-        let second = try earlier(current, version: 2) { digest in
+        let second = try earlier(third, version: 2) { digest in
             var small = digest["small"] as? [String: Any] ?? [:]
             digest["categoryTotals"] = small.removeValue(forKey: "categories")
             digest["duplicateLinks"] = small.removeValue(forKey: "duplicateLinks")
@@ -276,6 +286,43 @@ struct ElevatedReadTests {
         #expect(read.summary.categories.count(of: .archive) == 1)
         #expect(read.summary.categories.count(of: .other) == 2)
         #expect(read.summary.duplicateLinks == fresh.duplicateLinks)
+        #expect(read.summary.files == fresh.files)
+    }
+
+    /// What root reads replaces what the folder held in the files only in the cloud and the entries with errors too, below
+    /// it as well, as a fresh scan of the same files counts them. A test cannot make either on disk, so the folders are in
+    /// memory.
+    @Test func whatWasReadReplacesTheFilesOnlyInTheCloudAndTheFailedEntries() throws {
+        var listings: [String: [DirectoryEntry]] = [
+            "": [Fixtures.entry("Open", .directory), Fixtures.entry("Locked", .directory)],
+            "Open": [Fixtures.cloudFile("song.m4a", content: 6_000_000), Fixtures.failedEntry("broken")],
+            "Locked": [
+                Fixtures.cloudFile("old.mov", content: 800_000_000),
+                Fixtures.cloudFile("old.pdf", content: 90000),
+                Fixtures.failedEntry("gone"),
+            ],
+        ]
+        let scanned = Fixtures.scan(listings)
+        // The folder changes, then closes: the scan keeps what it held, as a refresh that finds it closed does.
+        var tree = scanned.tree
+        try tree.setUnreadable(.needsAdministrator, at: #require(Fixtures.index("Locked", in: tree)))
+        listings["Locked"] = [Fixtures.entry("Inner", .directory), Fixtures.cloudFile("new.pdf", content: 70000)]
+        listings["Locked/Inner"] = [
+            Fixtures.cloudFile("deep.mov", content: 5_000_000),
+            Fixtures.failedEntry("first"),
+            Fixtures.failedEntry("second"),
+        ]
+        // What root lists, digested as the listing mode digests it.
+        let result = ElevatedRead.Result(listings: ["Locked", "Locked/Inner"].map { relative in
+            let path = "/Root/" + relative
+            return ElevatedRead.Listing(path: path, digest: Fixtures.digest(listings[relative] ?? [], parentPath: path, countsLinks: false))
+        })
+        let read = DiskAnalyzerModel.adding(result, folders: ["/Root/Locked"], to: tree, summary: scanned.summary, volume: nil)
+        let fresh = Fixtures.scan(listings).summary
+        #expect(scanned.summary.cloudOnlyFiles == 3)
+        #expect(read.summary.cloudOnlyFiles == fresh.cloudOnlyFiles)
+        #expect(read.summary.cloudOnlyBytes == fresh.cloudOnlyBytes)
+        #expect(read.summary.entryErrors == fresh.entryErrors)
         #expect(read.summary.files == fresh.files)
     }
 

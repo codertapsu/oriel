@@ -159,6 +159,41 @@ struct DirectoryDigestTests {
         #expect(digest.items.first?.size == 0)
     }
 
+    /// Files only in the cloud below the threshold by their content are among the smaller files, which count them and
+    /// their content for the tree to keep with the aggregate; the digest's totals add those kept one by one.
+    @Test func filesOnlyInTheCloudAmongTheSmallerOnesAreCountedWithThem() {
+        let digest = Fixtures.digest([
+            Fixtures.cloudFile("Lecture.mp4", content: 2_000_000_000),
+            Fixtures.cloudFile("notes.pdf", content: 300_000),
+            Fixtures.cloudFile("song.m4a", content: 700_000),
+            Fixtures.entry("local.txt", size: 4000),
+        ])
+        #expect(digest.items.map(\.name) == ["Lecture.mp4"])
+        #expect(digest.small.count == 3)
+        #expect(digest.small.size == 4000)
+        #expect(digest.small.cloudOnlyFiles == 2)
+        #expect(digest.small.cloudOnlyBytes == 1_000_000)
+        #expect(digest.cloudOnlyFiles == 3)
+        #expect(digest.cloudOnlyBytes == 2_001_000_000)
+    }
+
+    /// A file only in the cloud with several hard links has one content: every link is a file, as File Types counts them,
+    /// but only the counted one adds the content, as only it adds the size.
+    @Test func aFileOnlyInTheCloudWithSeveralLinksHasItsContentCountedOnce() {
+        let kept = Fixtures.digest([
+            Fixtures.cloudFile("a.mov", content: 5_000_000, inode: 42, links: 2),
+            Fixtures.cloudFile("b.mov", content: 5_000_000, inode: 42, links: 2),
+        ])
+        #expect(kept.cloudOnlyFiles == 2)
+        #expect(kept.cloudOnlyBytes == 5_000_000)
+        let summed = Fixtures.counted([
+            Fixtures.digest([Fixtures.cloudFile("a.pdf", content: 200_000, inode: 43, links: 2)], countsLinks: false),
+            Fixtures.digest([Fixtures.cloudFile("b.pdf", content: 200_000, inode: 43, links: 2)], countsLinks: false),
+        ])
+        #expect(summed.map(\.cloudOnlyFiles) == [1, 1])
+        #expect(summed.map(\.cloudOnlyBytes) == [200_000, 0])
+    }
+
     @Test func filesInsideAPackageTakeItsCategory() {
         let app = Fixtures.digest([Fixtures.entry("Xcode.app", .directory)])
         #expect(app.items.first?.kind == .package)
