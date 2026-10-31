@@ -34,6 +34,7 @@ final class DockController {
     private var isPointerInDock = false
     /// While the Dock moves its icons into place, the counts step aside.
     private var isSettling = false
+    private var layoutSchedule = DockLayoutSchedule()
     private var hoverReads = 0
     private var bundleIDs: [URL: String] = [:]
     private var eventTask: Task<Void, Never>?
@@ -129,6 +130,7 @@ final class DockController {
         overlay.hide()
         machine = DockHoverMachine()
         layout = nil
+        layoutSchedule = DockLayoutSchedule()
         isPointerInDock = false
         isSettling = false
         icons.removeAll()
@@ -176,7 +178,7 @@ final class DockController {
             if !answered, !app.isFinishedLaunching {
                 connectWhenLaunched(app, dock: dock)
             }
-            await readLayout()
+            scheduleLayout(after: .zero, hidingCounts: false)
         }
     }
 
@@ -268,24 +270,28 @@ final class DockController {
         apply(machine.handle(.dismissed))
     }
 
+    /// Reads the icons after `delay`, or later when a read already pending is due later (`DockLayoutSchedule`).
     private func scheduleLayout(after delay: Duration, hidingCounts: Bool) {
         guard dock != nil else { return }
         if hidingCounts {
             isSettling = true
             refreshBadges()
         }
+        let due = layoutSchedule.schedule(after: delay, now: .now)
         layoutTask?.cancel()
         layoutTask = Task { [weak self] in
-            try? await Task.sleep(for: delay)
+            try? await Task.sleep(until: due, clock: .continuous)
             guard !Task.isCancelled else { return }
             await self?.readLayout()
         }
     }
 
+    /// Stores the icons read, unless another read was asked for while this one ran: that one comes later and counts.
     private func readLayout() async {
         guard let dock else { return }
+        let read = layoutSchedule.begin()
         let fresh = await dock.layout(displays: DisplayDirectory.current().map(\.bounds))
-        guard self.dock === dock else { return }
+        guard self.dock === dock, layoutSchedule.isCurrent(read) else { return }
         layout = fresh
         isSettling = false
         refreshBadges()

@@ -76,6 +76,32 @@ struct DockTests {
         #expect(layout.index(of: Self.item(nil, y: 100)) == nil)
     }
 
+    // MARK: Reading the icons again
+
+    @Test @MainActor func aShortDelayNeverCutsTheSettleShort() {
+        var schedule = DockLayoutSchedule()
+        let now = ContinuousClock.now
+        // A minimized window's tile leaves the Dock: its icons settle for 0.7 s.
+        let settle = schedule.schedule(after: DockController.settleDelay, now: now)
+        // The pointer leaves the Dock 50 ms later: its 0.4 s read waits for the settle's.
+        #expect(schedule.schedule(after: DockController.leaveDelay, now: now + .milliseconds(50)) == settle)
+        // Another settle moves it later.
+        #expect(schedule.schedule(after: DockController.settleDelay, now: now + .milliseconds(100)) == now + .milliseconds(800))
+    }
+
+    @Test @MainActor func aReadUnderWayWhenAnotherIsAskedForIsNotStored() {
+        var schedule = DockLayoutSchedule()
+        let now = ContinuousClock.now
+        _ = schedule.schedule(after: DockController.leaveDelay, now: now)
+        let read = schedule.begin()
+        #expect(schedule.due == nil && schedule.isCurrent(read))
+        // An icon leaves the Dock while it runs: the settle's read is the one stored, after its own delay.
+        let settle = schedule.schedule(after: DockController.settleDelay, now: now + .milliseconds(420))
+        #expect(!schedule.isCurrent(read) && settle == now + .milliseconds(1120))
+        let next = schedule.begin()
+        #expect(schedule.isCurrent(next))
+    }
+
     // MARK: Windows per icon
 
     @Test func anIconStandsForEveryWindowOfItsApp() {
