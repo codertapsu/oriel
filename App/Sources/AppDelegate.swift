@@ -7,6 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: AppController?
     /// Whether this launch opens the window (`LaunchChecks.opensWindow(launch:)`), decided while the launch event is current.
     private var opensWindow = false
+    /// What macOS asked Oriel to open before it started: launched to open a file or URL, `application(_:open:)` comes
+    /// before `applicationDidFinishLaunching`.
+    private(set) var pendingURLs: [URL] = []
     /// Set while waiting for the copy this one replaces to quit (Move to Applications).
     private var exitObserver: (any NSObjectProtocol)?
 
@@ -47,7 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard controller == nil else { return }
         let controller = AppController()
         self.controller = controller
-        controller.start(opensWindow: opensWindow)
+        controller.start(opensWindow: opensWindow, opening: pendingURLs)
+        pendingURLs = []
     }
 
     /// Starts once `other`, the copy that moved this one to Applications, has quit, so the two never hold the socket,
@@ -90,8 +94,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_: NSApplication, open urls: [URL]) {
+        guard let controller else {
+            pendingURLs += urls
+            return
+        }
         for url in urls {
-            controller?.handle(url)
+            controller.handle(url)
         }
     }
 

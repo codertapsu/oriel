@@ -39,7 +39,8 @@ final class AppController {
     }
 
     /// Starts everything; `opensWindow` shows Settings once started, unless onboarding is still to come, which shows instead.
-    func start(opensWindow: Bool = false) {
+    /// `urls`, what Oriel was launched to open, are opened last, unless this copy is moving to Applications.
+    func start(opensWindow: Bool = false, opening urls: [URL] = []) {
         IntentContext.controller = self
         MainMenu.install { [weak self] in self?.showSettings() }
         if LaunchChecks.offerMoveToApplications() {
@@ -78,6 +79,9 @@ final class AppController {
             showOnboarding()
         } else if opensWindow {
             showSettings()
+        }
+        for url in urls {
+            handle(url)
         }
     }
 
