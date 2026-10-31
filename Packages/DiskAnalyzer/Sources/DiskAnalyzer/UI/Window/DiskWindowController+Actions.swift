@@ -5,16 +5,22 @@ import UniformTypeIdentifiers
 /// deleting immediately asks twice; nothing runs on items the safety rules refuse.
 extension DiskWindowController: DiskActions {
     func trash(_ nodes: [Int32]) {
+        trash(nodes, recheck: nil)
+    }
+
+    /// Moves the nodes to the Trash after the confirmation, and after `recheck` passes when there is one: Clean Up's last
+    /// look for apps that opened something in the meantime.
+    func trash(_ nodes: [Int32], recheck: (@MainActor () async -> Bool)?) {
         guard let plan = model.plan(.trash, nodes: nodes), refuseIfProtected(plan) else { return }
         guard model.settings[DiskSettings.confirmsTrash] else {
-            model.run(plan)
+            run(plan, after: recheck)
             return
         }
         confirm(
             title: plan.count == 1 ? "Move “\(plan.names[0])” to the Trash?" : "Move \(DiskFormat.count(plan.count, "item")) to the Trash?",
             text: "\(listing(plan))They take \(DiskFormat.bytes(plan.bytes)). Undo or the Trash brings them back until you empty it.",
             button: "Move to Trash"
-        ) { [weak self] in self?.model.run(plan) }
+        ) { [weak self] in self?.run(plan, after: recheck) }
     }
 
     func deleteImmediately(_ nodes: [Int32]) {
@@ -57,13 +63,30 @@ extension DiskWindowController: DiskActions {
     }
 
     func trash(paths: [String], bytes: Int64, title: String) {
+        trash(paths: paths, bytes: bytes, title: title, recheck: nil)
+    }
+
+    /// `trash(paths:bytes:title:)` with a check after the confirmation; nothing goes when it fails.
+    func trash(paths: [String], bytes: Int64, title: String, recheck: (@MainActor () async -> Bool)?) {
         guard let plan = model.plan(.trash, paths: paths, bytes: bytes) else { return }
         confirm(
             title: "Move \(title) to the Trash?",
             text: "\(listing(plan))\(DiskFormat.count(plan.count, "item")), \(DiskFormat.bytes(bytes)). Undo or the Trash brings "
                 + "them back.",
             button: "Move to Trash"
-        ) { [weak self] in self?.model.run(plan) }
+        ) { [weak self] in self?.run(plan, after: recheck) }
+    }
+
+    private func run(_ plan: DiskAnalyzerModel.Plan, after recheck: (@MainActor () async -> Bool)?) {
+        guard let recheck else {
+            model.run(plan)
+            return
+        }
+        Task {
+            if await recheck() {
+                model.run(plan)
+            }
+        }
     }
 
     func scan(_ path: String) {

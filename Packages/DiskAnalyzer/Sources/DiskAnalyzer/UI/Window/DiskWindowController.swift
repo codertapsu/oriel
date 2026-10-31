@@ -21,6 +21,10 @@ final class DiskWindowController: NSWindowController, NSWindowDelegate {
     var cleanupSheet: CleanupSheetController?
     /// While Clean Up waits for the apps it asked to quit.
     var cleanupObserver: (any NSObjectProtocol)?
+    /// Clean Up's latest check of the open sheet's folder: an earlier one's results are dropped, and closing the sheet
+    /// stops its scan.
+    var cleanupCheck = 0
+    var cleanupCancellation: CancellationFlag?
     /// The files Quick Look shows.
     var quickLookURLs: [URL] = []
     private var isOpen = true

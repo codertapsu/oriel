@@ -72,7 +72,9 @@ extension DiskAnalyzerModel {
         for hog in touched {
             hogs[hog.id] = .measuring
         }
-        Task {
+        // After the edits queued before it, so the folders found by name are listed from the tree without what went.
+        serially { [weak self] in
+            guard let self else { return }
             for hog in touched {
                 hogs[hog.id] = await SpaceHogMeter.measure(hog, home: home, tree: tree)
             }
