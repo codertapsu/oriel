@@ -18,7 +18,8 @@ nonisolated enum CleanupInspector {
         return facts
     }
 
-    /// One walk of the folder's part of the tree: its contents with when each was last used, the kinds of files, the
+    /// One walk of the folder's part of the tree: its contents with when each was last used, the kinds of files (those
+    /// its smaller files are summed in from the tree's record of them), the
     /// repositories and the outermost caches inside, outside folders of code (`CleanupAdvisor.codeFolders`), where a folder
     /// named like a cache is part of a library.
     static func addTreeFacts(_ facts: inout CleanupFacts, node: Int32, tree: ScanTree) {
@@ -29,6 +30,9 @@ nonisolated enum CleanupInspector {
         let children = tree.childrenBySize(of: node).filter { !tree[$0].kind.isSynthetic }
         var used = [Int32?](repeating: nil, count: children.count)
         var categories: [FileCategory: Int64] = [:]
+        // The aggregates of smaller files: their kinds are summed from the tree's record after the walk.
+        var aggregates = Set<Int32>()
+        var aggregateBytes: [FileCategory: Int64] = [:]
         var repositories = Set<String>()
         var caches: [CleanupFacts.Child] = []
         let git = tree.names.firstIndex(of: ".git").map(Int32.init)
@@ -42,8 +46,11 @@ nonisolated enum CleanupInspector {
             if let child, latest != ScanNode.unknownDate {
                 used[child] = max(used[child] ?? latest, latest)
             }
-            if entry.kind == .file || entry.kind == .smallFiles {
+            if entry.kind == .file {
                 categories[entry.category, default: 0] += entry.size
+            } else if entry.kind == .smallFiles {
+                aggregates.insert(current)
+                aggregateBytes[entry.category, default: 0] += entry.size
             }
             if git != nil, entry.name == git {
                 let path = facts.path + "/" + relativePath(of: current, below: node, in: tree)
@@ -75,6 +82,17 @@ nonisolated enum CleanupInspector {
             )
         }
         facts.lastUsed = facts.children.compactMap(\.lastUsed).max()
+        // A folder of many small documents or pictures is the user's as much as one of large ones; bytes the record
+        // has no kind for stay with the aggregate's own category, as before.
+        let kinds = tree.smallFileKinds.totals { aggregates.contains($0) }.categories
+        var unrecorded = aggregateBytes.values.reduce(0, +)
+        for category in FileCategory.allCases where kinds.bytes(of: category) > 0 {
+            categories[category, default: 0] += kinds.bytes(of: category)
+            unrecorded -= kinds.bytes(of: category)
+        }
+        if unrecorded > 0, let category = aggregateBytes.max(by: { $0.value < $1.value })?.key {
+            categories[category, default: 0] += unrecorded
+        }
         facts.categories = categories
         facts.repositoryFolders = repositories
         facts.repositories = repositories.count

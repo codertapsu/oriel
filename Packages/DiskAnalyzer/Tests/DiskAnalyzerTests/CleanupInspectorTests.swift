@@ -144,4 +144,21 @@ struct CleanupInspectorTests {
         let own = try #require(FolderUsers.uses(of: link).first { $0.pid == getpid() })
         #expect(own.paths.contains(link + "/data.bin"))
     }
+
+    /// Smaller files are summed per folder; their kinds still count, so a folder of many small documents reads as the
+    /// user's own.
+    @Test func smallFilesCountByTheirKinds() async throws {
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        for index in 0 ..< 20 {
+            try folder.file("Letters/letter-\(index).pdf", size: 100_000)
+        }
+        try folder.file("Letters/notes.txt", size: 1000)
+        let tree = await scan(folder)
+        var facts = CleanupFacts(path: folder.path, home: "/Users/nobody", bytes: 0, fileCount: 0, folderCount: 0, children: [])
+        CleanupInspector.addTreeFacts(&facts, node: ScanTree.rootIndex, tree: tree)
+        #expect((facts.categories[.document] ?? 0) >= 20 * 100_000)
+        facts.bytes = tree.root.size
+        #expect(facts.personalShare > 0.9)
+    }
 }
