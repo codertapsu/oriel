@@ -45,6 +45,8 @@ final class DockController {
     private var moveMonitor: Any?
     private var observers: [(center: NotificationCenter, token: any NSObjectProtocol)] = []
     private var dockObservation: NSKeyValueObservation?
+    /// A Dock that did not answer while it was still launching, watched until it has finished.
+    private var launchObservation: NSKeyValueObservation?
 
     init(store: WindowStore, source: any WindowSource, thumbnails: ThumbnailService) {
         self.store = store
@@ -119,6 +121,8 @@ final class DockController {
         observers.removeAll()
         dockObservation?.invalidate()
         dockObservation = nil
+        launchObservation?.invalidate()
+        launchObservation = nil
         preferencesWatcher.stop()
         stopMonitors()
         panel.hide()
@@ -160,19 +164,37 @@ final class DockController {
         }
     }
 
-    /// Observes the running Dock, then reads its icons; nothing once the features have stopped.
+    /// Observes the running Dock, then reads its icons; nothing once the features have stopped. A Dock that has just
+    /// started (after `killall Dock`) may not answer yet: it is asked again once it has finished launching.
     private func connect(_ dock: DockAccessibility) {
-        guard let pid = Self.dockPID() else { return }
+        guard let app = Self.runningDock() else { return }
+        launchObservation = nil
         Task { [weak self] in
             guard self?.dock === dock else { return }
-            await dock.start(pid: pid)
-            await self?.readLayout()
+            let answered = await dock.start(pid: app.processIdentifier)
+            guard let self, self.dock === dock else { return }
+            if !answered, !app.isFinishedLaunching {
+                connectWhenLaunched(app, dock: dock)
+            }
+            await readLayout()
+        }
+    }
+
+    /// Connects again, once, when `app` (the Dock) has finished launching.
+    private func connectWhenLaunched(_ app: NSRunningApplication, dock: DockAccessibility) {
+        launchObservation = app.observe(\.isFinishedLaunching, options: [.initial, .new]) { [weak self] app, _ in
+            guard app.isFinishedLaunching else { return }
+            Task { @MainActor [weak self] in
+                guard let self, self.dock === dock, launchObservation != nil else { return }
+                launchObservation = nil
+                connect(dock)
+            }
         }
     }
 
     private func reconnectIfTheDockRestarted() {
         guard let dock else { return }
-        let current = Self.dockPID()
+        let current = Self.runningDock()?.processIdentifier
         Task { [weak self] in
             // Checked after the await too: the features may have stopped meanwhile.
             guard await dock.pid != current, let self, self.dock === dock else { return }
@@ -181,8 +203,8 @@ final class DockController {
         }
     }
 
-    private static func dockPID() -> pid_t? {
-        NSRunningApplication.runningApplications(withBundleIdentifier: DockAccessibility.bundleIdentifier).first?.processIdentifier
+    private static func runningDock() -> NSRunningApplication? {
+        NSRunningApplication.runningApplications(withBundleIdentifier: DockAccessibility.bundleIdentifier).first
     }
 
     private func observe(_ name: Notification.Name, on center: NotificationCenter, _ handler: @escaping @MainActor @Sendable () -> Void) {
