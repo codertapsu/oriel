@@ -12,7 +12,7 @@ import SharedUI
 /// focusing happen on the next main-actor turn, so the callback never waits on AppKit, ScreenCaptureKit or
 /// Accessibility.
 final class SwitcherController {
-    /// The panel is opening: the Dock's preview steps aside.
+    /// The panel is opening: the Dock's preview steps aside. Called on the next main-actor turn, like the panels.
     var onOpen: (() -> Void)?
 
     private let store: WindowStore
@@ -244,7 +244,8 @@ final class SwitcherController {
         )
         rebuildItems()
         startOutsideClickMonitor()
-        onOpen?()
+        // Hiding the Dock's preview is AppKit work, which the tap callback never waits on.
+        Task { [weak self] in self?.onOpen?() }
         let store = store
         Task { await store.refresh() }
     }
