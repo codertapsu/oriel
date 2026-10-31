@@ -111,4 +111,10 @@ public final class DiskAnalyzerModule: UtilityModule {
     var isWindowOpen: Bool {
         window != nil
     }
+
+    /// Settings installed or removed the helper: the window reads its state again, which it otherwise does only when it
+    /// opens and when Oriel comes to the front.
+    func helperChanged() {
+        model?.refreshHelperStatus()
+    }
 }

@@ -86,8 +86,8 @@ extension DiskAnalyzerModel {
         refreshHelperStatus()
     }
 
-    /// Reads the helper's state again: when the window opens and whenever Oriel comes to the front, as after a visit to
-    /// System Settings. Nothing polls.
+    /// Reads the helper's state again: when the window opens, whenever Oriel comes to the front, as after a visit to
+    /// System Settings, and when Settings installs or removes it. Nothing polls.
     func refreshHelperStatus() {
         Task {
             let status = await Task.detached(priority: .utility) { PrivilegedReader.status }.value
@@ -99,9 +99,10 @@ extension DiskAnalyzerModel {
         }
     }
 
-    /// Reads through the helper, registering it again first after an update. A request that fails is sent once more, for
-    /// a helper that was just exiting, and then once after registering it again.
+    /// Reads through the helper while macOS says it is allowed, registering it again first after an update. A request
+    /// that fails is sent once more, for a helper that was just exiting, and then once after registering it again.
     private func readThroughHelper(_ request: ElevatedRead.Request) async -> ElevatedRead.Outcome {
+        guard await helperIsAllowed() else { return .failed("Oriel's helper is not allowed.") }
         if settings[DiskSettings.helperBuild] != PrivilegedReader.build {
             await Task.detached(priority: .userInitiated) { PrivilegedReader.reinstall() }.value
             settings[DiskSettings.helperBuild] = PrivilegedReader.build
@@ -110,10 +111,18 @@ extension DiskAnalyzerModel {
         if outcome.failed {
             outcome = await PrivilegedReader.read(request)
         }
-        guard outcome.failed else { return outcome }
+        guard outcome.failed, await helperIsAllowed() else { return outcome }
         log.error("Oriel's helper did not answer; registering it again")
         await Task.detached(priority: .userInitiated) { PrivilegedReader.reinstall() }.value
         return await PrivilegedReader.read(request)
+    }
+
+    /// Asks macOS for the helper's state before using or registering it, as `SMAppService`'s header advises: the window's
+    /// may be old, since Remove Helper in Settings and Login Items change it without telling the window, and registering
+    /// a helper the user removed or switched off would add it back.
+    private func helperIsAllowed() async -> Bool {
+        helperStatus = await Task.detached(priority: .userInitiated) { PrivilegedReader.status }.value
+        return helperStatus == .allowed
     }
 
     /// Puts what was read into the open scan.

@@ -58,7 +58,8 @@ final class DiskAnalyzerModel {
     var hiddenNotes = Set<String>()
     /// While Read as Administrator runs (`readAsAdministrator(through:)`).
     var isReadingAsAdministrator = false
-    /// Oriel's helper for Read as Administrator, read when the window opens and when Oriel comes to the front.
+    /// Oriel's helper for Read as Administrator, read when the window opens, when Oriel comes to the front, when Settings
+    /// changes it and before every read through it.
     var helperStatus = PrivilegedReader.Status.unavailable
 
     var duplicates = DuplicateSearch.idle

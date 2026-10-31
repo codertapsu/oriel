@@ -75,6 +75,7 @@ final class DiskSettingsModel {
             settings?[DiskSettings.helperBuild] = PrivilegedReader.build
             PrivilegedReader.openLoginItems()
             refreshHelperStatus()
+            module?.helperChanged()
         }
     }
 
@@ -87,6 +88,7 @@ final class DiskSettingsModel {
             await Task.detached(priority: .userInitiated) { PrivilegedReader.uninstall() }.value
             settings?[DiskSettings.helperBuild] = ""
             refreshHelperStatus()
+            module?.helperChanged()
         }
     }
 
