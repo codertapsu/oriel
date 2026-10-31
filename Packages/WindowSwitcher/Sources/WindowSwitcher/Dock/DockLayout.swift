@@ -15,6 +15,11 @@ nonisolated struct DockLayout: Sendable, Equatable {
     var frame: CGRect
     var edge: Edge
 
+    /// The list and its icons together (a left Dock's icons start left of its list).
+    var area: CGRect {
+        items.reduce(frame) { $0.union($1.frame) }
+    }
+
     /// A horizontal Dock is at the bottom; a vertical one on the left or right of the display that holds most of it.
     static func edge(isVertical: Bool, frame: CGRect, displays: [CGRect]) -> Edge {
         guard isVertical else { return .bottom }
@@ -37,9 +42,14 @@ nonisolated struct DockLayout: Sendable, Equatable {
     /// hides, reads beyond the display's edge, and one sliding in or out reads across it. Its icons are not where they
     /// will be seen then.
     func isOnScreen(displays: [CGRect]) -> Bool {
-        let area = items.reduce(frame) { $0.union($1.frame) }
         guard let index = ScreenGeometry.bestDisplay(for: area, among: displays) else { return false }
         return displays[index].insetBy(dx: -1, dy: -1).contains(area)
+    }
+
+    /// Whether an icon read on its own (the hovered one) is where these were read, magnified or not: false once the Dock
+    /// has moved since (to another display), which nothing reports.
+    func holds(_ item: DockItem) -> Bool {
+        items.contains { $0.isSameIcon(as: item) }
     }
 
     /// Where an item read on its own (the hovered one) is among these: the app item with its URL under it, else the first

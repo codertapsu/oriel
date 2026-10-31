@@ -496,13 +496,19 @@ final class DockController {
         moveMonitor = nil
     }
 
+    /// Whether the pointer left the icon, the panel and the Dock though the Dock did not say so. The icon counts as the
+    /// hover read found it, which a magnified Dock grows past the icons read with the pointer away; the Dock as last read
+    /// counts only while it still holds the hovered icon.
     private func pointerMoved() {
-        guard panel.isVisible, machine.hovered != nil, let layout else { return }
-        let location = NSEvent.mouseLocation
-        let dock = layout.items.reduce(layout.frame) { $0.union($1.frame) }
-        guard !ScreenLocator.cocoaRect(fromCG: dock).insetBy(dx: -6, dy: -6).contains(location), !panel.frame.contains(location) else {
-            return
-        }
+        guard panel.isVisible, let hovered = machine.hovered else { return }
+        let area = layout.flatMap { $0.holds(hovered) ? $0.area : nil }
+        let keeps = DockPreviewLayout.keepsPreview(
+            pointer: NSEvent.mouseLocation,
+            icon: ScreenLocator.cocoaRect(fromCG: hovered.frame),
+            panel: panel.frame,
+            dock: area.map { ScreenLocator.cocoaRect(fromCG: $0) }
+        )
+        guard !keeps else { return }
         apply(machine.handle(.hovered(nil)))
     }
 }

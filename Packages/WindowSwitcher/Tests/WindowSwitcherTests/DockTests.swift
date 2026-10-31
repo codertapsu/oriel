@@ -319,6 +319,36 @@ struct DockTests {
         #expect(machine.handle(.hovered(code)) == [.cancelScheduledHide, .scheduleShow(code, after: DockHoverMachine.showDelay)])
     }
 
+    @Test func aMagnifiedIconAndTheWayToThePanelKeepThePreview() {
+        // A bottom Dock read with the pointer away (Cocoa coordinates), 64-point icons on a bar 4 to 74 points up.
+        let dock = CGRect(x: 400, y: 4, width: 700, height: 70)
+        // The hovered icon as the hover read found it, magnified to 128 points, and the panel above it.
+        let icon = CGRect(x: 600, y: 4, width: 128, height: 128)
+        let panel = DockPreviewLayout.panelFrame(
+            size: CGSize(width: 244, height: 180), icon: icon, edge: .bottom, visibleFrame: CGRect(x: 0, y: 80, width: 1512, height: 870)
+        )
+        // The top half of the magnified icon, above the Dock as read, and the gap between the icon and the panel.
+        #expect(DockPreviewLayout.keepsPreview(pointer: CGPoint(x: 664, y: 110), icon: icon, panel: panel, dock: dock))
+        #expect(DockPreviewLayout.keepsPreview(pointer: CGPoint(x: 664, y: icon.maxY + 3), icon: icon, panel: panel, dock: dock))
+        #expect(!DockPreviewLayout.keepsPreview(pointer: CGPoint(x: 1300, y: 500), icon: icon, panel: panel, dock: dock))
+        // Elsewhere on the Dock only its last read keeps it, while that read holds the hovered icon.
+        let elsewhere = CGPoint(x: 450, y: 30)
+        #expect(DockPreviewLayout.keepsPreview(pointer: elsewhere, icon: icon, panel: panel, dock: dock))
+        #expect(!DockPreviewLayout.keepsPreview(pointer: elsewhere, icon: icon, panel: panel, dock: nil))
+    }
+
+    @Test func aDockReadHoldsTheHoveredIconUntilItMoves() {
+        let layout = DockLayout(items: [Self.item(Self.code, y: 100), Self.item(Self.chrome, y: 140)], frame: .zero, edge: .left)
+        // Magnified under the pointer, the icon is still where it was read.
+        var magnified = Self.item(Self.chrome, y: 130)
+        magnified.frame.size = CGSize(width: 98, height: 74)
+        #expect(layout.holds(magnified))
+        // A Dock that moved to another display since: not there.
+        var moved = Self.item(Self.chrome, y: 140)
+        moved.frame.origin.x += 3432
+        #expect(!layout.holds(moved))
+    }
+
     @Test func anAppWithNoWindowLeftHidesThePreview() {
         var machine = DockHoverMachine()
         let chrome = Self.item(Self.chrome)

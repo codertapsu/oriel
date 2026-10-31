@@ -77,6 +77,16 @@ nonisolated struct DockPreviewLayout: Sendable, Equatable {
         return ((count + rows - 1) / rows, rows)
     }
 
+    /// Whether the pointer still keeps the preview: on the hovered icon as the hover read found it (grown, in a magnified
+    /// Dock), in the panel or between the two, or near the Dock as last read (`dock`), when that read still holds. All
+    /// Cocoa coordinates.
+    static func keepsPreview(pointer: CGPoint, icon: CGRect, panel: CGRect, dock: CGRect?) -> Bool {
+        if let dock, dock.insetBy(dx: -gap, dy: -gap).contains(pointer) {
+            return true
+        }
+        return icon.union(panel).contains(pointer)
+    }
+
     /// The panel's frame (Cocoa coordinates) next to the icon's (Cocoa), inside `visibleFrame`.
     static func panelFrame(size: CGSize, icon: CGRect, edge: DockLayout.Edge, visibleFrame: CGRect) -> CGRect {
         var origin = switch edge {
