@@ -55,7 +55,8 @@ struct IgnoredAppsEditor: View {
 
     private var runningApps: [RunningApp] {
         NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular }
+            // Oriel is in the Dock while Settings is open (PLAN §10.1), but is not one of the apps to pick.
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             .compactMap { app in app.bundleIdentifier.map { RunningApp(bundleID: $0, name: app.localizedName ?? $0) } }
             .filter { app in !bundleIDs.contains { $0.caseInsensitiveCompare(app.bundleID) == .orderedSame } }
             .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }

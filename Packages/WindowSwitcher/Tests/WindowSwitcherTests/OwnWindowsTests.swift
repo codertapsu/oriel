@@ -1,4 +1,3 @@
-import AppKit
 import Testing
 @testable import WindowSwitcher
 
@@ -20,18 +19,5 @@ struct OwnWindowsTests {
         #expect(await source.otherSpaceWindows(of: AXClient.ownPID, ids: [1]).isEmpty)
         #expect(await source.quit(pid: AXClient.ownPID) == false)
         await source.stop()
-    }
-
-    /// Settings, the editor and the tools' windows count; the switcher's panel, overlays, pins and floating panels do not.
-    @Test func onlyTitledWindowsAtTheNormalLevelCount() {
-        let window = NSWindow(contentRect: .zero, styleMask: [.titled, .closable], backing: .buffered, defer: true)
-        #expect(OwnWindows.isStandard(window))
-        let panel = NSPanel(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
-        #expect(!OwnWindows.isStandard(panel))
-        let overlay = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: true)
-        #expect(!OwnWindows.isStandard(overlay))
-        let pin = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
-        pin.level = .floating
-        #expect(!OwnWindows.isStandard(pin))
     }
 }

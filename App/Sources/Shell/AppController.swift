@@ -12,6 +12,7 @@ import SharedUI
 final class AppController {
     let settings = SettingsStore()
     private let launchWindow = LaunchWindow()
+    private let dockPresence = DockPresence()
     let permissions = PermissionCenter()
     /// Keyed by bundle ID, so a Debug build never reads, or prompts for, the installed app's items.
     let keychain = Bundle.main.bundleIdentifier.map { KeychainStore(prefix: $0) } ?? KeychainStore()
@@ -44,7 +45,8 @@ final class AppController {
     /// opened last, unless this copy is moving to Applications.
     func start(opensWindow: Bool = false, opening urls: [URL] = []) {
         IntentContext.controller = self
-        MainMenu.install { [weak self] in self?.showSettings() }
+        dockPresence.start()
+        MainMenu.install(settings: { [weak self] in self?.showSettings() }, closeWindows: { [weak self] in self?.closeWindows() })
         if LaunchChecks.offerMoveToApplications() {
             return // the copy in Applications takes over once this one has quit
         }
@@ -141,6 +143,34 @@ final class AppController {
     /// Every command the features and the turned-on tools offer (PLAN §6.5).
     var commands: [ToolCommand] {
         hub.commands + registry.commands
+    }
+
+    /// Oriel's Dock icon was clicked, or Oriel was opened again while running: its windows come forward with it, a
+    /// minimized one out of the Dock when none is shown, and Settings opens when it has none.
+    func reopen() {
+        if NSApp.isHidden {
+            NSApp.unhide(nil)
+            return
+        }
+        let windows = StandardWindows.open
+        guard !windows.contains(where: \.isVisible) else { return }
+        if let minimized = windows.first {
+            minimized.deminiaturize(nil)
+        } else {
+            showSettings()
+        }
+    }
+
+    /// ⌘Q and Quit in the Dock's menu: Oriel's windows close, each as its close button would close it, and Oriel stays
+    /// in the menu bar (PLAN §10.1).
+    func closeWindows() {
+        // Hidden windows are not on screen, and only shown ones can close.
+        if NSApp.isHidden {
+            NSApp.unhideWithoutActivation()
+        }
+        for window in StandardWindows.open {
+            window.performClose(nil)
+        }
     }
 
     func showSettings(tab: String? = nil) {

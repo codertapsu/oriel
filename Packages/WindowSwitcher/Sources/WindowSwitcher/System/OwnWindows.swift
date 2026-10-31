@@ -1,10 +1,11 @@
 import AppKit
 import OrielCore
+import SharedUI
 
 /// Oriel's own windows, read and handled through AppKit on the main thread (PLAN §7.1.1). The switcher never sends an
 /// AX request to its own process (`AXClient.ownPID`), so Settings, the editor and the tools' windows are listed,
-/// focused, closed and minimized here. Only standard windows count: titled, at the normal level and not panels, so the
-/// switcher's own panel, the capture overlays, pins and floating panels never appear.
+/// focused, closed and minimized here. Only standard windows count (`StandardWindows`), so the switcher's own panel, the
+/// capture overlays, pins and floating panels never appear.
 enum OwnWindows {
     /// The windows that count, as the AX actor would describe them.
     static func records() -> [AXWindowRecord] {
@@ -26,11 +27,6 @@ enum OwnWindows {
         let app = NSApplication.shared
         guard let window = app.keyWindow ?? app.mainWindow, isListed(window) else { return nil }
         return UInt32(window.windowNumber)
-    }
-
-    /// A window the switcher may list, whether or not it is on screen now.
-    static func isStandard(_ window: NSWindow) -> Bool {
-        !(window is NSPanel) && window.styleMask.contains(.titled) && window.level == .normal
     }
 
     /// Brings the window front and key, out of the Dock if it was minimized.
@@ -65,7 +61,7 @@ enum OwnWindows {
     }
 
     private static func isListed(_ window: NSWindow) -> Bool {
-        window.windowNumber > 0 && isStandard(window) && (window.isVisible || window.isMiniaturized)
+        StandardWindows.isOpen(window)
     }
 
     private static func window(_ id: UInt32) -> NSWindow? {

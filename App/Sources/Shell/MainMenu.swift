@@ -1,16 +1,24 @@
 import AppKit
 
-/// A menu-bar agent never shows a menu bar, but key equivalents still go through `NSApp.mainMenu`: without
-/// this, ⌘C/⌘V/⌘Z/⌘W would do nothing in Settings, the editor or a text field.
+/// Oriel's menu bar, shown while it is in the Dock (`DockPresence`). Its key equivalents work in Oriel's panels too,
+/// where it is not shown: without it, ⌘C/⌘V/⌘Z/⌘W would do nothing in Settings, the editor or a text field. ⌘Q closes
+/// Oriel's windows and leaves it running in the menu bar; only Quit in its menu-bar menu quits it (PLAN §10.1).
 enum MainMenu {
-    static func install(settings: @escaping @MainActor @Sendable () -> Void) {
+    static func install(
+        settings: @escaping @MainActor @Sendable () -> Void,
+        closeWindows: @escaping @MainActor @Sendable () -> Void
+    ) {
         let main = NSMenu()
         let app = NSMenu(title: "Oriel")
         app.addItem(withTitle: "About Oriel", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         app.addItem(ActionMenuItemFactory.make("Settings…", key: ",", handler: settings))
         app.addItem(.separator())
         app.addItem(withTitle: "Hide Oriel", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        app.addItem(withTitle: "Quit Oriel", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let others = app.addItem(withTitle: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        others.keyEquivalentModifierMask = [.command, .option]
+        app.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        app.addItem(.separator())
+        app.addItem(ActionMenuItemFactory.make("Close All Windows", key: "q", handler: closeWindows))
         main.addItem(submenu: app, title: "Oriel")
 
         let edit = NSMenu(title: "Edit")
@@ -27,7 +35,10 @@ enum MainMenu {
 
         let window = NSMenu(title: "Window")
         window.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        window.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        window.addItem(.separator())
+        window.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         main.addItem(submenu: window, title: "Window")
         NSApp.windowsMenu = window
         NSApp.mainMenu = main

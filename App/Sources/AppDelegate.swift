@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--self-test") {
             exit(SelfTest.run())
         }
-        let app = NSApplication.shared
+        let app = OrielApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
         withExtendedLifetime(delegate) { app.run() }
@@ -104,12 +104,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
-        controller?.showSettings()
+        controller?.reopen()
         return false
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let controller else { return .terminateNow }
+        // Quit in the Dock's menu closes the windows; Oriel stays in the menu bar (PLAN §10.1).
+        if QuitRequest.isFromTheDock(NSAppleEventManager.shared().currentAppleEvent) {
+            controller.closeWindows()
+            return .terminateCancel
+        }
         // Restores Cmd-Tab, finishes a recording and closes the socket before the process goes.
         Task { @MainActor in
             await controller.shutdown()

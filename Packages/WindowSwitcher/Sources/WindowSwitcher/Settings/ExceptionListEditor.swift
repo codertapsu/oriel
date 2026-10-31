@@ -49,7 +49,8 @@ struct ExceptionListEditor: View {
     private var runningApps: [String] {
         let known = Set(exceptions.map { $0.bundleID.lowercased() })
         return NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular }
+            // Oriel is in the Dock while Settings is open (PLAN §10.1), but is not one of the apps to pick.
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
             .compactMap(\.bundleIdentifier)
             .filter { !known.contains($0.lowercased()) }
             .sorted()

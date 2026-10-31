@@ -1,4 +1,5 @@
 import AppKit
+import SharedUI
 
 /// Tells the store when one of Oriel's own windows appears, goes away, changes or takes focus: the events AX observers
 /// report for other apps, which the switcher installs none of on its own process (`AXClient.ownPID`).
@@ -22,7 +23,7 @@ final class OwnWindowObserver {
         for name in Self.changes + Self.focus {
             let event: WindowSourceEvent = Self.focus.contains(name) ? .focusedWindowChanged(pid) : .windowsChanged(pid)
             let token = center.addObserver(forName: name, object: nil, queue: .main) { note in
-                guard let window = note.object as? NSWindow, MainActor.assumeIsolated({ OwnWindows.isStandard(window) })
+                guard let window = note.object as? NSWindow, MainActor.assumeIsolated({ StandardWindows.isStandard(window) })
                 else { return }
                 sink(event)
             }
