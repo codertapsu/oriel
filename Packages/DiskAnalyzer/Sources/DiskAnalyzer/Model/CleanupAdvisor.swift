@@ -6,7 +6,9 @@ import Foundation
 /// its name and what it holds, where a tool's own mark (`CACHEDIR.TAG`, kept out of Time Machine) counts for it. Then
 /// what is true now applies to either and can only make it more cautious: Oriel refuses it, it is in the cloud, it holds
 /// repositories or mostly personal files, a process has files open in it, its app runs, or only an administrator may
-/// remove it. Leftovers inside any folder (older versions' folders, temporary browser profiles, caches) are offered too.
+/// remove it. Leftovers inside any folder (temporary browser profiles, caches outside code and repositories) are offered
+/// too, after the folder's own methods. Under "Look before you remove it" and "Keep it", the recommended method, the first,
+/// never removes anything.
 nonisolated enum CleanupAdvisor {
     /// Names apps and tools give their caches.
     static let cacheNames: Set<String> = [
@@ -27,25 +29,33 @@ nonisolated enum CleanupAdvisor {
     static let personalFolders = ["Documents", "Desktop", "Downloads", "Pictures", "Movies", "Music"]
     /// Where apps keep their own data in the Library folder.
     static let appDataFolders: Set = ["Application Support", "Containers", "Group Containers"]
+    /// Folders of code: a folder named like a cache inside one is part of a library or a program, not a cache.
+    static let codeFolders: Set = [
+        "node_modules", "site-packages", "dist-packages", "vendor", "_vendor", "lib", "lib64", "src", "Sources", "include",
+        "Pods", "Frameworks",
+    ]
 
     static func advise(_ facts: CleanupFacts, rules: [CleanupRule] = CleanupCatalog.rules) -> CleanupAdvice {
         var advice: CleanupAdvice
         var ruleApps: [String] = []
+        var isToolsPlace = false
         if let rule = rules.first(where: { $0.matches(facts) }) {
             advice = CleanupAdvice(
                 verdict: rule.verdict, summary: rule.summary, afterwards: rule.afterwards, findings: [], methods: rule.methods(facts),
                 ruleID: rule.id
             )
             ruleApps = rule.apps
+            isToolsPlace = rule.matchesByPath(facts)
         } else {
             advice = judged(facts)
         }
         addLeftovers(facts, to: &advice)
         applyRefusal(facts, to: &advice)
-        applyContents(facts, to: &advice)
+        applyContents(facts, repositoriesAreTools: isToolsPlace, to: &advice)
         applyOwnership(facts, to: &advice)
         applyUse(facts, ruleApps: ruleApps, to: &advice)
         addNotes(facts, to: &advice)
+        recommendSafely(&advice)
         return advice
     }
 
@@ -69,7 +79,13 @@ nonisolated enum CleanupAdvisor {
                     + "history, passwords, bookmarks and settings.", [.reveal]
             )
         }
-        if facts.isTaggedCache || cacheNames.contains(facts.name) || names.dropLast().contains(where: cacheNames.contains) {
+        // In a personal folder, a name like "temp" or "cache" says nothing about whether the files are needed.
+        if names.count >= 2, names[0] == "~", personalFolders.contains(names[1]) {
+            return advice(.review, "Your own files.", [.showOldFiles, .reveal])
+        }
+        let inLibrary = names.count >= 3 && names[0] == "~" && ["Library", ".cache"].contains(names[1]) || names.first == "Library"
+        let underCache = inLibrary && names.dropLast().contains(where: cacheNames.contains)
+        if facts.isTaggedCache || cacheNames.contains(facts.name) || underCache {
             return advice(
                 .safe, "A cache: what an app or tool keeps to go faster, which it rebuilds when it is missing.", [.trashContents(facts)],
                 afterwards: "Its app is slower the first time it needs what was removed."
@@ -84,9 +100,6 @@ nonisolated enum CleanupAdvisor {
         let isAppData = names.count >= 4 && names[0] == "~" && names[1] == "Library" && appDataFolders.contains(names[2])
         if isAppData {
             return appData(facts)
-        }
-        if names.count >= 2, names[0] == "~", personalFolders.contains(names[1]) {
-            return advice(.review, "Your own files.", [.showOldFiles, .reveal])
         }
         if facts.name.hasSuffix(".app") {
             return advice(
@@ -121,27 +134,27 @@ nonisolated enum CleanupAdvisor {
 
     // MARK: Leftovers inside
 
-    /// Older versions' folders, temporary browser profiles and caches inside, which can go even where the folder stays.
+    /// Temporary browser profiles and caches inside, which can go even where the folder stays. Older versions are offered
+    /// only by the rules for tools that keep a folder per version: elsewhere, names that differ by a number are as likely
+    /// the user's own (Tax 2023.04, Tax 2024.04) or a version still in use (Python 3.11.9 beside 3.12).
     private static func addLeftovers(_ facts: CleanupFacts, to advice: inout CleanupAdvice) {
+        guard advice.ruleID != "trash" else { return }
         var found: [CleanupMethod] = []
-        if !advice.methods.contains(where: { $0.id == "olderVersions" }), let older = CleanupCatalog.olderVersions(facts, of: "folders") {
-            found.append(older)
-        }
         if let profiles = CleanupMethod.trashItems(
             temporaryProfiles(in: facts).filter { !facts.isBusy($0.path) }, id: "temporaryProfiles",
             title: "Move the leftover temporary profiles to the Trash", detail: "The profiles in use stay."
         ) {
             found.append(profiles)
         }
-        let caches = facts.cacheFolders.filter { !facts.isBusy($0.path) }
+        // In a project, a folder named like a cache may be the project's own code.
+        let caches = facts.repositories > 0 ? [] : facts.cacheFolders.filter { !facts.isBusy($0.path) }
         if advice.verdict >= .careful || !advice.isKnown, !cacheNames.contains(facts.name), let method = CleanupMethod.trashItems(
             caches, id: "caches", title: "Move the caches inside to the Trash",
             detail: Set(caches.map(\.name)).sorted().joined(separator: ", ") + ". The rest stays."
         ) {
             found.append(method)
         }
-        // Where the folder itself stays, the leftovers are the way to get space back.
-        advice.methods = advice.verdict >= .review || advice.methods.isEmpty ? found + advice.methods : advice.methods + found
+        advice.methods += found
     }
 
     static func temporaryProfiles(in facts: CleanupFacts) -> [CleanupFacts.Child] {
@@ -153,6 +166,19 @@ nonisolated enum CleanupAdvisor {
     // MARK: What can only make it more cautious
 
     private static func applyRefusal(_ facts: CleanupFacts, to advice: inout CleanupAdvice) {
+        if facts.isUnmeasured, advice.methods.contains(where: \.trashes) {
+            advice.methods.removeAll(where: \.trashes)
+            advice.raise(to: .review)
+            advice.findings.append(.init(.warning, "The scan left it out or could not read it, so Oriel doesn't know what it holds."))
+            if advice.methods.isEmpty {
+                advice.methods = [.reveal]
+            }
+        }
+        // An app or a library is removed whole or not at all: what it holds is refused even where the folder is not.
+        if facts.refusesContents, facts.refusal == nil, advice.methods.contains(where: { $0.trashes && $0.action != .trashFolder }) {
+            advice.methods.removeAll { $0.trashes && $0.action != .trashFolder }
+            advice.findings.append(.init(.note, "Oriel removes it whole or not at all, never parts of it."))
+        }
         guard let refusal = facts.refusal else { return }
         advice.methods.removeAll { $0.action == .trashFolder }
         if facts.refusesContents {
@@ -164,7 +190,9 @@ nonisolated enum CleanupAdvisor {
         }
     }
 
-    private static func applyContents(_ facts: CleanupFacts, to advice: inout CleanupAdvice) {
+    /// `repositoriesAreTools`: the folder is a tool's own place by its path (Cargo's or Go's checkouts), where repositories
+    /// are the tool's. A rule that matched by name or contents could be a project's folder that only looks like one.
+    private static func applyContents(_ facts: CleanupFacts, repositoriesAreTools: Bool, to advice: inout CleanupAdvice) {
         if facts.isInCloud, advice.ruleID != "cloud" {
             advice.raise(to: .keep)
             advice.findings.append(.init(
@@ -174,7 +202,7 @@ nonisolated enum CleanupAdvisor {
         }
         if facts.repositories > 0 {
             let count = DiskFormat.count(facts.repositories, "Git repository", plural: "Git repositories")
-            if advice.isKnown, advice.verdict <= .careful {
+            if advice.isKnown, advice.verdict <= .careful, repositoriesAreTools {
                 advice.findings.append(.init(.note, "It holds \(count) its tool made, which it makes again."))
             } else {
                 advice.raise(to: .keep)
@@ -257,6 +285,14 @@ nonisolated enum CleanupAdvisor {
             let detail = "Drag it to the Trash there; Finder asks for an administrator's password."
             advice.methods = [CleanupMethod(id: "reveal", title: "Show it in Finder", detail: detail, action: .reveal)]
         }
+    }
+
+    /// Under "Look before you remove it" and "Keep it", what is recommended (the first method, chosen when the sheet opens)
+    /// only shows the folder: removing anything is a choice the user makes after looking.
+    private static func recommendSafely(_ advice: inout CleanupAdvice) {
+        guard advice.verdict >= .review, let first = advice.methods.first, first.removes else { return }
+        let looking = advice.methods.filter { !$0.removes }
+        advice.methods = (looking.isEmpty ? [.reveal] : looking) + advice.methods.filter(\.removes)
     }
 
     private static func addNotes(_ facts: CleanupFacts, to advice: inout CleanupAdvice) {

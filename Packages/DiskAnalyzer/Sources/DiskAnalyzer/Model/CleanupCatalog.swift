@@ -195,6 +195,14 @@ nonisolated enum CleanupCatalog {
             methods: { _ in [.reveal] }
         ),
         CleanupRule(
+            id: "systemTemporary",
+            matches: ["/private/tmp", "/tmp", "/private/var/tmp", "/var/tmp"].map { .path($0) },
+            verdict: .keep,
+            summary: "The system's temporary folder: running programs keep their sockets, locks and working files here, and "
+                + "macOS empties /tmp when the Mac restarts.",
+            methods: { _ in [.reveal] }
+        ),
+        CleanupRule(
             id: "swap",
             matches: [.path("/private/var/vm"), .path("/System/Volumes/VM")],
             verdict: .keep,

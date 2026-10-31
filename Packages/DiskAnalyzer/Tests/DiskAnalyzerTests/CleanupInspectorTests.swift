@@ -5,9 +5,9 @@ import Testing
 /// What Clean Up reads from a real folder (PLAN §7.10 item 19): the scan's facts, the folder's names and tags, and the
 /// processes using it. Everything happens in a temporary folder of the test's own.
 struct CleanupInspectorTests {
-    private func scan(_ folder: TemporaryFolder) async -> ScanTree {
+    private func scan(_ folder: TemporaryFolder, options: ScanOptions = ScanOptions()) async -> ScanTree {
         let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "", firmlinks: .empty)
-        return await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag()).tree
+        return await ScanEngine.scan(target, options: options, cancellation: CancellationFlag()).tree
     }
 
     @Test func theScanSaysWhatIsInsideAndWhereTheCachesAre() async throws {
@@ -81,5 +81,67 @@ struct CleanupInspectorTests {
         #expect(CleanupApps.looksLikeBundleID("com.example.App.Share-Extension"))
         #expect(!CleanupApps.looksLikeBundleID("9.1.0"))
         #expect(!CleanupApps.looksLikeBundleID("Google"))
+    }
+
+    @Test func foldersOfCodeHoldNoCaches() async throws {
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        try folder.file("node_modules/webpack/lib/cache/index.js", size: 1000)
+        try folder.file("Sources/App/Cache/Store.swift", size: 1000)
+        try folder.file("App/Cache/data", size: 1000)
+        let tree = await scan(folder)
+        var facts = CleanupFacts(path: folder.path, home: "/Users/nobody", bytes: 0, fileCount: 0, folderCount: 0, children: [])
+        CleanupInspector.addTreeFacts(&facts, node: ScanTree.rootIndex, tree: tree)
+        #expect(facts.cacheFolders.map(\.path) == [folder.path + "/App/Cache"])
+    }
+
+    /// A worktree's `.git` is a file; a scan without hidden files lists no `.git` at all.
+    @Test(arguments: [true, false])
+    func repositoriesAreFoundInWorktreesAndWithoutHiddenFiles(_ hidden: Bool) async throws {
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        try folder.file("Project/.git/HEAD", size: 10)
+        try folder.file("Project/main.swift", size: 10)
+        try folder.file("Worktree/.git", size: 10)
+        try folder.file("Worktree/main.swift", size: 10)
+        var options = ScanOptions()
+        options.includesHiddenFiles = hidden
+        var facts = CleanupFacts(path: folder.path, home: "/Users/nobody", bytes: 0, fileCount: 0, folderCount: 0, children: [])
+        let tree = await scan(folder, options: options)
+        CleanupInspector.addTreeFacts(&facts, node: ScanTree.rootIndex, tree: tree)
+        CleanupInspector.addFolderFacts(&facts)
+        #expect(facts.repositories == 2)
+    }
+
+    @Test func everyFileAProcessHasOpenCounts() throws {
+        var limit = rlimit()
+        getrlimit(RLIMIT_NOFILE, &limit)
+        if limit.rlim_cur < 1024 {
+            limit.rlim_cur = min(1024, limit.rlim_max)
+            setrlimit(RLIMIT_NOFILE, &limit)
+        }
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        var handles: [FileHandle] = []
+        defer { handles.forEach { try? $0.close() } }
+        for index in 0 ..< 205 {
+            try handles.append(FileHandle(forReadingFrom: folder.file("A/\(index)", size: 1)))
+        }
+        try handles.append(FileHandle(forReadingFrom: folder.file("B/last", size: 1)))
+        let own = try #require(FolderUsers.uses(of: folder.path).first { $0.pid == getpid() })
+        #expect(own.paths.contains(folder.path + "/B/last"))
+        #expect(own.paths.count >= 206)
+    }
+
+    @Test func aFolderReachedThroughALinkIsSeenWhereItIs() throws {
+        let folder = try TemporaryFolder()
+        defer { folder.remove() }
+        let file = try folder.file("Real/data.bin", size: 100)
+        let link = folder.path + "/Link"
+        try FileManager.default.createSymbolicLink(atPath: link, withDestinationPath: folder.path + "/Real")
+        let handle = try FileHandle(forReadingFrom: file)
+        defer { try? handle.close() }
+        let own = try #require(FolderUsers.uses(of: link).first { $0.pid == getpid() })
+        #expect(own.paths.contains(link + "/data.bin"))
     }
 }

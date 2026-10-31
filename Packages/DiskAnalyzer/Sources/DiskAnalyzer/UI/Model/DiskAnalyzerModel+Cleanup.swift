@@ -86,6 +86,7 @@ extension DiskAnalyzerModel {
         facts.refusal = refusal
         facts.refusesContents = flags.contains(.macOSVolume) || flags.contains(.readAsAdministrator)
             || safetyRules().refusal(for: path + "/item", isFolder: false) != nil
+        facts.isUnmeasured = flags.contains(.excluded) || flags.contains(.unreadable) || flags.contains(.needsAdministrator)
         facts.isInCloud = [home + "/Library/Mobile Documents", home + "/Library/CloudStorage"].contains { path.hasPrefix($0 + "/") }
         facts.runningApps = NSWorkspace.shared.runningApplications.compactMap { app in
             guard app.activationPolicy == .regular, let id = app.bundleIdentifier else { return nil }

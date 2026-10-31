@@ -35,6 +35,14 @@ nonisolated struct CleanupMethod: Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Whether it removes anything: moves items to the Trash, or runs a tool's command that deletes.
+    var removes: Bool {
+        if case .run = action {
+            return true
+        }
+        return trashes
+    }
+
     static func trashFolder(_ facts: CleanupFacts, detail: String = "The Trash brings it back until you empty it.") -> CleanupMethod {
         CleanupMethod(id: "trashFolder", title: "Move the folder to the Trash", detail: detail, action: .trashFolder, bytes: facts.bytes)
     }

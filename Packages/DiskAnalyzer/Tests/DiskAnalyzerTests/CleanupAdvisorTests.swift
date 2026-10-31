@@ -125,7 +125,7 @@ struct CleanupAdvisorTests {
         #expect(CleanupAdvisor.advise(environment).ruleID == "pythonEnvironment")
     }
 
-    @Test func downloadsOffersItsInstallersButNotOlderFiles() {
+    @Test func downloadsOffersItsInstallersAfterShowingThem() {
         let folder = Self.home + "/Downloads"
         var children = ["Xcode_16.1.xip", "Xcode_16.2.xip", "Tool.dmg", "report.pdf"].map { name in
             CleanupFacts.Child(name: name, path: folder + "/" + name, bytes: 100_000_000, isFolder: false, lastUsed: Self.now)
@@ -136,10 +136,11 @@ struct CleanupAdvisorTests {
         facts.refusal = SafetyRules.Refusal.homeTopLevel.message
         let advice = CleanupAdvisor.advise(facts)
         #expect(advice.ruleID == "downloads" && advice.verdict == .review)
-        // Folders named with versions are offered; files named with versions are the user's downloads.
-        #expect(Self.paths(of: advice.methods.first { $0.id == "olderVersions" }) == ["Project 2.0"])
+        // Names that differ by a number are the user's own here, folders or not.
+        #expect(!advice.methods.contains { $0.id == "olderVersions" })
         #expect(Self.paths(of: advice.methods.first { $0.id == "installers" }) == ["Tool.dmg", "Xcode_16.1.xip", "Xcode_16.2.xip"])
-        #expect(advice.methods.contains(.showOldFiles))
+        // A disk image may be the user's own backup: look first.
+        #expect(advice.methods.first == .showOldFiles)
         #expect(!advice.methods.contains { $0.action == .trashFolder })
     }
 
@@ -162,10 +163,15 @@ struct CleanupAdvisorTests {
         )
         facts.cacheFolders = [Self.child("GPUCache", in: folder + "/AndroidStudio2025.3.2")]
         let advice = CleanupAdvisor.advise(facts)
-        #expect(advice.verdict == .keep)
-        #expect(Self.paths(of: advice.methods.first) == ["AndroidStudio2025.1.2", "AndroidStudio2025.3.1"])
+        #expect(advice.ruleID == "ideSettings" && advice.verdict == .keep)
+        #expect(advice.methods.first?.action == .reveal)
+        // Android Studio keeps a settings folder per version; the newest stays.
+        #expect(Self.paths(of: advice.methods.first { $0.id == "olderVersions" }) == ["AndroidStudio2025.1.2", "AndroidStudio2025.3.1"])
         #expect(advice.methods.contains { $0.id == "caches" })
-        #expect(advice.methods.last?.action == .reveal)
+        // Another app's folders named with versions are its data.
+        let other = Self.home + "/Library/Application Support/Some App"
+        let otherAdvice = CleanupAdvisor.advise(Self.facts(other, children: ["Data 1.0", "Data 2.0"].map { Self.child($0, in: other) }))
+        #expect(otherAdvice.verdict == .keep && !otherAdvice.methods.contains { $0.id == "olderVersions" })
     }
 
     @Test func whatIsLeftOfARemovedAppCanGo() {
@@ -187,7 +193,8 @@ struct CleanupAdvisorTests {
         facts.cacheFolders = [Self.child("Cache", in: folder + "/Default"), Self.child("Code Cache", in: folder + "/Default")]
         let advice = CleanupAdvisor.advise(facts)
         #expect(advice.verdict == .keep && advice.summary.contains("Chromium"))
-        #expect(advice.methods.first?.id == "caches" && advice.methods.first?.bytes == 1_000_000_000)
+        #expect(advice.methods.first?.action == .reveal)
+        #expect(advice.methods.first { $0.id == "caches" }?.bytes == 1_000_000_000)
     }
 
     @Test func aTaggedOrCacheNamedFolderIsACache() {
@@ -284,5 +291,104 @@ struct CleanupAdvisorTests {
         #expect(prompt.contains("- blobs (folder"))
         #expect(prompt.contains("Time Machine"))
         #expect(!prompt.contains(Self.home))
+    }
+
+    // MARK: What must not look disposable
+
+    @Test func olderVersionsAreOfferedOnlyWhereAToolKeepsAFolderPerVersion() {
+        let scans = Self.home + "/Pictures/Scans"
+        let pythons = Self.home + "/.pyenv/versions"
+        let dates = ["2024.01.15", "2024.02.20", "2024.03.10"].map { Self.child($0, in: scans) }
+        let advices = [
+            CleanupAdvisor.advise(Self.facts(scans, children: dates)),
+            CleanupAdvisor.advise(Self.facts(pythons, children: ["3.11.9", "3.12.4"].map { Self.child($0, in: pythons) })),
+        ]
+        for advice in advices {
+            #expect(!advice.methods.contains { $0.id == "olderVersions" })
+            #expect(advice.methods.first?.removes == false)
+        }
+    }
+
+    @Test func aProjectsFoldersNamedLikeCachesStay() {
+        let project = Self.home + "/work/app"
+        var facts = Self.facts(project, children: [Self.child("node_modules", in: project)])
+        facts.repositories = 1
+        facts.cacheFolders = [Self.child("cache", in: project + "/Sources/App")]
+        let advice = CleanupAdvisor.advise(facts)
+        #expect(advice.verdict == .keep)
+        #expect(!advice.methods.contains { $0.trashes })
+    }
+
+    @Test func onlyABareEnvironmentIsAVirtualEnvironment() {
+        var facts = Self.facts(Self.home + "/work/tool")
+        facts.names = ["pyvenv.cfg", "bin", "lib", "include", "src", "README.md", ".git"]
+        facts.repositories = 1
+        let project = CleanupAdvisor.advise(facts)
+        #expect(project.ruleID != "pythonEnvironment")
+        #expect(project.verdict == .keep && project.findings.contains { $0.kind == .stop && $0.text.contains("Git repository") })
+        facts.names = ["pyvenv.cfg", "bin", "lib", "include", ".gitignore"]
+        facts.repositories = 0
+        #expect(CleanupAdvisor.advise(facts).ruleID == "pythonEnvironment")
+    }
+
+    @Test func repositoriesAreAToolsOwnOnlyInItsPlace() {
+        // Gradle's caches, known by their path: the repositories in them are Gradle's.
+        var gradle = Self.facts(Self.gradle, children: Self.gradleChildren)
+        gradle.repositories = 1
+        #expect(CleanupAdvisor.advise(gradle).verdict == .safe)
+        // A folder known by its name: a repository in it is someone's work.
+        var build = Self.facts(Self.home + "/work/app/build")
+        build.siblingNames = ["build.gradle"]
+        build.repositories = 1
+        let advice = CleanupAdvisor.advise(build)
+        #expect(advice.ruleID == "gradleProject" && advice.verdict == .keep)
+        #expect(!advice.methods.contains { $0.action == .trashFolder })
+    }
+
+    @Test func namesSayNothingInPersonalFolders() {
+        for path in ["/Desktop/temp", "/Documents/logs", "/Documents/cache/Thesis"] {
+            let advice = CleanupAdvisor.advise(Self.facts(Self.home + path))
+            #expect(advice.verdict == .review, "\(path)")
+            #expect(advice.methods.first?.removes == false, "\(path)")
+        }
+        // In the Library, a folder inside a cache is part of it; elsewhere a cache above a folder says nothing about it.
+        #expect(CleanupAdvisor.advise(Self.facts(Self.home + "/Library/Caches/com.example.app/fsCachedData/x")).verdict == .safe)
+        #expect(CleanupAdvisor.advise(Self.facts(Self.home + "/work/cache/report")).verdict == .review)
+    }
+
+    @Test func theSystemsTemporaryFolderIsKept() {
+        for path in ["/private/tmp", "/private/var/tmp"] {
+            let advice = CleanupAdvisor.advise(Self.facts(path))
+            #expect(advice.ruleID == "systemTemporary" && advice.verdict == .keep)
+            #expect(advice.methods == [.reveal])
+        }
+    }
+
+    @Test func raisedCautionRecommendsLookingFirst() {
+        var cloud = Self.facts(Self.home + "/Library/Mobile Documents/com~apple~CloudDocs/temp")
+        cloud.isInCloud = true
+        let advice = CleanupAdvisor.advise(cloud)
+        #expect(advice.verdict == .keep)
+        #expect(advice.methods.first == .reveal)
+        let restTrashes = advice.methods.dropFirst().allSatisfy(\.trashes)
+        #expect(restTrashes)
+    }
+
+    @Test func whatAnAppHoldsIsNeverOfferedByItself() {
+        var app = Self.facts("/Applications/Some.app")
+        app.refusesContents = true
+        app.cacheFolders = [Self.child("Cache", in: "/Applications/Some.app/Contents/Resources")]
+        let advice = CleanupAdvisor.advise(app)
+        #expect(advice.methods.map(\.action) == [.trashFolder])
+        #expect(advice.findings.contains { $0.text.contains("whole") })
+    }
+
+    @Test func whatTheScanDidNotReadIsNotOfferedForRemoval() {
+        var excluded = Self.facts(Self.home + "/Library/Caches/com.example.app", bytes: 0)
+        excluded.names = ["a", "b"]
+        excluded.isUnmeasured = true
+        let advice = CleanupAdvisor.advise(excluded)
+        #expect(advice.verdict == .review && advice.methods == [.reveal])
+        #expect(advice.findings.contains { $0.kind == .warning && $0.text.contains("doesn't know") })
     }
 }

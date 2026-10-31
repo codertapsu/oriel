@@ -2,6 +2,11 @@
 nonisolated extension CleanupCatalog {
     static let gradleProjectFiles: Set = ["settings.gradle", "settings.gradle.kts", "build.gradle", "build.gradle.kts"]
     static let javaScriptProjectFiles: Set = ["package.json"]
+    /// What `python -m venv`, virtualenv and uv put in an environment's folder.
+    static let pythonEnvironmentLayout: Set = [
+        "pyvenv.cfg", "bin", "lib", "lib64", "include", "share", "etc", "man", "Scripts", "Lib", "Include", ".gitignore", ".lock",
+        "CACHEDIR.TAG", ".DS_Store",
+    ]
 
     static let projects: [CleanupRule] = [
         CleanupRule(
@@ -73,7 +78,7 @@ nonisolated extension CleanupCatalog {
         ),
         CleanupRule(
             id: "pythonEnvironment",
-            matches: [.holding(["pyvenv.cfg"])],
+            matches: [.holding(["pyvenv.cfg"], only: pythonEnvironmentLayout)],
             verdict: .careful,
             summary: "A Python virtual environment: the packages installed for one project.",
             afterwards: "Make it again from the project's requirements, with `python -m venv` and `pip install`.",

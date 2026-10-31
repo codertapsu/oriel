@@ -9,8 +9,9 @@ nonisolated struct CleanupRule: Sendable {
         /// A folder with this name anywhere, with one of these names next to it (its project's file); anywhere at all
         /// when the set is empty.
         case name(String, besides: Set<String>)
-        /// A folder anywhere that holds one of these names.
-        case holding(Set<String>)
+        /// A folder anywhere that holds one of these names; with `only`, nothing but names from it: a tool's bare layout,
+        /// not a project that happens to hold the name too.
+        case holding(Set<String>, only: Set<String>? = nil)
     }
 
     var id: String
@@ -31,9 +32,17 @@ nonisolated struct CleanupRule: Sendable {
                 Self.path(facts.homeRelativePath, matches: pattern)
             case let .name(name, besides):
                 facts.name == name && (besides.isEmpty || !besides.isDisjoint(with: facts.siblingNames))
-            case let .holding(names):
-                !names.isDisjoint(with: facts.names)
+            case let .holding(names, only):
+                !names.isDisjoint(with: facts.names) && (only.map(facts.names.isSubset(of:)) ?? true)
             }
+        }
+    }
+
+    /// Whether a path pattern matched: the folder is the tool's own place, not one that only looks like it by name.
+    func matchesByPath(_ facts: CleanupFacts) -> Bool {
+        matches.contains { match in
+            guard case let .path(pattern) = match else { return false }
+            return Self.path(facts.homeRelativePath, matches: pattern)
         }
     }
 

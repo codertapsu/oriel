@@ -202,5 +202,25 @@ nonisolated extension CleanupCatalog {
             afterwards: "The IDE indexes your projects again.",
             methods: { facts in [olderVersions(facts, of: "caches"), .trashContents(facts)].compactMap(\.self) }
         ),
+        CleanupRule(
+            id: "ideSettings",
+            matches: [.path("~/Library/Application Support/JetBrains"), .path("~/Library/Application Support/Google")],
+            verdict: .keep,
+            summary: "Apps' own data: JetBrains IDEs' and Android Studio's settings, a folder per version that a newer version "
+                + "copies when it is installed, and, for Google, Chrome's profiles.",
+            methods: { facts in
+                var settings = facts
+                settings.children = facts.children.filter { child in
+                    ideSettingsPrefixes.contains { child.name.hasPrefix($0) }
+                }
+                return [.reveal, olderVersions(settings, of: "settings")].compactMap(\.self)
+            }
+        ),
+    ]
+
+    /// The settings folders JetBrains IDEs and Android Studio make for each version (`IntelliJIdea2025.2`).
+    static let ideSettingsPrefixes = [
+        "AndroidStudio", "IntelliJIdea", "IdeaIC", "PyCharm", "WebStorm", "GoLand", "CLion", "PhpStorm", "RubyMine", "Rider",
+        "DataGrip", "RustRover", "Fleet", "AppCode",
     ]
 }

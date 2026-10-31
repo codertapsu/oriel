@@ -49,6 +49,8 @@ nonisolated struct CleanupFacts: Sendable, Equatable {
     var categories: [FileCategory: Int64] = [:]
     /// Git repositories inside it.
     var repositories = 0
+    /// The folders holding them, from the scan and asked directly.
+    var repositoryFolders: Set<String> = []
     /// Every name directly inside it, small files included, and next to it.
     var names: Set<String> = []
     var siblingNames: Set<String> = []
@@ -64,6 +66,8 @@ nonisolated struct CleanupFacts: Sendable, Equatable {
     var refusesContents = false
     /// iCloud Drive or a cloud storage folder: removing it removes it from the cloud.
     var isInCloud = false
+    /// The scan left it out or could not read it, so its size and what it holds are unknown.
+    var isUnmeasured = false
     var users: [User] = []
     /// The installed apps its path names.
     var apps: [App] = []

@@ -19,7 +19,8 @@ nonisolated enum CleanupInspector {
     }
 
     /// One walk of the folder's part of the tree: its contents with when each was last used, the kinds of files, the
-    /// repositories and the outermost caches inside.
+    /// repositories and the outermost caches inside, outside folders of code (`CleanupAdvisor.codeFolders`), where a folder
+    /// named like a cache is part of a library.
     static func addTreeFacts(_ facts: inout CleanupFacts, node: Int32, tree: ScanTree) {
         let item = tree[node]
         facts.bytes = item.size
@@ -28,13 +29,14 @@ nonisolated enum CleanupInspector {
         let children = tree.childrenBySize(of: node).filter { !tree[$0].kind.isSynthetic }
         var used = [Int32?](repeating: nil, count: children.count)
         var categories: [FileCategory: Int64] = [:]
-        var repositories = 0
+        var repositories = Set<String>()
         var caches: [CleanupFacts.Child] = []
         let git = tree.names.firstIndex(of: ".git").map(Int32.init)
-        // Every node below the folder, with the child it is under and whether it is inside a cache already.
-        var stack = tree.children(of: node).map { (node: $0, child: children.firstIndex(of: $0), inCache: false) }
+        let isCode = facts.path.split(separator: "/").contains { CleanupAdvisor.codeFolders.contains(String($0)) }
+        // Every node below the folder, with the child it is under and whether it is inside a cache or code already.
+        var stack = tree.children(of: node).map { (node: $0, child: children.firstIndex(of: $0), inCache: false, inCode: isCode) }
         while let next = stack.popLast() {
-            let (current, child, inCache) = next
+            let (current, child, inCache, inCode) = next
             let entry = tree[current]
             let latest = max(entry.modified, entry.accessed)
             if let child, latest != ScanNode.unknownDate {
@@ -43,12 +45,15 @@ nonisolated enum CleanupInspector {
             if entry.kind == .file || entry.kind == .smallFiles {
                 categories[entry.category, default: 0] += entry.size
             }
+            if git != nil, entry.name == git {
+                let path = facts.path + "/" + relativePath(of: current, below: node, in: tree)
+                repositories.insert((path as NSString).deletingLastPathComponent)
+            }
             var isCache = inCache
+            var isInCode = inCode
             if entry.kind.isContainer {
-                if git != nil, entry.name == git {
-                    repositories += 1
-                }
-                if !inCache, CleanupAdvisor.cacheNames.contains(tree.name(of: current)) {
+                isInCode = inCode || CleanupAdvisor.codeFolders.contains(tree.name(of: current))
+                if !inCache, !isInCode, CleanupAdvisor.cacheNames.contains(tree.name(of: current)) {
                     caches.append(CleanupFacts.Child(
                         name: tree.name(of: current), path: facts.path + "/" + relativePath(of: current, below: node, in: tree),
                         bytes: entry.size, isFolder: true, lastUsed: ScanNode.decode(latest)
@@ -57,7 +62,7 @@ nonisolated enum CleanupInspector {
                 }
             }
             for grandchild in tree.children(of: current) {
-                stack.append((grandchild, child, isCache))
+                stack.append((grandchild, child, isCache, isInCode))
             }
         }
         facts.children = children.enumerated().map { index, child in
@@ -71,7 +76,8 @@ nonisolated enum CleanupInspector {
         }
         facts.lastUsed = facts.children.compactMap(\.lastUsed).max()
         facts.categories = categories
-        facts.repositories = repositories
+        facts.repositoryFolders = repositories
+        facts.repositories = repositories.count
         facts.cacheFolders = caches.sorted { $0.bytes > $1.bytes }
     }
 
@@ -91,6 +97,15 @@ nonisolated enum CleanupInspector {
         facts.isExcludedFromBackup = values?.isExcludedFromBackup ?? false
         // Moving the folder takes write access to its parent; moving what it holds, to the folder.
         facts.isRemovable = access(facts.path, W_OK) == 0 && access(parent, W_OK) == 0
+        // A scan without hidden files lists no `.git`, and one with them sums a worktree's or a submodule's `.git` file up
+        // with the small files: the folder and the folders in it are asked directly.
+        if facts.names.contains(".git") {
+            facts.repositoryFolders.insert(facts.path)
+        }
+        for child in facts.children where child.isFolder && manager.fileExists(atPath: child.path + "/.git") {
+            facts.repositoryFolders.insert(child.path)
+        }
+        facts.repositories = facts.repositoryFolders.count
     }
 
     static func isCacheTag(_ path: String) -> Bool {

@@ -12,15 +12,17 @@ nonisolated enum FolderUsers {
         var paths: [String]
     }
 
-    /// The processes using `folder` or anything in it, but `excluded` (Oriel). The paths are spelled as `folder` is.
-    static func uses(of folder: String, excluding excluded: Set<Int32> = [], pathLimit: Int = 200) -> [Use] {
+    /// The processes using `folder` or anything in it, but `excluded` (Oriel), with every path each has open there (a
+    /// build daemon may hold thousands), spelled as `folder` is.
+    static func uses(of folder: String, excluding excluded: Set<Int32> = []) -> [Use] {
         let spellings = spellings(of: folder)
         var uses: [Use] = []
         for pid in processes() where !excluded.contains(pid) {
             var paths: [String] = []
             for path in [workingFolder(of: pid)].compactMap(\.self) + openFiles(of: pid) {
-                guard paths.count < pathLimit, let inside = respelled(path, from: spellings, to: folder) else { continue }
-                paths.append(inside)
+                if let inside = respelled(path, from: spellings, to: folder) {
+                    paths.append(inside)
+                }
             }
             if !paths.isEmpty {
                 uses.append(Use(pid: pid, paths: paths))
@@ -29,10 +31,19 @@ nonisolated enum FolderUsers {
         return uses
     }
 
-    /// How macOS may spell the folder: a path through the firmlinks may come back on the data volume, and one through
-    /// `/var` or `/tmp` with `/private` first.
+    /// How macOS may spell the folder: a path through the firmlinks may come back on the data volume, one through `/var`
+    /// or `/tmp` with `/private` first, and one through a symbolic link (DerivedData moved to another disk) where it
+    /// really is.
     static func spellings(of folder: String) -> [String] {
         let folder = folder.count > 1 && folder.hasSuffix("/") ? String(folder.dropLast()) : folder
+        var spellings = variants(of: folder)
+        if let real = realPath(folder), real != folder {
+            spellings += variants(of: real).filter { !spellings.contains($0) }
+        }
+        return spellings
+    }
+
+    private static func variants(of folder: String) -> [String] {
         let data = FirmlinkMap.dataVolume
         var spellings = [folder, folder.hasPrefix(data + "/") ? String(folder.dropFirst(data.count)) : data + folder]
         if folder.hasPrefix("/private/") {
@@ -41,6 +52,12 @@ nonisolated enum FolderUsers {
             spellings.append("/private" + folder)
         }
         return spellings
+    }
+
+    private static func realPath(_ path: String) -> String? {
+        guard let resolved = realpath(path, nil) else { return nil }
+        defer { free(resolved) }
+        return String(cString: resolved)
     }
 
     /// `path` spelled from `folder`, when it is the folder or inside it under one of its spellings.
