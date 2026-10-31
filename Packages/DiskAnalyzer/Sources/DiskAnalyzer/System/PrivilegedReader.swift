@@ -6,14 +6,16 @@ import ServiceManagement
 /// (`PrivilegedReaderDaemon`) and answers one XPC request, list these folders by the scan's rules. The user installs it
 /// from the window or Settings and switches it on once in System Settings → General → Login Items & Extensions, where
 /// macOS asks for an administrator's password; from then on scans read those folders without asking. Each end checks the
-/// other's code signature (`CodeIdentity`), so no other app can use it, and it reads and replies, nothing else.
+/// other's code signature (`CodeIdentity`), so no other app can use it; it answers administrators only
+/// (`Administrators`), and it reads and replies, nothing else. Only the window's scans use it, never the CLI's.
 ///
 /// An update replaces the executable launchd starts, and `SMAppService`'s header says a daemon may not launch until it is
 /// registered again, so the window registers it again the first time it is used after an update (`reinstall`), and once
 /// more when it does not answer.
 public nonisolated enum PrivilegedReader {
     public enum Status: Sendable, Equatable {
-        /// This build has no helper: none in the bundle, or no team in the signature.
+        /// This build has no helper (none in the bundle, or no team in the signature), or the user is not an
+        /// administrator, the only one it answers.
         case unavailable
         case notInstalled
         /// Installed, waiting for the user to switch it on in System Settings.
@@ -42,8 +44,10 @@ public nonisolated enum PrivilegedReader {
         return SMAppService.daemon(plistName: plist.lastPathComponent)
     }
 
+    /// Another user's Oriel sees the daemon an administrator allowed, Mac-wide, but is refused by it, so it never
+    /// uses, registers or removes it.
     public static var status: Status {
-        guard let service, CodeIdentity.ownRequirement() != nil else { return .unavailable }
+        guard let service, CodeIdentity.ownRequirement() != nil, Administrators.contains(getuid()) else { return .unavailable }
         return status(of: service.status)
     }
 

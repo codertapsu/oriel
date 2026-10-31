@@ -1,5 +1,6 @@
 @testable import DiskAnalyzer
 import Foundation
+import Security
 import ServiceManagement
 import Synchronization
 import Testing
@@ -25,8 +26,17 @@ struct PrivilegedReaderTests {
         let count = Mutex(0)
     }
 
-    private func listener(requirement: String?, idle: IdleLog = IdleLog()) -> (NSXPCListener, PrivilegedReaderListener) {
-        let delegate = PrivilegedReaderListener(requirement: requirement) { idle.count.withLock { $0 += 1 } }
+    /// Records the user ID the listener was asked to admit.
+    private final class AdmissionLog: Sendable {
+        let userIDs = Mutex<[uid_t]>([])
+    }
+
+    private func listener(
+        requirement: String?,
+        admits: @escaping @Sendable (uid_t) -> Bool = { _ in true },
+        idle: IdleLog = IdleLog()
+    ) -> (NSXPCListener, PrivilegedReaderListener) {
+        let delegate = PrivilegedReaderListener(requirement: requirement, admits: admits) { idle.count.withLock { $0 += 1 } }
         let listener = NSXPCListener.anonymous()
         listener.delegate = delegate
         listener.resume()
@@ -58,13 +68,36 @@ struct PrivilegedReaderTests {
     /// A client whose signature does not meet the requirement is cut off before it is answered.
     @Test func anotherAppIsRefused() async throws {
         let folder = try TemporaryFolder()
-        let requirement = CodeIdentity.requirement(identifier: "com.example.not-oriel", team: "ABCDE12345")
+        let requirement = CodeIdentity.requirement(identifier: "com.example.not-oriel", team: "ABCDE12345", developerID: false)
         let (listener, delegate) = listener(requirement: requirement)
         defer { listener.invalidate() }
         let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
         let outcome = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
         #expect(outcome.failed)
         withExtendedLifetime(delegate) {}
+    }
+
+    /// The daemon is the whole Mac's, so Oriel run by another user, who is not an administrator, reaches it too: it is
+    /// turned away by the user ID its process runs as, before it is answered.
+    @Test func anotherUsersOrielIsRefused() async throws {
+        let folder = try TemporaryFolder()
+        let asked = AdmissionLog()
+        let (listener, delegate) = listener(requirement: nil, admits: { userID in
+            asked.userIDs.withLock { $0.append(userID) }
+            return false
+        })
+        defer { listener.invalidate() }
+        let connection = NSXPCConnection(listenerEndpoint: listener.endpoint)
+        let outcome = await PrivilegedReader.read(ElevatedRead.Request(folders: [folder.path]), over: connection)
+        #expect(outcome.failed)
+        #expect(asked.userIDs.withLock { $0 } == [geteuid()])
+        withExtendedLifetime(delegate) {}
+    }
+
+    @Test func onlyAdministratorsAreAdmitted() {
+        #expect(Administrators.contains(0))
+        #expect(!Administrators.contains(uid_t(bitPattern: -2))) // nobody
+        #expect(!Administrators.contains(1)) // daemon
     }
 
     @Test func aRequestItDoesNotUnderstandIsAnsweredWithWhy() async {
@@ -77,11 +110,34 @@ struct PrivilegedReaderTests {
         #expect(answer.1?.isEmpty == false)
     }
 
+    /// A Debug build, signed for development and always debuggable, asks for Oriel's identifier and team; a release also
+    /// for Developer ID and no `get-task-allow`, which a Release build made on this Mac has, so it cannot speak for
+    /// the installed app (checked with `codesign -v -R` on both).
     @Test func onlyOrielsSignatureMeetsTheRequirement() {
-        #expect(CodeIdentity.requirement(identifier: "com.codertapsu.oriel", team: "4XVYLW8RXS")
-            == #"identifier "com.codertapsu.oriel" and anchor apple generic and certificate leaf[subject.OU] = "4XVYLW8RXS""#)
+        let debug = CodeIdentity.requirement(identifier: "com.codertapsu.oriel.debug", team: "4XVYLW8RXS", developerID: false)
+        #expect(debug == #"identifier "com.codertapsu.oriel.debug" and anchor apple generic"#
+            + #" and certificate leaf[subject.OU] = "4XVYLW8RXS""#)
+        let release = CodeIdentity.requirement(identifier: "com.codertapsu.oriel", team: "4XVYLW8RXS", developerID: true)
+        #expect(release == #"identifier "com.codertapsu.oriel" and anchor apple generic and certificate leaf[subject.OU] = "4XVYLW8RXS""#
+            + #" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists"#
+            + #" and !entitlement["com.apple.security.get-task-allow"] exists"#)
+        for text in [debug, release] {
+            var requirement: SecRequirement?
+            #expect(SecRequirementCreateWithString(text as CFString, [], &requirement) == errSecSuccess)
+        }
         #expect(PrivilegedReader.label(for: "com.codertapsu.oriel") == "com.codertapsu.oriel.disk-reader")
         #expect(PrivilegedReader.label(for: "com.codertapsu.oriel.debug") == "com.codertapsu.oriel.debug.disk-reader")
+    }
+
+    /// macOS's own code is signed by Apple, not with Developer ID.
+    @Test func appleSignedCodeIsNotDeveloperID() throws {
+        var code: SecStaticCode?
+        #expect(SecStaticCodeCreateWithPath(URL(fileURLWithPath: "/usr/bin/true") as CFURL, [], &code) == errSecSuccess)
+        var information: CFDictionary?
+        _ = try SecCodeCopySigningInformation(#require(code), SecCSFlags(rawValue: kSecCSSigningInformation), &information)
+        let values = try #require(information as? [String: Any])
+        let leaf = try #require((values[kSecCodeInfoCertificates as String] as? [SecCertificate])?.first)
+        #expect(!CodeIdentity.isDeveloperIDApplication(leaf))
     }
 
     @Test func macOSsStatesBecomeWhatTheWindowShows() {

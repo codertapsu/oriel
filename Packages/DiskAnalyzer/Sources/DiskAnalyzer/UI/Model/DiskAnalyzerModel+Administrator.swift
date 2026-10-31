@@ -131,7 +131,7 @@ extension DiskAnalyzerModel {
     }
 
     /// A tree and summary with what Read as Administrator found in them: totals, the summary and the volume's blocks
-    /// summed again. The CLI uses it too.
+    /// summed again.
     nonisolated static func adding(
         _ result: ElevatedRead.Result,
         folders: [String],

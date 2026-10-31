@@ -34,11 +34,12 @@ final class DiskSettingsModel {
     var helperExplanation: String {
         switch helperStatus {
         case .unavailable:
-            "Read as Administrator, in the window, asks for an administrator's password each time: this build of Oriel has no helper."
+            "Read as Administrator, in the window, asks for an administrator's password each time: this build of Oriel has no "
+                + "helper, or this account is not an administrator's."
         case .notInstalled:
             "Read as Administrator, in the window, asks for an administrator's password each time. Oriel's helper reads these "
                 + "folders in every scan instead, once you allow it in System Settings, where macOS asks for the password once. It "
-                + "only reads folders, and only Oriel can use it."
+                + "only reads folders, and only Oriel, run by an administrator, can use it."
         case .needsApproval:
             "Oriel's helper is installed. Switch on Oriel under Allow in the Background in System Settings → General → Login "
                 + "Items & Extensions; macOS asks for an administrator's password once."
