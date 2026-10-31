@@ -11,6 +11,7 @@ import SharedUI
 @MainActor
 final class AppController {
     let settings = SettingsStore()
+    private let launchWindow = LaunchWindow()
     let permissions = PermissionCenter()
     /// Keyed by bundle ID, so a Debug build never reads, or prompts for, the installed app's items.
     let keychain = Bundle.main.bundleIdentifier.map { KeychainStore(prefix: $0) } ?? KeychainStore()
@@ -38,8 +39,9 @@ final class AppController {
         )
     }
 
-    /// Starts everything; `opensWindow` shows Settings once started, unless onboarding is still to come, which shows instead.
-    /// `urls`, what Oriel was launched to open, are opened last, unless this copy is moving to Applications.
+    /// Starts everything; `opensWindow` shows Settings a moment after starting (`LaunchWindow`), unless Oriel is asked to do
+    /// something else first; onboarding, until it is done, shows instead. `urls`, what Oriel was launched to open, are
+    /// opened last, unless this copy is moving to Applications.
     func start(opensWindow: Bool = false, opening urls: [URL] = []) {
         IntentContext.controller = self
         MainMenu.install { [weak self] in self?.showSettings() }
@@ -78,7 +80,7 @@ final class AppController {
         if !settings[AppSettings.onboardingCompleted] {
             showOnboarding()
         } else if opensWindow {
-            showSettings()
+            launchWindow.schedule { [weak self] in self?.showSettings() }
         }
         for url in urls {
             handle(url)
@@ -104,7 +106,13 @@ final class AppController {
         }
     }
 
+    /// Oriel was asked to do something (an App Intent, a URL, a file): a launch's Settings window gives way.
+    func noteRequest() {
+        launchWindow.cancel()
+    }
+
     func handle(_ url: URL) {
+        noteRequest()
         if url.isFileURL {
             hub.open(fileAt: url)
             return
