@@ -8,7 +8,8 @@ import os
 /// The Dock's AX actor (PLAN §7.1.12, CLAUDE.md rule 6): every request to the Dock runs here, on a serial queue of its own
 /// so that a slow app the switcher is reading never delays a hover, with the switcher's 0.25 s messaging timeout. It
 /// observes the Dock's list for hover and for icons added or removed, and reads each icon in one round trip
-/// (`AXUIElementCopyMultipleAttributeValues`). The Dock is another process, so no request reaches Oriel's own.
+/// (`AXUIElementCopyMultipleAttributeValues`). A list the Dock replaces within its process is found again when a read
+/// of the old one fails (`DockReconnection`). The Dock is another process, so no request reaches Oriel's own.
 ///
 /// One instance per run of the Dock features: `stop` finishes `events`.
 actor DockAccessibility {
@@ -33,6 +34,8 @@ actor DockAccessibility {
     private var observer: AXObserver?
     /// Set by `stop`, after which `start` does nothing: a reconnect that arrives late cannot leave an observer behind.
     private var isStopped = false
+    /// Whether the Dock was observed again within its process since its list last answered.
+    private var reconnection = DockReconnection()
 
     nonisolated var unownedExecutor: UnownedSerialExecutor {
         queue.asUnownedSerialExecutor()
@@ -49,6 +52,13 @@ actor DockAccessibility {
     /// off); the controller tries again at the next change. Once stopped, it does nothing and returns false.
     @discardableResult
     func start(pid: pid_t) -> Bool {
+        reconnection = DockReconnection()
+        return observe(pid)
+    }
+
+    /// Observes the list of the Dock running as `pid` in place of any list observed before; false when it does not
+    /// answer, and once stopped.
+    private func observe(_ pid: pid_t) -> Bool {
         guard !isStopped else { return false }
         removeObserver()
         let app = AXUIElementCreateApplication(pid)
@@ -89,16 +99,41 @@ actor DockAccessibility {
 
     /// Every icon in order, the list's frame and the Dock's edge. Nil when the Dock does not answer.
     func layout(displays: [CGRect]) -> DockLayout? {
-        guard let list, let frame = frame(of: list) else { return nil }
-        let items = (AXAttributeReader.elements(kAXChildrenAttribute, of: list) ?? []).compactMap(item(from:))
-        let isVertical = AXAttributeReader.string(kAXOrientationAttribute, of: list) == kAXVerticalOrientationValue
+        guard let read = readList(kAXPositionAttribute), let position = read.value.flatMap({ AXAttributeReader.point($0) }),
+              let size = AXAttributeReader.value(kAXSizeAttribute, of: read.list).flatMap({ AXAttributeReader.size($0) })
+        else { return nil }
+        let frame = CGRect(origin: position, size: size)
+        let items = (AXAttributeReader.elements(kAXChildrenAttribute, of: read.list) ?? []).compactMap(item(from:))
+        let isVertical = AXAttributeReader.string(kAXOrientationAttribute, of: read.list) == kAXVerticalOrientationValue
         return DockLayout(items: items, frame: frame, edge: DockLayout.edge(isVertical: isVertical, frame: frame, displays: displays))
     }
 
     /// The icon under the pointer, which the Dock reports as its list's selected child; nil off the Dock.
     func hoveredItem() -> DockItem? {
-        guard let list, let selected = AXAttributeReader.elements(kAXSelectedChildrenAttribute, of: list)?.first else { return nil }
+        guard let selected = (readList(kAXSelectedChildrenAttribute)?.value as? [AXUIElement])?.first else { return nil }
         return item(from: selected)
+    }
+
+    /// `attribute` of the Dock's list, with the list it was read from; nil when no list is observed. A list the Dock has
+    /// replaced within its process (`kAXErrorInvalidUIElement`) has the Dock observed again and `attribute` read from the
+    /// new list, once until a list answers (`DockReconnection`): a Dock that keeps failing is never asked in a loop.
+    private func readList(_ attribute: String) -> (list: AXUIElement, value: CFTypeRef?)? {
+        guard let list else { return nil }
+        let read = Self.copy(attribute, of: list)
+        guard reconnection.reconnects(after: read.error), let pid else { return (list, read.value) }
+        log.notice("the Dock's list is gone; observing the Dock again")
+        guard observe(pid), let fresh = self.list else { return nil }
+        let retry = Self.copy(attribute, of: fresh)
+        // Notes whether the new list answers; if it fails too, the Dock is not observed again.
+        _ = reconnection.reconnects(after: retry.error)
+        return (fresh, retry.value)
+    }
+
+    /// `attribute` of `element` and the error reading it gave; the value only when it was read.
+    private static func copy(_ attribute: String, of element: AXUIElement) -> (value: CFTypeRef?, error: AXError) {
+        var value: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        return (error == .success ? value : nil, error)
     }
 
     private func item(from element: AXUIElement) -> DockItem? {
@@ -116,13 +151,6 @@ actor DockAccessibility {
             size: AXAttributeReader.size(array[4]),
             isRunning: array[5] as? Bool
         )
-    }
-
-    private func frame(of element: AXUIElement) -> CGRect? {
-        guard let position = AXAttributeReader.value(kAXPositionAttribute, of: element).flatMap({ AXAttributeReader.point($0) }),
-              let size = AXAttributeReader.value(kAXSizeAttribute, of: element).flatMap({ AXAttributeReader.size($0) })
-        else { return nil }
-        return CGRect(origin: position, size: size)
     }
 
     private func removeObserver() {

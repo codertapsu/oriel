@@ -47,6 +47,26 @@ struct DockTests {
         #expect(await dock.pid == nil)
     }
 
+    @Test func aListTheDockReplacedIsLookedForOnceUntilOneAnswers() {
+        var reconnection = DockReconnection()
+        func reconnects(after error: AXError) -> Bool {
+            reconnection.reconnects(after: error)
+        }
+        // Reads the list answers, with a value or without one, observe nothing again.
+        #expect(!reconnects(after: .success))
+        #expect(!reconnects(after: .noValue))
+        // The list is gone, replaced within the Dock's process: the Dock is observed again, once.
+        #expect(reconnects(after: .invalidUIElement))
+        #expect(!reconnects(after: .invalidUIElement))
+        // A slow Dock, or Accessibility turned off, is no reason, and is no answer either.
+        #expect(!reconnects(after: .cannotComplete))
+        #expect(!reconnects(after: .apiDisabled))
+        #expect(!reconnects(after: .invalidUIElement))
+        // Once a list answers, the next replacement is followed too.
+        #expect(!reconnects(after: .success))
+        #expect(reconnects(after: .invalidUIElement))
+    }
+
     @Test func notificationsSayWhatToReadAgain() {
         #expect(DockNotificationRelay.event(for: kAXSelectedChildrenChangedNotification) == .hoverChanged)
         #expect(DockNotificationRelay.event(for: kAXCreatedNotification) == .itemsChanged)
