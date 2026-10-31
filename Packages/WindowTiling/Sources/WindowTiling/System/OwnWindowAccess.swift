@@ -54,8 +54,23 @@ struct OwnWindowAccess: @MainActor WindowAccessing {
         ScreenGeometry.cgRect(fromCocoa: window.frame, primaryHeight: primaryHeight())
     }
 
+    /// Keeps the top left corner and the window's size limits, which `setFrame(_:display:)` ignores, unlike resizing by
+    /// hand or through Accessibility; `WindowArranger` then lines the window up as it does another app's.
     private func place(_ window: NSWindow, at frame: CGRect) -> Bool {
-        window.setFrame(ScreenGeometry.cocoaRect(fromCG: frame, primaryHeight: primaryHeight()), display: true)
+        let placed = CGRect(origin: frame.origin, size: Self.size(frame.size, within: window))
+        window.setFrame(ScreenGeometry.cocoaRect(fromCG: placed, primaryHeight: primaryHeight()), display: true)
         return true
+    }
+
+    /// `size` within the window's minimum and maximum frame sizes and those its content's limits give.
+    private static func size(_ size: CGSize, within window: NSWindow) -> CGSize {
+        let contentMinimum = window.frameRect(forContentRect: CGRect(origin: .zero, size: window.contentMinSize)).size
+        let contentMaximum = window.frameRect(forContentRect: CGRect(origin: .zero, size: window.contentMaxSize)).size
+        let lowest = (width: max(window.minSize.width, contentMinimum.width), height: max(window.minSize.height, contentMinimum.height))
+        let highest = (width: min(window.maxSize.width, contentMaximum.width), height: min(window.maxSize.height, contentMaximum.height))
+        return CGSize(
+            width: TileLayout.clamp(size.width, lower: lowest.width, upper: highest.width),
+            height: TileLayout.clamp(size.height, lower: lowest.height, upper: highest.height)
+        )
     }
 }
