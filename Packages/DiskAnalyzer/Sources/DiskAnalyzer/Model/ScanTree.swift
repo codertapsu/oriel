@@ -4,7 +4,8 @@
 /// A node's children always have higher indices than the node, so totals are summed in one backward pass. Children
 /// are a linked list, so a folder's contents can be replaced (a rescan after a change, a file moved to the Trash)
 /// without moving other nodes; removed nodes stay until `compacted()`. Names are interned. A file with several hard
-/// links is counted once across every listing that goes into the tree (`hardLinks`). A value type: the scanner edits
+/// links is counted once across every listing that goes into the tree (`hardLinks`), and the aggregates keep the kinds
+/// of the files they sum (`smallFileKinds`), so File Types can be summed from the tree. A value type: the scanner edits
 /// its copy, and the window keeps the one it last received.
 nonisolated struct ScanTree: Sendable {
     static let rootIndex: Int32 = 0
@@ -27,6 +28,8 @@ nonisolated struct ScanTree: Sendable {
     /// Where each file with several hard links is counted, for as long as the tree lives: every listing added to it,
     /// the scan's, a refresh's or Read as Administrator's, counts its links against it.
     private(set) var hardLinks = HardLinkRegistry()
+    /// The kinds of the files each aggregate of smaller files sums, from which File Types is summed again after an edit.
+    private(set) var smallFileKinds = SmallFileKinds()
 
     init(rootName: String, rootPath: String, firmlinks: FirmlinkMap = .empty) {
         self.rootPath = rootPath
@@ -76,7 +79,7 @@ nonisolated struct ScanTree: Sendable {
         return link(node, to: parent)
     }
 
-    /// Adds the aggregate of a folder's smaller files, if it has any, and returns its index.
+    /// Adds the aggregate of a folder's smaller files, if it has any, with the kinds of its files, and returns its index.
     @discardableResult
     mutating func append(_ small: DirectoryDigest.SmallFiles, to parent: Int32) -> Int32? {
         guard small.count > 0 else { return nil }
@@ -85,7 +88,9 @@ nonisolated struct ScanTree: Sendable {
         node.logicalSize = small.logicalSize
         node.fileCount = Int32(clamping: small.count)
         node.modified = small.newest
-        return link(node, to: parent)
+        let index = link(node, to: parent)
+        smallFileKinds.record(small, at: index)
+        return index
     }
 
     /// Adds a folder read from `path` rather than from below the root (`anchors`).
@@ -278,13 +283,15 @@ nonisolated struct ScanTree: Sendable {
         names: [String],
         removedCount: Int,
         anchors: [Int32: String],
-        hardLinks: HardLinkRegistry
+        hardLinks: HardLinkRegistry,
+        smallFileKinds: SmallFileKinds
     ) {
         self.nodes = nodes
         self.names = names
         self.removedCount = removedCount
         self.anchors = anchors
         self.hardLinks = hardLinks
+        self.smallFileKinds = smallFileKinds
         nameIndex = nil
         generation += 1
     }

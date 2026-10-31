@@ -274,6 +274,60 @@ struct ScanEngineTests {
         #expect(tree.root.size == allocated(stays) + allocated(added) + tree[deep].size)
         #expect(tree.root.fileCount == 3)
     }
+
+    /// A scan sums File Types from its listings as it reads them, and its tree, summed again, holds the same: every kind of
+    /// file, those inside a package as the package's kind, symbolic links as none, and a hard-linked file once.
+    @Test func aScansFileTypesAreWhatItsTreeHolds() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("Code/main.swift", size: 3000)
+        try folder.file("Code/README.md", size: 1200)
+        try folder.file("Media/photo.png", size: 25000)
+        try folder.file("Media/clip.mov", size: 1_300_000)
+        try folder.file("Tool.app/Contents/Info.plist", size: 900)
+        try folder.file("Tool.app/Contents/MacOS/Tool", size: 1_100_000)
+        let song = try folder.file("Media/song.mp3", size: 9000)
+        #expect(link(song.path, folder.path + "/Code/song.mp3") == 0)
+        try FileManager.default.createSymbolicLink(atPath: folder.path + "/Code/latest", withDestinationPath: "main.swift")
+        let outcome = await scan(folder)
+        var recounted = outcome.summary
+        recounted.recountCategories(in: outcome.tree)
+        #expect(recounted.categories == outcome.summary.categories)
+        #expect(recounted.duplicateLinks == outcome.summary.duplicateLinks)
+        #expect(recounted.duplicateLinks == 1)
+        #expect(recounted.categories.totalCount == 8)
+        #expect(recounted.categories.count(of: .application) == 2)
+    }
+
+    /// File Types counts every file by kind, the smaller ones too. After a refresh that takes away a picture and one of a
+    /// file's two links and adds a document and a video, the summary, summed again from the tree, shows what a fresh scan
+    /// of the same files shows.
+    @Test func aRefreshSumsTheFileTypesAsAFreshScanWould() async throws {
+        let folder = try TemporaryFolder()
+        try folder.file("Work/main.swift", size: 3000)
+        try folder.file("Work/photo.png", size: 20000)
+        try folder.file("Work/notes.txt", size: 700)
+        try folder.file("Work/Deep/poster.png", size: 1_500_000)
+        let song = try folder.file("Music/song.mp3", size: 9000)
+        #expect(link(song.path, folder.path + "/Work/song again.mp3") == 0)
+        let first = await scan(folder)
+        let work = try #require(first.tree.index(ofPath: folder.path + "/Work"))
+        try FileManager.default.removeItem(atPath: folder.path + "/Work/photo.png")
+        try FileManager.default.removeItem(atPath: folder.path + "/Work/song again.mp3")
+        try folder.file("Work/report.pdf", size: 12000)
+        try folder.file("Work/New/clip.mp4", size: 30000)
+        let refreshed = await ScanEngine.refresh(
+            first.tree, folders: [work], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        let summary = DiskAnalyzerModel.recounting(refreshed.tree, summary: first.summary, volume: nil).summary
+        let fresh = await scan(folder).summary
+        #expect(first.summary.categories.count(of: .image) == 2)
+        #expect(first.summary.duplicateLinks == 1)
+        #expect(summary.categories == fresh.categories)
+        #expect(summary.categories.count(of: .image) == 1)
+        #expect(summary.categories.count(of: .video) == 1)
+        #expect(summary.duplicateLinks == fresh.duplicateLinks)
+        #expect(summary.duplicateLinks == 0)
+    }
 }
 
 /// Collects progress reports from the scanning threads.

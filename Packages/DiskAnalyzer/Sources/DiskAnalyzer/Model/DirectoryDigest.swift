@@ -34,12 +34,33 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
         var size: Int64 = 0
         var logicalSize: Int64 = 0
         var newest = ScanNode.unknownDate
+        /// The files among them per category, as File Types counts them: symbolic links and devices have none. The tree
+        /// keeps them with the aggregate (`SmallFileKinds`).
+        var categories = CategoryTotals()
+        /// How many of the files are further links of a file counted elsewhere, with no size.
+        var duplicateLinks = 0
 
+        /// Adds a symbolic link or a device, which has no category.
         mutating func add(_ entry: DirectoryEntry, size: Int64, logicalSize: Int64) {
             add(size: size, logicalSize: logicalSize, modified: ScanNode.encode(secondsSince1970: entry.modified))
         }
 
-        mutating func add(size: Int64, logicalSize: Int64, modified: Int32) {
+        /// Adds a file of `category`.
+        mutating func add(_ entry: DirectoryEntry, category: FileCategory) {
+            add(entry, size: entry.allocatedSize, logicalSize: entry.logicalSize)
+            categories.add(category, bytes: entry.allocatedSize)
+        }
+
+        /// Adds a link of a file with several, as `count(_:isFirstLink:)` counted it: a further link has no size.
+        mutating func add(_ link: Item) {
+            add(size: link.size, logicalSize: link.logicalSize, modified: link.modified)
+            categories.add(link.category, bytes: link.size)
+            if link.flags.contains(.duplicateLink) {
+                duplicateLinks += 1
+            }
+        }
+
+        private mutating func add(size: Int64, logicalSize: Int64, modified: Int32) {
             count += 1
             self.size += size
             self.logicalSize += logicalSize
@@ -59,12 +80,25 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
     var small = SmallFiles()
     /// The files with several hard links, until `count(_:isFirstLink:)` counts each into `items` or `small`.
     var links: [Link] = []
-    var categoryTotals = CategoryTotals()
     var cloudOnlyFiles = 0
     var cloudOnlyBytes: Int64 = 0
-    var duplicateLinks = 0
     /// Entries the file system reported an error for, which are left out.
     var entryErrors = 0
+
+    /// Files and bytes per category over the files it counted: those kept one by one and the smaller ones. The tree sums
+    /// them the same way, from its files and the kinds of its aggregates.
+    var categoryTotals: CategoryTotals {
+        var totals = small.categories
+        for item in items where item.kind == .file {
+            totals.add(item.category, bytes: item.size)
+        }
+        return totals
+    }
+
+    /// Further links to files counted elsewhere, all among the smaller files.
+    var duplicateLinks: Int {
+        small.duplicateLinks
+    }
 
     /// Folds `entries`, the contents of the directory at `parentPath`, into what the scan keeps.
     static func make(
@@ -126,11 +160,9 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
             item.flags.insert(.duplicateLink)
             item.size = 0
             item.logicalSize = 0
-            duplicateLinks += 1
         }
-        categoryTotals.add(item.category, bytes: item.size)
         guard isFirstLink, link.isKept else {
-            small.add(size: item.size, logicalSize: item.logicalSize, modified: item.modified)
+            small.add(item)
             return nil
         }
         items.append(item)
@@ -208,9 +240,8 @@ nonisolated struct DirectoryDigest: Sendable, Equatable, Codable {
             links.append(Link(file: file, item: Self.file(entry, category: category, flags: flags.union(.hardLink)), isKept: keeps))
             return
         }
-        categoryTotals.add(category, bytes: entry.allocatedSize)
         guard keeps else {
-            small.add(entry, size: entry.allocatedSize, logicalSize: entry.logicalSize)
+            small.add(entry, category: category)
             return
         }
         items.append(Self.file(entry, category: category, flags: flags))

@@ -64,23 +64,43 @@ struct ElevatedReadTests {
         #expect(ElevatedRead.read(ElevatedRead.Request(folders: [folder.path]), cancellation: cancellation).listings.isEmpty)
     }
 
-    /// Listings in the format before files with several hard links came uncounted, or in any format but this Oriel's,
-    /// are refused: the scan could not count those links against its own.
+    /// Listings in an earlier format are refused: before the smaller files came with their kinds (2), the scan could not
+    /// sum File Types again after an edit, and before files with several hard links came uncounted (1), it could not
+    /// count those links against its own. So are listings in any format but this Oriel's.
     @Test func listingsInAnotherFormatAreRefused() throws {
         var digest = DirectoryDigest()
         digest.links = [DirectoryDigest.Link(file: .init(device: 1, inode: 2), item: Item(name: "a", kind: .file), isKept: false)]
+        digest.small.add(Fixtures.entry("b.txt", size: 10), category: .document)
         let current = try JSONEncoder().encode(ElevatedRead.Result(listings: [ElevatedRead.Listing(path: "/x", digest: digest)]))
         #expect(ElevatedRead.result(from: current)?.listings.first?.digest == digest)
-        var object = try #require(JSONSerialization.jsonObject(with: current) as? [String: Any])
-        var listings = try #require(object["listings"] as? [[String: Any]])
-        var previous = try #require(listings[0]["digest"] as? [String: Any])
-        previous["links"] = nil
-        listings[0]["digest"] = previous
-        object["listings"] = listings
-        object["version"] = 1
-        #expect(try ElevatedRead.result(from: JSONSerialization.data(withJSONObject: object)) == nil)
+        // Format 2 sent the kinds summed over the digest, none with the smaller files.
+        let second = try earlier(current, version: 2) { digest in
+            var small = digest["small"] as? [String: Any] ?? [:]
+            digest["categoryTotals"] = small.removeValue(forKey: "categories")
+            digest["duplicateLinks"] = small.removeValue(forKey: "duplicateLinks")
+            digest["small"] = small
+        }
+        #expect(ElevatedRead.result(from: second) == nil)
+        // Format 1 counted the links before sending the listings.
+        let first = try earlier(second, version: 1) { $0["links"] = nil }
+        #expect(ElevatedRead.result(from: first) == nil)
         let newer = ElevatedRead.Result(version: ElevatedRead.version + 1, listings: [])
         #expect(try ElevatedRead.result(from: JSONEncoder().encode(newer)) == nil)
+    }
+
+    /// The answer `data` as an earlier Oriel wrote it: in `version`, each listing's digest changed by `change`.
+    private func earlier(_ data: Data, version: Int, change: (inout [String: Any]) -> Void) throws -> Data {
+        var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let listings = try #require(object["listings"] as? [[String: Any]])
+        object["listings"] = try listings.map { listing in
+            var listing = listing
+            var digest = try #require(listing["digest"] as? [String: Any])
+            change(&digest)
+            listing["digest"] = digest
+            return listing
+        }
+        object["version"] = version
+        return try JSONSerialization.data(withJSONObject: object)
     }
 
     @Test func theListingsSurviveJSON() throws {
@@ -222,6 +242,41 @@ struct ElevatedReadTests {
         #expect(tree[locked].size == 3_000_000)
         #expect(Fixtures.index("Locked/old.bin", in: tree) == nil)
         #expect(tree.root.size == 5_000_000)
+    }
+
+    /// What root reads replaces what the folder held in File Types too: the kinds of the files that went are taken out and
+    /// those root found are counted, as a fresh scan of the same files counts them, a file with a link elsewhere once.
+    @Test func whatWasReadReplacesTheFileTypesOfWhatAFolderHeld() async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("Open/original", size: 4000)
+        try folder.file("Open/a.txt", size: 2000)
+        try folder.file("Locked/old.png", size: 30000)
+        try folder.file("Locked/old.mov", size: 2_000_000)
+        #expect(link(original.path, folder.path + "/Locked/link") == 0)
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        // The folder changes, then closes: the scan keeps what it held, as a refresh that finds it closed does.
+        try FileManager.default.removeItem(atPath: folder.path + "/Locked/old.png")
+        try FileManager.default.removeItem(atPath: folder.path + "/Locked/old.mov")
+        try folder.file("Locked/new.swift", size: 4000)
+        try folder.file("Locked/Inner/new.zip", size: 1_200_000)
+        // What root lists, read here while the folder is open, and sent as the helper sends it.
+        let listed = ElevatedRead.read(ElevatedRead.Request(folders: [folder.path + "/Locked"]))
+        let result = try JSONDecoder().decode(ElevatedRead.Result.self, from: JSONEncoder().encode(listed))
+        var tree = scanned.tree
+        try tree.setUnreadable(.needsAdministrator, at: #require(tree.index(ofPath: folder.path + "/Locked")))
+        let read = DiskAnalyzerModel.adding(
+            result, folders: [folder.path + "/Locked"], to: tree, summary: scanned.summary, volume: nil
+        )
+        let fresh = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag()).summary
+        #expect(scanned.summary.categories.count(of: .image) == 1)
+        #expect(read.summary.categories == fresh.categories)
+        #expect(read.summary.categories.count(of: .image) == 0)
+        #expect(read.summary.categories.count(of: .video) == 0)
+        #expect(read.summary.categories.count(of: .archive) == 1)
+        #expect(read.summary.categories.count(of: .other) == 2)
+        #expect(read.summary.duplicateLinks == fresh.duplicateLinks)
+        #expect(read.summary.files == fresh.files)
     }
 
     /// A folder taken out of the scan since, or no longer waiting for an administrator, is left alone.

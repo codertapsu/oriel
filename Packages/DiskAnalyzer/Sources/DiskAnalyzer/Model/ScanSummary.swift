@@ -25,6 +25,7 @@ nonisolated struct ScanSummary: Sendable, Equatable {
     /// Further links to files counted once.
     var duplicateLinks = 0
     var entryErrors = 0
+    /// Files and bytes per category over every file (File Types).
     var categories = CategoryTotals()
     var startedAt = Date()
     var duration: Duration = .zero
@@ -49,6 +50,16 @@ nonisolated struct ScanSummary: Sendable, Equatable {
         }
         if unreadableSamples.count < Self.unreadableSampleLimit {
             unreadableSamples.append(UnreadableFolder(path: path, reason: reason))
+        }
+    }
+
+    /// Sums the file types and the further links again from the tree, as the scan summed them from its listings
+    /// (`absorb`): its files kept one by one, and the kinds of its smaller files. After an edit of the tree, which takes
+    /// files out of it as well as adding them.
+    mutating func recountCategories(in tree: ScanTree) {
+        (categories, duplicateLinks) = tree.smallFileKinds.totals(isLive: tree.contains)
+        for node in tree.nodes where node.kind == .file && !node.isRemoved {
+            categories.add(node.category, bytes: node.size)
         }
     }
 

@@ -69,8 +69,8 @@ nonisolated extension ScanTree {
         return next
     }
 
-    /// A copy without the removed nodes, renumbered, with its hard links' counters renumbered too. Its `generation` is
-    /// one higher.
+    /// A copy without the removed nodes, renumbered, with its hard links' counters and its aggregates' kinds renumbered
+    /// too. Its `generation` is one higher.
     func compacted() -> ScanTree {
         var renumbered: [Int32: Int32] = [ScanTree.rootIndex: ScanTree.rootIndex]
         var kept: [ScanNode] = [nodes[0]]
@@ -99,7 +99,8 @@ nonisolated extension ScanTree {
             names: names,
             removedCount: 0,
             anchors: Dictionary(uniqueKeysWithValues: movedAnchors),
-            hardLinks: hardLinks.renumbered(by: renumbered)
+            hardLinks: hardLinks.renumbered(by: renumbered),
+            smallFileKinds: smallFileKinds.renumbered(by: renumbered)
         )
         return copy
     }

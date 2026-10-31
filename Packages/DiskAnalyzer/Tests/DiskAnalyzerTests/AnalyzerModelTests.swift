@@ -127,6 +127,68 @@ struct AnalyzerModelTests {
         #expect(model.tree?.root.fileCount == 1)
     }
 
+    /// Oriel's own removals sum the summary again from the tree, File Types included: what went leaves every count, as a
+    /// fresh scan of what is left shows.
+    @Test func aRemovalSumsTheFileTypesAgain() async throws {
+        let store = try TemporaryFolder()
+        let folder = try TemporaryFolder()
+        try folder.file("Pictures/a.png", size: 30000)
+        try folder.file("Pictures/b.jpg", size: 50000)
+        try folder.file("Pictures/big.heic", size: 1_500_000)
+        try folder.file("Docs/notes.txt", size: 2000)
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let model = try DiskAnalyzerModel(settings: Fixtures.memorySettings(), store: ScanSnapshotStore(directory: store.url))
+        model.target = target
+        model.phase = .ready(stopped: false)
+        model.adopt(scanned.tree)
+        model.summary = scanned.summary
+        let pictures = try #require(scanned.tree.index(ofPath: folder.path + "/Pictures"))
+        // Gone from the disk as after Delete Immediately, in the test's own folder.
+        try FileManager.default.removeItem(atPath: folder.path + "/Pictures")
+        model.remove([pictures])
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.tree?.contains(pictures) != false, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let fresh = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag()).summary
+        #expect(scanned.summary.categories.count(of: .image) == 3)
+        #expect(model.summary?.categories == fresh.categories)
+        #expect(model.summary?.categories.count(of: .image) == 0)
+        #expect(model.summary?.files == fresh.files)
+        #expect(model.summary?.folders == fresh.folders)
+    }
+
+    /// A removal leaves a volume's Other space as it was: what was deleted left the volume's used space with it, and what
+    /// went to the Trash is still on the volume until the Trash is read again, so summing it now would show it there.
+    @Test func aRemovalLeavesOtherSpaceAsItWas() async throws {
+        let store = try TemporaryFolder()
+        let folder = try TemporaryFolder()
+        try folder.file("Open/a.bin", size: 1_000_000)
+        let trashed = try folder.file("Open/b.bin", size: 3_000_000)
+        var target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let volume = Fixtures.volume(used: scanned.tree.root.size + 500_000_000)
+        target.volume = volume
+        let tree = DiskAnalyzerModel.addingVolumeBlocks(to: scanned.tree, volume: volume)
+        let model = try DiskAnalyzerModel(settings: Fixtures.memorySettings(), store: ScanSnapshotStore(directory: store.url))
+        model.target = target
+        model.phase = .ready(stopped: false)
+        model.adopt(tree)
+        model.summary = scanned.summary
+        let node = try #require(tree.index(ofPath: trashed.path))
+        model.remove([node])
+        let deadline = ContinuousClock.now + .seconds(10)
+        while model.tree?.contains(node) != false, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let removed = try #require(model.tree)
+        let other = try #require(removed.children(of: ScanTree.rootIndex).first { removed[$0].kind == .unaccounted })
+        #expect(removed[other].size == 500_000_000)
+        #expect(model.summary?.bytes == removed.root.size)
+        #expect(model.summary?.files == 1)
+    }
+
     /// A scan of a whole volume adds up to its used space with Other space, what no file accounts for. A refresh sums it
     /// again, as the scan summed it, so the volume still adds up, and the summary follows.
     @Test func aRefreshSumsOtherSpaceAgain() async throws {

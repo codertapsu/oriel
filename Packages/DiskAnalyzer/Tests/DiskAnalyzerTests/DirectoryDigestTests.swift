@@ -16,6 +16,9 @@ struct DirectoryDigestTests {
         #expect(digest.categoryTotals.count(of: .video) == 1)
         #expect(digest.categoryTotals.bytes(of: .document) == 12288)
         #expect(digest.categoryTotals.totalBytes == 5_000_000 + 12288 + 1_000_000)
+        // The smaller files keep their kinds, which the tree keeps with their aggregate.
+        #expect(digest.small.categories.count(of: .document) == 2)
+        #expect(digest.small.categories.totalBytes == 12288)
     }
 
     @Test func theThresholdIsASetting() {
@@ -54,8 +57,10 @@ struct DirectoryDigestTests {
         #expect(second.small.count == 1)
         #expect(second.small.size == 0)
         #expect(second.duplicateLinks == 1)
+        #expect(second.small.duplicateLinks == 1)
         #expect(second.categoryTotals.totalCount == 1)
         #expect(second.categoryTotals.totalBytes == 0)
+        #expect(second.small.categories.totalCount == 1)
     }
 
     @Test func linksWithinOneFolderAreCountedOnceToo() {
@@ -79,6 +84,7 @@ struct DirectoryDigestTests {
         let digest = Fixtures.digest([Fixtures.entry("link", .symlink, size: 0)])
         #expect(digest.items.isEmpty)
         #expect(digest.small.count == 1)
+        #expect(digest.small.categories.totalCount == 0)
     }
 
     @Test func foldersAreEnteredUnlessTheyAreSpecial() {

@@ -145,6 +145,118 @@ struct ScanTreeTests {
         Fixtures.digest([Fixtures.entry(name, size: 3_000_000, inode: 42, links: 2)], countsLinks: false)
     }
 
+    /// An aggregate of smaller files keeps the kinds of the files it sums, so File Types and the further links are summed
+    /// from the tree as the scan summed them from its listings; they leave the sums with the aggregate.
+    @Test func anAggregateKeepsTheKindsOfItsFilesUntilItGoes() throws {
+        var tree = Fixtures.tree(["Music/": 0, "Work/": 0])
+        let music = try #require(Fixtures.index("Music", in: tree))
+        let work = try #require(Fixtures.index("Work", in: tree))
+        var songs = Fixtures.digest([Fixtures.entry("song.mp3", size: 9000, inode: 42, links: 2)], countsLinks: false)
+        _ = tree.merge(&songs, into: music)
+        var listing = Fixtures.digest([
+            Fixtures.entry("main.swift", size: 3000),
+            Fixtures.entry("photo.png", size: 20000),
+            Fixtures.entry("movie.mov", size: 5_000_000),
+            Fixtures.entry("song again.mp3", size: 9000, inode: 42, links: 2),
+            Fixtures.entry("shortcut", .symlink),
+        ], countsLinks: false)
+        _ = tree.merge(&listing, into: work)
+        var scanned = ScanSummary()
+        scanned.absorb(songs)
+        scanned.absorb(listing)
+        var summary = ScanSummary()
+        summary.recountCategories(in: tree)
+        #expect(summary.categories == scanned.categories)
+        #expect(summary.duplicateLinks == 1)
+        #expect(summary.categories.totalCount == 5)
+        #expect(summary.categories.count(of: .audio) == 2)
+        #expect(summary.categories.bytes(of: .audio) == 9000)
+
+        tree.remove(work)
+        summary.recountCategories(in: tree)
+        #expect(summary.categories == songs.categoryTotals)
+        #expect(summary.duplicateLinks == 0)
+    }
+
+    /// The kinds go with their aggregate when its folder is listed again, and follow it through compaction, which
+    /// renumbers them and drops those of the aggregates taken out.
+    @Test func theKindsFollowTheirAggregateThroughReplacementAndCompaction() throws {
+        var tree = Fixtures.tree(["Gone/old.mov": 2_000_000, "Work/": 0])
+        let work = try #require(Fixtures.index("Work", in: tree))
+        var first = Fixtures.digest([Fixtures.entry("a.png", size: 1000), Fixtures.entry("b.png", size: 2000)])
+        _ = tree.merge(&first, into: work)
+        var again = Fixtures.digest([Fixtures.entry("c.swift", size: 4000), Fixtures.entry("d.txt", size: 500)])
+        _ = tree.replaceContents(of: work, with: &again)
+        try tree.remove(#require(Fixtures.index("Gone", in: tree)))
+        var summary = ScanSummary()
+        summary.recountCategories(in: tree)
+        #expect(summary.categories == again.categoryTotals)
+
+        let compacted = tree.compacted()
+        var after = ScanSummary()
+        after.recountCategories(in: compacted)
+        #expect(after.categories == again.categoryTotals)
+        #expect(compacted.smallFileKinds.byteCount < tree.smallFileKinds.byteCount)
+    }
+
+    /// The kinds are kept as variable-length numbers: a folder's smaller files of one kind take 5 bytes. Large counts and
+    /// sizes, every category and further links come back exact, after renumbering too.
+    @Test func theKindsSurviveTheirCompactForm() {
+        var code = DirectoryDigest.SmallFiles()
+        code.categories.add(.code, bytes: 0, count: 1)
+        var single = SmallFileKinds()
+        single.record(code, at: 3)
+        #expect(single.byteCount == 5)
+
+        var everything = DirectoryDigest.SmallFiles()
+        for category in FileCategory.allCases {
+            everything.categories.add(category, bytes: 5_000_000_000 + Int64(category.rawValue), count: 300 + Int(category.rawValue))
+        }
+        everything.duplicateLinks = 7
+        var links = DirectoryDigest.SmallFiles()
+        links.count = 3 // symbolic links only: no kind to keep
+        var kinds = SmallFileKinds()
+        kinds.record(everything, at: 5)
+        kinds.record(links, at: 6)
+        kinds.record(code, at: 70000)
+        var expected = everything.categories
+        expected.merge(code.categories)
+        #expect(kinds.totals { _ in true }.categories == expected)
+        #expect(kinds.totals { _ in true }.duplicateLinks == 7)
+        #expect(kinds.totals { $0 != 5 }.categories == code.categories)
+        #expect(kinds.totals { $0 != 5 }.duplicateLinks == 0)
+
+        // Compaction turns their order around and drops what it did not keep.
+        let renumbered = kinds.renumbered(by: [70000: 1, 5: 9])
+        #expect(renumbered.totals { _ in true }.categories == expected)
+        #expect(renumbered.totals { $0 == 1 }.categories == code.categories)
+        #expect(renumbered.totals { $0 == 9 }.duplicateLinks == 7)
+        #expect(kinds.renumbered(by: [70000: 2]).totals { _ in true }.categories == code.categories)
+    }
+
+    /// Beside a node's 56 bytes (PLAN §9), the kinds take a few bytes a node: here 3,000 folders whose smaller files are of
+    /// two to four kinds each, as source, pictures, documents, caches and build products are.
+    @Test func theKindsTakeAFewBytesANode() {
+        let profiles: [[String]] = [
+            ["swift", "swift", "json", "md", ""], ["js", "json", "md", "ts", "map"], ["png", "jpg", "heic"],
+            ["txt", "pdf", "md", "csv"], ["", "db", "plist"], ["mp3", "m4a", "jpg"], ["o", "d", "swiftmodule", "json"],
+            ["zip", "gz", "txt"],
+        ]
+        var tree = ScanTree(rootName: "Root", rootPath: "/Root")
+        for number in 0 ..< 3000 {
+            let profile = profiles[number % profiles.count]
+            let entries = (0 ..< 8 + number % 33).map { file in
+                let ext = profile[(number + file) % profile.count]
+                return Fixtures.entry("file \(file)" + (ext.isEmpty ? "" : "." + ext), size: Int64((number * 131 + file * 977) % 60000))
+            }
+            var digest = Fixtures.digest(entries, parentPath: "/Root/Folder \(number)", countsLinks: false)
+            let folder = tree.append(DirectoryDigest.Item(name: "Folder \(number)", kind: .folder), to: ScanTree.rootIndex)
+            _ = tree.merge(&digest, into: folder)
+        }
+        let perNode = Double(tree.smallFileKinds.byteCount) / Double(tree.count)
+        #expect(perNode < 8, "\(perNode) bytes a node")
+    }
+
     @Test func compactionDropsRemovedNodesAndKeepsEverythingElse() throws {
         var tree = tree
         try tree.remove(#require(Fixtures.index("Movies", in: tree)))

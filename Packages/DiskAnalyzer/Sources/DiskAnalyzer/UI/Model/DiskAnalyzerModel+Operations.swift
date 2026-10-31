@@ -119,25 +119,28 @@ extension DiskAnalyzerModel {
         refreshSources()
     }
 
-    /// Takes removed items out of the tree, off the main thread for a big one, after the edits before. A file with several
-    /// hard links that one of them counted is then counted at another link: the folders holding one are read again, since
-    /// Oriel's own removals are not in the file system's events.
+    /// Takes removed items out of the tree, off the main thread for a big one, after the edits before, and sums the
+    /// summary again from the tree (`recounting`). A file with several hard links that one of them counted is then counted
+    /// at another link: the folders holding one are read again, since Oriel's own removals are not in the file system's
+    /// events.
     func remove(_ nodes: [Int32]) {
         guard !nodes.isEmpty else { return }
         let flag = cancellation
         serially { [weak self] in
             guard let self, let tree, flag === cancellation else { return }
-            let (updated, recounts) = await Task.detached(priority: .userInitiated) {
+            let (updated, counted, recounts) = await Task.detached(priority: .userInitiated) { [summary] in
                 var tree = tree
                 for node in nodes {
                     tree.remove(node)
                 }
                 let recounts = tree.foldersToRecount().map(tree.path(of:))
-                return (tree, recounts)
+                // A volume's blocks stay: what was deleted left its used space with it, and what went to the Trash is
+                // still on the volume until the Trash is read again.
+                return (tree, summary.map { Self.recounting(tree, summary: $0, volume: nil).summary }, recounts)
             }.value
             guard flag === cancellation, self.tree?.generation == tree.generation else { return }
             adopt(updated)
-            summary?.bytes = updated.root.size
+            summary = counted
             refreshFolders(recounts)
         }
     }

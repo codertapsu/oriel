@@ -14,8 +14,9 @@ public nonisolated enum ElevatedRead {
     /// The argument that starts the listing mode; Oriel checks for it first thing at launch.
     public static let argument = "--disk-read-folders"
     /// The listings' format. 2: files with several hard links come with their device and inode, uncounted
-    /// (`DirectoryDigest.links`), so they are counted against the scan's.
-    static let version = 2
+    /// (`DirectoryDigest.links`), so they are counted against the scan's. 3: the smaller files come with their kinds and
+    /// further links (`DirectoryDigest.SmallFiles`), which the tree keeps to sum File Types again after an edit.
+    static let version = 3
     /// At most this many folders per run, which keeps the command short; a scan of a whole Mac has a few hundred.
     static let folderLimit = 2000
 
@@ -137,8 +138,9 @@ public nonisolated enum ElevatedRead {
     /// Puts what was read into `tree` at `folders`, the folders it was asked for, in place of what they held (a folder a
     /// refresh found closed keeps what it held before), counting as a scan counts (a file with several hard links counted
     /// elsewhere in the scan adds nothing again), marks what it added `readAsAdministrator`
-    /// (and `macOSVolume` below a folder of macOS's), and adds the digests to `summary`. A folder still unreadable takes
-    /// the reason root got. Returns the folders whose totals must be summed again.
+    /// (and `macOSVolume` below a folder of macOS's), and adds the digests to `summary`; what they replaced is not taken
+    /// out of it, so the file types and further links are then summed from the tree (`DiskAnalyzerModel.recounting`). A
+    /// folder still unreadable takes the reason root got. Returns the folders whose totals must be summed again.
     static func apply(_ result: Result, folders: [String], to tree: inout ScanTree, summary: inout ScanSummary) -> Set<Int32> {
         let listings = Dictionary(result.listings.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
         var dirty = Set<Int32>()
