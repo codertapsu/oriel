@@ -31,6 +31,8 @@ actor DockAccessibility {
     private(set) var pid: pid_t?
     private var list: AXUIElement?
     private var observer: AXObserver?
+    /// Set by `stop`, after which `start` does nothing: a reconnect that arrives late cannot leave an observer behind.
+    private var isStopped = false
 
     nonisolated var unownedExecutor: UnownedSerialExecutor {
         queue.asUnownedSerialExecutor()
@@ -44,9 +46,10 @@ actor DockAccessibility {
     }
 
     /// Observes the list of the Dock running as `pid`. False when it does not answer (it is starting, or Accessibility is
-    /// off); the controller tries again at the next change.
+    /// off); the controller tries again at the next change. Once stopped, it does nothing and returns false.
     @discardableResult
     func start(pid: pid_t) -> Bool {
+        guard !isStopped else { return false }
         removeObserver()
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, AXClient.messagingTimeout)
@@ -77,6 +80,7 @@ actor DockAccessibility {
 
     /// Removes the observer and finishes `events`, so no callback arrives after the features stop.
     func stop() {
+        isStopped = true
         removeObserver()
         pid = nil
         list = nil

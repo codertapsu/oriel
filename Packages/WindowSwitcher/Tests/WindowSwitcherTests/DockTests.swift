@@ -38,6 +38,15 @@ struct DockTests {
             .make(subrole: kAXApplicationDockItemSubrole, title: "X", url: nil, position: nil, size: nil, isRunning: true) == nil)
     }
 
+    @Test func aStoppedReaderNeverObservesAgain() async {
+        let dock = DockAccessibility()
+        await dock.stop()
+        // A reconnect that arrives after the features stopped: it returns before asking the Dock anything, so no
+        // observer is left on the main run loop.
+        #expect(await !dock.start(pid: .max))
+        #expect(await dock.pid == nil)
+    }
+
     @Test func notificationsSayWhatToReadAgain() {
         #expect(DockNotificationRelay.event(for: kAXSelectedChildrenChangedNotification) == .hoverChanged)
         #expect(DockNotificationRelay.event(for: kAXCreatedNotification) == .itemsChanged)

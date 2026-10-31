@@ -160,10 +160,11 @@ final class DockController {
         }
     }
 
-    /// Observes the running Dock, then reads its icons.
+    /// Observes the running Dock, then reads its icons; nothing once the features have stopped.
     private func connect(_ dock: DockAccessibility) {
         guard let pid = Self.dockPID() else { return }
         Task { [weak self] in
+            guard self?.dock === dock else { return }
             await dock.start(pid: pid)
             await self?.readLayout()
         }
@@ -173,7 +174,8 @@ final class DockController {
         guard let dock else { return }
         let current = Self.dockPID()
         Task { [weak self] in
-            guard let self, self.dock === dock, await dock.pid != current else { return }
+            // Checked after the await too: the features may have stopped meanwhile.
+            guard await dock.pid != current, let self, self.dock === dock else { return }
             log.notice("observing the Dock again")
             connect(dock)
         }
