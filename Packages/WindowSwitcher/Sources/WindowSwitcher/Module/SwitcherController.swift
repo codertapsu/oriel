@@ -8,9 +8,9 @@ import SharedUI
 /// Ties the event tap to the state machine, the session model and the panels (PLAN §7.1.4, §7.1.10).
 ///
 /// The tap callback runs the state machine and updates the session model synchronously: table lookups,
-/// filtering and layout arithmetic, well under a millisecond. Showing panels, thumbnails, the preview and
-/// focusing happen on the next main-actor turn, so the callback never waits on AppKit, ScreenCaptureKit or
-/// Accessibility.
+/// filtering and layout arithmetic, well under a millisecond. Showing panels, thumbnails, the preview, the
+/// outside-click monitor and focusing happen on the next main-actor turn, so the callback never waits on AppKit,
+/// ScreenCaptureKit or Accessibility.
 final class SwitcherController {
     /// The panel is opening: the Dock's preview steps aside. Called on the next main-actor turn, like the panels.
     var onOpen: (() -> Void)?
@@ -82,6 +82,11 @@ final class SwitcherController {
     /// The windows currently visible in the panel, for memory-pressure purges.
     var visibleWindowIDs: Set<UInt32> {
         Set(session?.items.map(\.id) ?? [])
+    }
+
+    /// Whether the outside-click monitor is installed: from the turn after a session opens until it closes.
+    var hasOutsideClickMonitor: Bool {
+        outsideClickMonitor != nil
     }
 
     func update(configuration: SwitcherConfiguration) {
@@ -243,9 +248,12 @@ final class SwitcherController {
             displayNumbers: DisplayInfo.numbers(for: displays)
         )
         rebuildItems()
-        startOutsideClickMonitor()
-        // Hiding the Dock's preview is AppKit work, which the tap callback never waits on.
-        Task { [weak self] in self?.onOpen?() }
+        // The outside-click monitor and hiding the Dock's preview are AppKit work, which the tap callback never waits on.
+        let token = nextToken
+        Task { [weak self] in
+            self?.startOutsideClickMonitor(forSession: token)
+            self?.onOpen?()
+        }
         let store = store
         Task { await store.refresh() }
     }
@@ -365,9 +373,11 @@ final class SwitcherController {
         }
     }
 
-    /// A click in another app cancels, like clicking outside a menu. Installed only while open.
-    private func startOutsideClickMonitor() {
-        guard outsideClickMonitor == nil else { return }
+    /// A click in another app cancels, like clicking outside a menu. Installed on the main-actor turn after session
+    /// `token` opened, outside the tap callback, and only while that session is still open: one that closed first gets
+    /// none, and `closeSession` removes it.
+    private func startOutsideClickMonitor(forSession token: Int) {
+        guard session?.token == token, outsideClickMonitor == nil else { return }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [
             .leftMouseDown,
             .rightMouseDown,
