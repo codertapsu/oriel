@@ -33,6 +33,7 @@ enum OCRLayout {
         case .asRecognized: Array(kept.indices)
         case .readingOrder: readingOrder(kept.map(\.box))
         }
+        let languages = LanguageDetector.languageCodes(of: order.map { kept[$0].text })
         return order.enumerated().map { position, index in
             let candidate = kept[index]
             return OCRBlock(
@@ -41,7 +42,7 @@ enum OCRLayout {
                 boundingBox: candidate.box,
                 confidence: candidate.region.confidence,
                 lineCount: max(1, candidate.region.lineCount),
-                language: LanguageDetector.languageCode(of: candidate.text)
+                language: languages[position]
             )
         }
     }
