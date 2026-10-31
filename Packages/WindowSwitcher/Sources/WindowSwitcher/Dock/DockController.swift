@@ -37,6 +37,12 @@ final class DockController {
     private var layoutSchedule = DockLayoutSchedule()
     private var hoverReads = 0
     private var bundleIDs: [URL: String] = [:]
+    /// What the preview shows, which a snapshot that changes none of it leaves alone.
+    private var shownItems: [SwitcherItem] = []
+    /// Screen Recording, checked when a preview opens.
+    private var canCapture = false
+    /// Windows whose capture gave nothing during this preview, with whether they were minimized or hidden then.
+    private var failedCaptures: [UInt32: Bool] = [:]
     private var eventTask: Task<Void, Never>?
     private var showTask: Task<Void, Never>?
     private var hideTask: Task<Void, Never>?
@@ -408,13 +414,22 @@ final class DockController {
         }
     }
 
-    /// Shows the icon's windows next to it; `isNew` when it is another app's, which captures them afresh.
+    /// Shows the icon's windows next to it; `isNew` when it is another app's, which captures them afresh. A store
+    /// snapshot shows them again only when they changed.
     private func showPreview(for item: DockItem, isNew: Bool) {
         let windows = windows(for: item)
         guard let first = windows.first, let screen = ScreenLocator.screen(containing: item.frame) else {
             apply(machine.handle(.emptied))
             return
         }
+        let displays = DisplayDirectory.current()
+        let items = SwitcherItemBuilder.items(
+            from: windows, style: .thumbnails, query: "", displayNumbers: DisplayInfo.numbers(for: displays),
+            panelDisplayID: ScreenLocator.displayID(of: screen)
+        )
+        // A snapshot that changed none of them (another app's window title, say) leaves the preview as it is.
+        guard isNew || items != shownItems else { return }
+        shownItems = items
         let edge = layout?.edge ?? DockLayout.edge(nearest: item.frame, on: ScreenLocator.cgFrame(of: screen))
         let visible = screen.visibleFrame
         let available = CGSize(
@@ -425,11 +440,6 @@ final class DockController {
         let frame = DockPreviewLayout.panelFrame(
             size: grid.panelSize, icon: ScreenLocator.cocoaRect(fromCG: item.frame), edge: edge, visibleFrame: visible
         )
-        let displays = DisplayDirectory.current()
-        let items = SwitcherItemBuilder.items(
-            from: windows, style: .thumbnails, query: "", displayNumbers: DisplayInfo.numbers(for: displays),
-            panelDisplayID: ScreenLocator.displayID(of: screen)
-        )
         let icon = icons.icon(for: first.info.pid, bundleID: first.info.bundleID)
         panel.show(items, title: item.title.isEmpty ? first.info.appName : item.title, icon: icon, layout: grid, frame: frame)
         startMonitors()
@@ -438,36 +448,10 @@ final class DockController {
 
     private func closePreview() {
         panel.hide()
+        shownItems = []
         thumbnailTask?.cancel()
         thumbnailTask = nil
         stopMonitors()
-    }
-
-    /// Cached thumbnails at once, then fresh captures for a new preview; nothing without Screen Recording, when the tiles
-    /// keep the app's icon.
-    private func requestThumbnails(for items: [SwitcherItem], grid: DockPreviewLayout, scale: CGFloat, isNew: Bool) {
-        thumbnailTask?.cancel()
-        guard !items.isEmpty, CGPreflightScreenCaptureAccess() else { return }
-        let caption = LayoutMetrics.thumbnails(maximumTileWidth: 0).captionHeight
-        let box = CGSize(width: (grid.tileSize.width - 12) * scale, height: (grid.tileSize.height - caption - 6) * scale)
-        let requests = items.map { item in
-            let size = item.entry.info.frame.size
-            return ThumbnailRequest(
-                windowID: item.id,
-                pixelSize: ThumbnailRequest.fittedSize(window: CGSize(width: size.width * scale, height: size.height * scale), in: box)
-            )
-        }
-        let thumbnails = thumbnails
-        let ids = Set(items.map(\.id))
-        thumbnailTask = Task { [weak self] in
-            if isNew {
-                await thumbnails.beginSession(windowIDs: ids)
-            }
-            for await result in await thumbnails.thumbnails(for: requests) {
-                guard !Task.isCancelled else { break }
-                self?.panel.setThumbnail(result.image, for: result.windowID)
-            }
-        }
     }
 
     private func focus(_ entry: WindowEntry) {
@@ -532,5 +516,61 @@ final class DockController {
         )
         guard !keeps else { return }
         apply(machine.handle(.hovered(nil)))
+    }
+}
+
+// MARK: Thumbnails
+
+extension DockController {
+    /// Cached thumbnails at once, then fresh captures for a new preview; nothing without Screen Recording, checked once per
+    /// preview, when the tiles keep the app's icon. A window whose capture gave nothing (a minimized one) keeps its cached
+    /// image, if any, and is not captured again during the preview until it is minimized, restored, hidden or shown.
+    private func requestThumbnails(for items: [SwitcherItem], grid: DockPreviewLayout, scale: CGFloat, isNew: Bool) {
+        thumbnailTask?.cancel()
+        if isNew {
+            canCapture = CGPreflightScreenCaptureAccess()
+            failedCaptures = [:]
+        }
+        guard !items.isEmpty, canCapture else { return }
+        let caption = LayoutMetrics.thumbnails(maximumTileWidth: 0).captionHeight
+        let box = CGSize(width: (grid.tileSize.width - 12) * scale, height: (grid.tileSize.height - caption - 6) * scale)
+        let skipped = items.filter { failedCaptures[$0.id] == Self.isOffScreen($0.entry) }.map(\.id)
+        let wanted = items.filter { !skipped.contains($0.id) }
+        let requests = wanted.map { item in
+            let size = item.entry.info.frame.size
+            return ThumbnailRequest(
+                windowID: item.id,
+                pixelSize: ThumbnailRequest.fittedSize(window: CGSize(width: size.width * scale, height: size.height * scale), in: box)
+            )
+        }
+        let thumbnails = thumbnails
+        let offScreen = Dictionary(uniqueKeysWithValues: wanted.map { ($0.id, Self.isOffScreen($0.entry)) })
+        thumbnailTask = Task { [weak self] in
+            if isNew {
+                await thumbnails.beginSession(windowIDs: Set(offScreen.keys))
+            }
+            for id in skipped {
+                if let cached = await thumbnails.cachedThumbnail(for: id) {
+                    self?.panel.setThumbnail(cached.image, for: id)
+                }
+            }
+            var captured: Set<UInt32> = []
+            for await result in await thumbnails.thumbnails(for: requests) {
+                guard !Task.isCancelled else { break }
+                if result.isFresh {
+                    captured.insert(result.windowID)
+                }
+                self?.panel.setThumbnail(result.image, for: result.windowID)
+            }
+            guard !Task.isCancelled, let self else { return }
+            for (id, wasOffScreen) in offScreen where !captured.contains(id) {
+                failedCaptures[id] = wasOffScreen
+            }
+        }
+    }
+
+    /// Minimized or hidden, when a window cannot be captured.
+    private static func isOffScreen(_ entry: WindowEntry) -> Bool {
+        entry.info.isMinimized || entry.info.isHidden
     }
 }

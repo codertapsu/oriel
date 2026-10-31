@@ -16,6 +16,8 @@ final class DockPreviewPanel {
     private let iconView = NSImageView()
     private let titleField = NSTextField(labelWithString: "")
     private var tiles: [WindowTileView] = []
+    /// The window whose tile the pointer is on, which stays highlighted when the tiles are shown again.
+    private var highlighted: UInt32?
     private(set) var isVisible = false
 
     init() {
@@ -67,8 +69,8 @@ final class DockPreviewPanel {
             let tile = tiles[index]
             tile.frame = layout.frame(ofTile: index)
             tile.configure(item, icon: icon, display: display)
-            tile.isSelected = false
-            tile.onHover = { [weak self] in self?.highlight(index) }
+            tile.isSelected = item.id == highlighted
+            tile.onHover = { [weak self] in self?.highlight(item.id) }
             tile.onClick = { [weak self] in self?.onClick?(item.entry) }
             tile.onAction = { [weak self] action in self?.onAction?(item.entry, action) }
         }
@@ -98,9 +100,10 @@ final class DockPreviewPanel {
         highlight(nil)
     }
 
-    private func highlight(_ index: Int?) {
-        for (position, tile) in tiles.enumerated() {
-            tile.isSelected = position == index
+    private func highlight(_ windowID: UInt32?) {
+        highlighted = windowID
+        for tile in tiles {
+            tile.isSelected = windowID != nil && tile.item?.id == windowID
         }
     }
 }
