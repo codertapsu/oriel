@@ -229,13 +229,26 @@ final nonisolated class ScanEngine: @unchecked Sendable {
         }
         if stack.isEmpty, mayNeedRecounts, !isFullScan, !cancellation.isCancelled {
             mayNeedRecounts = false
-            stack = tree.foldersToRecount().filter { Self.canReadAgain($0, in: tree) }.map { folder in
-                Self.rereading(folder, in: tree, keepsSubfolders: true)
-            }
+            stack = foldersToRecount()
         }
         guard !cancellation.isCancelled, let item = stack.popLast() else { return nil }
         active += 1
         return item
+    }
+
+    /// The folders to read again so that each file whose counted link went is counted at another (`ScanTree`'s
+    /// `foldersToRecount()`). One a refresh may not read again, read as an administrator or macOS's own, is passed over,
+    /// and the next folder holding a link of the same file is taken in its place. Called with the lock held.
+    private func foldersToRecount() -> [WorkItem] {
+        var folders = tree.foldersToRecount()
+        while !folders.isEmpty {
+            let readable = folders.filter { Self.canReadAgain($0, in: tree) }
+            if !readable.isEmpty {
+                return readable.map { Self.rereading($0, in: tree, keepsSubfolders: true) }
+            }
+            folders = tree.foldersToRecount()
+        }
+        return []
     }
 
     private func digest(of read: DirectoryReadResult, item: WorkItem, categories: inout FileCategoryCache) -> DirectoryDigest? {

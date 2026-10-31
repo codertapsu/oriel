@@ -59,6 +59,12 @@ nonisolated struct ScanTree: Sendable {
     }
 
     func contains(_ index: Int32) -> Bool {
+        Self.contains(index, in: nodes)
+    }
+
+    /// Whether `index` is one of `nodes` and not removed: `contains(_:)` for the registry while the tree changes it, since
+    /// passing the tree's own would copy the tree, and so the registry, on each change.
+    private static func contains(_ index: Int32, in nodes: [ScanNode]) -> Bool {
         index >= 0 && Int(index) < nodes.count && !nodes[Int(index)].isRemoved
     }
 
@@ -137,7 +143,8 @@ nonisolated struct ScanTree: Sendable {
 
     /// Adds `digest`'s files with several hard links and its smaller files to `folder`, after its other items. A file the
     /// tree has not counted, or whose counted link is no longer in it, is counted at its first link here; any other link
-    /// gets no size. The node that carries the size is recorded, and smaller files with a further link as holding it.
+    /// gets no size. The node that carries the size is recorded, and smaller files with a further link join those holding
+    /// one.
     mutating func appendLinksAndSmallFiles(of digest: inout DirectoryDigest, to folder: Int32) {
         var summed: [HardLinkRegistry.Identity] = []
         var held: [HardLinkRegistry.Identity] = []
@@ -159,16 +166,19 @@ nonisolated struct ScanTree: Sendable {
         for file in summed {
             hardLinks.count(file, at: small)
         }
+        let nodes = nodes
         for file in held {
-            hardLinks.hold(file, at: small)
+            hardLinks.hold(file, at: small) { Self.contains($0, in: nodes) }
         }
     }
 
     /// The folders to read again because their smaller files hold a further link of a file whose counted link has left
-    /// the tree: deleted, moved, or no longer in its folder's listing. Read again, one of them counts the file. Each
-    /// folder is handed out once for a file; a file no folder holds is forgotten, so the next listing of a link counts it.
+    /// the tree: deleted, moved, or no longer in its folder's listing. Read again, one of them counts the file. One folder
+    /// is handed out for a file at a time, each once: should it no longer hold the link, the next call hands out another
+    /// still in the tree. A file no folder holds is forgotten, so the next listing of a link counts it.
     mutating func foldersToRecount() -> Set<Int32> {
-        let holders = hardLinks.takeRecounts(isLive: contains)
+        let nodes = nodes
+        let holders = hardLinks.takeRecounts { Self.contains($0, in: nodes) }
         return Set(holders.map { nodes[Int($0)].parent }.filter(contains))
     }
 

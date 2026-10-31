@@ -5,8 +5,8 @@
 ///
 /// It records which node carries each file's size: the link's own when it is kept one by one, else its folder's
 /// smaller files. Both go when that folder is listed again or removed, and the file then waits for another link to
-/// count it: the next listing of one does, and the smaller files that hold one are handed out to be read again
-/// (`takeRecounts`).
+/// count it: the next listing of one does, and the smaller files that hold one, every one of them recorded, are handed
+/// out to be read again, one at a time (`takeRecounts`).
 nonisolated struct HardLinkRegistry: Sendable {
     /// A file: its volume's device number and its inode.
     struct Identity: Hashable, Sendable, Codable {
@@ -17,8 +17,9 @@ nonisolated struct HardLinkRegistry: Sendable {
     private struct Entry {
         /// The node that carries the file's size.
         var counter: Int32
-        /// Smaller files, of another folder, that hold a further link of the file.
-        var holder = ScanNode.none
+        /// Smaller files that hold a further link of the file, oldest first: every one, since any of them may be the one
+        /// left when the counted link goes. Most such files have two links, so one holder.
+        var holders: [Int32] = []
     }
 
     private var entries: [Identity: Entry] = [:]
@@ -33,48 +34,52 @@ nonisolated struct HardLinkRegistry: Sendable {
         entries[file, default: Entry(counter: node)].counter = node
     }
 
-    /// Records that `node`, smaller files, holds a further link of `file`, which is counted elsewhere.
-    mutating func hold(_ file: Identity, at node: Int32) {
-        entries[file]?.holder = node
+    /// Records that `node`, smaller files, holds a further link of `file`, which is counted elsewhere. The holders that
+    /// `isLive` rejects are dropped, so a folder listed again, whose smaller files are a new node, holds the file once.
+    mutating func hold(_ file: Identity, at node: Int32, isLive: (Int32) -> Bool) {
+        entries[file]?.holders.removeAll { $0 == node || !isLive($0) }
+        entries[file]?.holders.append(node)
     }
 
     /// The registry for a tree whose nodes were renumbered (`ScanTree.compacted()`): `map` gives each kept node's new
-    /// index. A file whose counter and holder were both dropped is forgotten.
+    /// index. The holders it dropped are forgotten, and so is a file whose counter and holders were all dropped.
     func renumbered(by map: [Int32: Int32]) -> HardLinkRegistry {
         var renumbered = HardLinkRegistry()
         renumbered.entries.reserveCapacity(entries.count)
         for (file, entry) in entries {
             let counter = map[entry.counter] ?? ScanNode.none
-            let holder = map[entry.holder] ?? ScanNode.none
-            if counter != ScanNode.none || holder != ScanNode.none {
-                renumbered.entries[file] = Entry(counter: counter, holder: holder)
+            let holders = entry.holders.compactMap { map[$0] }
+            if counter != ScanNode.none || !holders.isEmpty {
+                renumbered.entries[file] = Entry(counter: counter, holders: holders)
             }
         }
         return renumbered
     }
 
     /// The smaller files holding a further link of a file whose counter `isLive` rejects: read again, their folder
-    /// counts it. Each holder is handed out once; a file no live node holds is forgotten, so the next listing of one of
-    /// its links counts it.
+    /// counts it. One holder is handed out per file, the oldest `isLive` accepts, whose folder has not changed for the
+    /// longest, and only once; the others wait, in case that folder no longer holds the link. A file no live node holds
+    /// is forgotten, so the next listing of one of its links counts it.
     mutating func takeRecounts(isLive: (Int32) -> Bool) -> Set<Int32> {
-        var holders = Set<Int32>()
-        var taken: [Identity] = []
+        var handedOut = Set<Int32>()
+        var waiting: [(file: Identity, holders: [Int32])] = []
         var forgotten: [Identity] = []
         for (file, entry) in entries where !isLive(entry.counter) {
-            if isLive(entry.holder) {
-                holders.insert(entry.holder)
-                taken.append(file)
-            } else {
+            var holders = entry.holders.filter(isLive)
+            guard !holders.isEmpty else {
                 forgotten.append(file)
+                continue
             }
+            handedOut.insert(holders.removeFirst())
+            waiting.append((file, holders))
         }
-        for file in taken {
-            entries[file]?.holder = ScanNode.none
+        for (file, holders) in waiting {
+            entries[file]?.holders = holders
         }
         for file in forgotten {
             entries[file] = nil
         }
-        return holders
+        return handedOut
     }
 
     var count: Int {

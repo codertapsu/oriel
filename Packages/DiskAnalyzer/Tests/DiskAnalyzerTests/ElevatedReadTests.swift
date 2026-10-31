@@ -214,6 +214,41 @@ struct ElevatedReadTests {
         #expect(read.summary.categories.totalBytes == expected)
     }
 
+    /// A folder read as an administrator can hold a further link of a file, but a refresh cannot read it again: when the
+    /// file's counted link goes, it is passed over and the folder the user can read that holds another link counts the
+    /// file, though the one read as an administrator holds the older link, its own having changed since.
+    @Test func aFolderReadAsAdministratorIsPassedOverWhenAFileIsCountedAgain() async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("a/x.bin", size: 4_000_000)
+        let size = Fixtures.allocated(original)
+        for name in ["b", "Locked"] {
+            try folder.folder(name)
+            #expect(link(original.path, folder.path + "/\(name)/x.bin") == 0)
+        }
+        // What root lists, read here while the folder is still open, and sent as the helper sends it.
+        let listed = ElevatedRead.read(ElevatedRead.Request(folders: [folder.path + "/Locked"]))
+        let result = try JSONDecoder().decode(ElevatedRead.Result.self, from: JSONEncoder().encode(listed))
+        #expect(chmod(folder.path + "/Locked", 0) == 0)
+        defer { chmod(folder.path + "/Locked", 0o755) }
+        let target = ScanTarget(requestedPath: folder.path, scanPath: folder.path, displayName: "Fixture", firmlinks: .empty)
+        let scanned = await ScanEngine.scan(target, options: ScanOptions(), cancellation: CancellationFlag())
+        let read = DiskAnalyzerModel.adding(
+            result, folders: [folder.path + "/Locked"], to: scanned.tree, summary: scanned.summary, volume: nil
+        )
+        let folders = try ["a", "b"].map { try #require(read.tree.index(ofPath: folder.path + "/" + $0)) }
+        let counted = try #require(folders.first { read.tree[$0].size > 0 })
+        let other = try #require(folders.first { $0 != counted })
+        let changed = await ScanEngine.refresh(
+            read.tree, folders: [other], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        try FileManager.default.removeItem(atPath: read.tree.path(of: counted) + "/x.bin")
+        let refreshed = await ScanEngine.refresh(
+            changed.tree, folders: [counted], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        #expect(refreshed.tree.root.size == size)
+        #expect(refreshed.tree[other].size == size)
+    }
+
     /// What root read was part of the volume's Other space, which is summed again, so the volume still adds up. A scan
     /// stopped part way gets no Other space, as after the scan, since most of what it holds would be in it.
     @Test(arguments: [false, true])

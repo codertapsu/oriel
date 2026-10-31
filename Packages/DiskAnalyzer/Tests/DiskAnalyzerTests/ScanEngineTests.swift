@@ -102,6 +102,35 @@ struct ScanEngineTests {
         #expect(refreshed.tree[counted].size == 0)
     }
 
+    /// Every folder holding a further link of a file is remembered: when the folder whose link carried the file's size
+    /// goes with another holding a link, the third link counts the file, whichever of the other two went. One thread reads
+    /// the folders in the same order every time, so one of the two cases takes away the further link the scan read last.
+    @Test(arguments: [0, 1])
+    func aFileIsCountedAtItsThirdLinkWhenTheCountedOneAndAnotherGo(_ alsoGone: Int) async throws {
+        let folder = try TemporaryFolder()
+        let original = try folder.file("a/x.bin", size: 4_000_000)
+        let size = allocated(original)
+        for name in ["b", "c"] {
+            try folder.folder(name)
+            #expect(link(original.path, folder.path + "/\(name)/x.bin") == 0)
+        }
+        var options = ScanOptions()
+        options.workerCount = 1
+        let first = await scan(folder, options: options)
+        let folders = try ["a", "b", "c"].map { try #require(first.tree.index(ofPath: folder.path + "/" + $0)) }
+        let counted = try #require(folders.first { first.tree[$0].size > 0 })
+        let others = folders.filter { $0 != counted }
+        for gone in [counted, others[alsoGone]] {
+            try FileManager.default.removeItem(atPath: first.tree.path(of: gone))
+        }
+        let refreshed = await ScanEngine.refresh(
+            first.tree, folders: [ScanTree.rootIndex], recursive: [], options: ScanOptions(), cancellation: CancellationFlag()
+        )
+        #expect(refreshed.tree.root.size == size)
+        #expect(refreshed.tree[others[1 - alsoGone]].size == size)
+        #expect(refreshed.tree.root.fileCount == 1)
+    }
+
     /// A folder moved with hard links inside is counted once whichever of the two folders is read first: here the one
     /// it went to, while its old copy is still in the scan, and only then the one it left.
     @Test func aFolderMovedWithItsLinksIsCountedOnce() async throws {

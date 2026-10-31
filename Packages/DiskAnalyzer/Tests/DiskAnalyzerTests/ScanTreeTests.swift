@@ -140,9 +140,60 @@ struct ScanTreeTests {
         #expect(tree[folderB].size == 3_000_000)
     }
 
-    /// The listing of a folder holding `name`, a link of a 3 MB file with another link.
-    private func linkListing(_ name: String) -> DirectoryDigest {
-        Fixtures.digest([Fixtures.entry(name, size: 3_000_000, inode: 42, links: 2)], countsLinks: false)
+    /// Every folder whose smaller files hold a further link of a file is remembered, not only the one listed last: when
+    /// the folder whose link carried the file's size goes with either of the two others, the one left is handed out to be
+    /// read again, through compaction too, and counts the file.
+    @Test(arguments: ["B", "C"])
+    func everyFolderHoldingAFurtherLinkIsRemembered(_ alsoGone: String) throws {
+        var tree = Fixtures.tree(["A/": 0, "B/": 0, "C/": 0, "Gone/old.bin": 2_000_000])
+        for folder in ["A", "B", "C"] {
+            var listing = linkListing(folder.lowercased() + ".bin", links: 3)
+            _ = try tree.merge(&listing, into: #require(Fixtures.index(folder, in: tree)))
+        }
+        try tree.remove(#require(Fixtures.index("Gone", in: tree)))
+        tree = tree.compacted()
+        try tree.remove(#require(Fixtures.index("A", in: tree)))
+        try tree.remove(#require(Fixtures.index(alsoGone, in: tree)))
+        let left = alsoGone == "B" ? "C" : "B"
+        let folder = try #require(Fixtures.index(left, in: tree))
+        #expect(tree.foldersToRecount() == [folder])
+        #expect(tree.foldersToRecount().isEmpty)
+        var recount = linkListing(left.lowercased() + ".bin", links: 3)
+        _ = tree.replaceContents(of: folder, with: &recount)
+        tree.recomputeTotals(dirty: [folder])
+        #expect(recount.duplicateLinks == 0)
+        #expect(tree.root.size == 3_000_000)
+        #expect(tree[folder].size == 3_000_000)
+    }
+
+    /// A folder handed out that no longer holds the link, read again, does not count the file, so the next time the
+    /// folders to read again are asked for, the other folder holding one is handed out and counts it.
+    @Test func theNextFolderHoldingALinkIsHandedOutWhenOneNoLongerHoldsIt() throws {
+        var tree = Fixtures.tree(["A/": 0, "B/": 0, "C/": 0])
+        for folder in ["A", "B", "C"] {
+            var listing = linkListing(folder.lowercased() + ".bin", links: 3)
+            _ = try tree.merge(&listing, into: #require(Fixtures.index(folder, in: tree)))
+        }
+        let holders = try Set(["B", "C"].map { try #require(Fixtures.index($0, in: tree)) })
+        try tree.remove(#require(Fixtures.index("A/a.bin", in: tree)))
+        let handedOut = tree.foldersToRecount()
+        #expect(handedOut.count == 1)
+        let first = try #require(handedOut.first)
+        var emptied = DirectoryDigest()
+        _ = tree.replaceContents(of: first, with: &emptied)
+        let second = try #require(tree.foldersToRecount().first)
+        #expect(Set([first, second]) == holders)
+        var recount = linkListing(tree.name(of: second).lowercased() + ".bin", links: 3)
+        _ = tree.replaceContents(of: second, with: &recount)
+        tree.recomputeTotals(dirty: [first, second])
+        #expect(recount.duplicateLinks == 0)
+        #expect(tree.root.size == 3_000_000)
+        #expect(tree.foldersToRecount().isEmpty)
+    }
+
+    /// The listing of a folder holding `name`, a link of a 3 MB file with `links` links in all.
+    private func linkListing(_ name: String, links: UInt32 = 2) -> DirectoryDigest {
+        Fixtures.digest([Fixtures.entry(name, size: 3_000_000, inode: 42, links: links)], countsLinks: false)
     }
 
     /// An aggregate of smaller files keeps the kinds of the files it sums, so File Types and the further links are summed
