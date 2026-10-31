@@ -50,15 +50,18 @@ actor DockAccessibility {
         removeObserver()
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, AXClient.messagingTimeout)
-        guard let list = AXAttributeReader.elements(kAXChildrenAttribute, of: app)?
-            .first(where: { AXAttributeReader.string(kAXRoleAttribute, of: $0) == kAXListRole })
+        // A timeout belongs to its element: the children do not inherit the application's, so each gets its own before
+        // it is asked anything.
+        guard let list = AXAttributeReader.elements(kAXChildrenAttribute, of: app)?.first(where: { child in
+            AXUIElementSetMessagingTimeout(child, AXClient.messagingTimeout)
+            return AXAttributeReader.string(kAXRoleAttribute, of: child) == kAXListRole
+        })
         else {
             self.pid = nil
             list = nil
             log.notice("the Dock did not answer; its previews and counts wait for the next change")
             return false
         }
-        AXUIElementSetMessagingTimeout(list, AXClient.messagingTimeout)
         self.pid = pid
         self.list = list
         var created: AXObserver?
