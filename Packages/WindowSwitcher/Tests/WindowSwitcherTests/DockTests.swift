@@ -131,7 +131,7 @@ struct DockTests {
             Self.window(2, pid: 10, bundleID: "com.google.Chrome"),
         ]
         let map = DockWindowMap.windows(
-            for: items, bundleIDs: [0: "com.google.Chrome", 1: "com.microsoft.VSCode"],
+            for: items, bundleIDs: [0: "com.google.Chrome", 1: "com.microsoft.VSCode"], files: [:],
             processes: [.init(pid: 10, bundleID: "com.google.Chrome"), .init(pid: 20, bundleID: "com.microsoft.VSCode")],
             entries: entries
         )
@@ -148,14 +148,46 @@ struct DockTests {
             Self.window(3, pid: 20, bundleID: "com.microsoft.VSCode"),
         ]
         let ids = [0: "com.microsoft.VSCode", 1: "com.microsoft.VSCode"]
+        // One copy of the app, run twice.
+        let file = DockWindowMap.FileID(device: 1, inode: 7)
+        let files = [0: file, 1: file]
         // pid 20 started first, so it has the first icon.
-        let started = [DockWindowMap.Process(pid: 20, bundleID: "com.microsoft.VSCode"), .init(pid: 21, bundleID: "com.microsoft.VSCode")]
-        let map = DockWindowMap.windows(for: items, bundleIDs: ids, processes: started, entries: entries)
+        let started = [
+            DockWindowMap.Process(pid: 20, bundleID: "com.microsoft.VSCode", file: file),
+            .init(pid: 21, bundleID: "com.microsoft.VSCode", file: file),
+        ]
+        let map = DockWindowMap.windows(for: items, bundleIDs: ids, files: files, processes: started, entries: entries)
         #expect(map[0]?.map(\.id) == [2, 3])
         #expect(map[1]?.map(\.id) == [1])
-        // When the icons and processes do not pair up, each icon stands for all of them.
-        let one = DockWindowMap.windows(for: items, bundleIDs: ids, processes: Array(started.prefix(1)), entries: entries)
-        #expect(one[0]?.count == 3 && one[1]?.count == 3)
+        // When the icons and processes do not pair up (one has just quit), each icon stands for the windows of all of them.
+        let one = DockWindowMap.windows(for: items, bundleIDs: ids, files: files, processes: Array(started.prefix(1)), entries: entries)
+        #expect(one[0]?.map(\.id) == [2, 3] && one[1]?.map(\.id) == [2, 3])
+    }
+
+    @Test func copiesOfAnAppAreToldApartByTheirBundle() {
+        // Xcode and Xcode-beta, both kept in the Dock, have one bundle ID.
+        let items = [
+            Self.item(URL(fileURLWithPath: "/Applications/Xcode.app"), y: 100),
+            Self.item(URL(fileURLWithPath: "/Applications/Xcode-beta.app"), y: 140),
+        ]
+        let ids = [0: "com.apple.dt.Xcode", 1: "com.apple.dt.Xcode"]
+        let files = [0: DockWindowMap.FileID(device: 1, inode: 10), 1: DockWindowMap.FileID(device: 1, inode: 20)]
+        let release = DockWindowMap.Process(pid: 30, bundleID: "com.apple.dt.Xcode", file: files[0])
+        let beta = DockWindowMap.Process(pid: 31, bundleID: "com.apple.dt.Xcode", file: files[1])
+        let entries = [
+            Self.window(1, pid: 30, bundleID: "com.apple.dt.Xcode"), Self.window(2, pid: 31, bundleID: "com.apple.dt.Xcode"),
+            Self.window(3, pid: 31, bundleID: "com.apple.dt.Xcode"),
+        ]
+        // Only the beta runs: Xcode's icon stands for nothing.
+        let betaOnly = DockWindowMap.windows(
+            for: items, bundleIDs: ids, files: files, processes: [beta], entries: entries.filter { $0.info.pid == 31 }
+        )
+        #expect((betaOnly[0] ?? []).isEmpty)
+        #expect(betaOnly[1]?.map(\.id) == [2, 3])
+        // Both run, the beta started first: each icon still has its own copy's windows.
+        let both = DockWindowMap.windows(for: items, bundleIDs: ids, files: files, processes: [beta, release], entries: entries)
+        #expect(both[0]?.map(\.id) == [1])
+        #expect(both[1]?.map(\.id) == [2, 3])
     }
 
     // MARK: Counts

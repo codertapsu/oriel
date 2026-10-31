@@ -314,12 +314,34 @@ final class DockController {
         for (index, item) in items.enumerated() where item.kind == .application {
             ids[index] = item.url.flatMap(bundleID(of:))
         }
+        // Icons that share a bundle ID are told apart by the bundle each process runs from.
+        let iconCounts = Dictionary(ids.values.map { ($0, 1) }, uniquingKeysWith: +)
+        let shared = Set(iconCounts.filter { $0.value > 1 }.keys)
+        var files: [Int: DockWindowMap.FileID] = [:]
+        for (index, id) in ids where shared.contains(id) {
+            files[index] = items[index].url.flatMap(Self.fileID(of:))
+        }
         let wanted = Set(ids.values)
         let processes = NSWorkspace.shared.runningApplications
             .filter { !$0.isTerminated && $0.bundleIdentifier.map(wanted.contains) == true }
             .sorted { ($0.launchDate ?? .distantFuture, $0.processIdentifier) < ($1.launchDate ?? .distantFuture, $1.processIdentifier) }
-            .compactMap { app in app.bundleIdentifier.map { DockWindowMap.Process(pid: app.processIdentifier, bundleID: $0) } }
-        return DockWindowMap.windows(for: items, bundleIDs: ids, processes: processes, entries: entries)
+            .compactMap { app in
+                app.bundleIdentifier.map { id in
+                    DockWindowMap.Process(
+                        pid: app.processIdentifier,
+                        bundleID: id,
+                        file: shared.contains(id) ? app.bundleURL.flatMap(Self.fileID(of:)) : nil
+                    )
+                }
+            }
+        return DockWindowMap.windows(for: items, bundleIDs: ids, files: files, processes: processes, entries: entries)
+    }
+
+    /// The bundle at `url` as a file, the same for every path to it; nil when it is gone.
+    private static func fileID(of url: URL) -> DockWindowMap.FileID? {
+        var info = stat()
+        let found = url.withUnsafeFileSystemRepresentation { path in path.map { stat($0, &info) == 0 } ?? false }
+        return found ? DockWindowMap.FileID(device: info.st_dev, inode: info.st_ino) : nil
     }
 
     private func windows(for item: DockItem) -> [WindowEntry] {
