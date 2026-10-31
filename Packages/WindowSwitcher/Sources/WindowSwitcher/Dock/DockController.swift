@@ -6,7 +6,8 @@ import SharedUI
 /// Window previews when the pointer rests on a Dock icon, and window counts on Dock icons (PLAN §7.1.12), from the
 /// switcher's store. It reads the Dock through `DockAccessibility` and reacts to events only: the Dock's hover and icon
 /// notifications, the store's snapshots, the Dock's preferences file, screen and Space changes, app activations and clicks.
-/// Every delay is a one-shot sleep that the next event replaces (CLAUDE.md rule 3).
+/// After an app comes forward it reads the Dock again, since an app can hide the Dock without a word. Every delay is a
+/// one-shot sleep that the next event replaces (CLAUDE.md rule 3).
 final class DockController {
     /// After an icon is added or removed, or the Dock's settings change, the Dock moves its icons into place.
     static let settleDelay: Duration = .milliseconds(700)
@@ -14,6 +15,8 @@ final class DockController {
     static let leaveDelay: Duration = .milliseconds(400)
     /// A Dock coming out, one that hides itself or one that moved to another display, slides into place first.
     static let slideDelay: Duration = .milliseconds(300)
+    /// After an app comes forward, the Dock slides away when the app hides it and back when the app before it did.
+    static let activationDelay: Duration = .milliseconds(700)
 
     private let store: WindowStore
     private let source: any WindowSource
@@ -36,6 +39,9 @@ final class DockController {
     private var isPointerInDock = false
     /// While the Dock moves its icons into place, the counts step aside.
     private var isSettling = false
+    /// Whether the Dock was out where its icons were read when last seen; the counts step aside while it is not, as when
+    /// an app hides it through its presentation options.
+    private var isDockOut = true
     private var layoutSchedule = DockLayoutSchedule()
     private var hoverReads = 0
     private var bundleIDs: [URL: String] = [:]
@@ -141,6 +147,7 @@ final class DockController {
         layoutSchedule = DockLayoutSchedule()
         isPointerInDock = false
         isSettling = false
+        isDockOut = true
         icons.removeAll()
         Task { await dock.stop() }
     }
@@ -163,8 +170,10 @@ final class DockController {
         observe(NSApplication.didChangeScreenParametersNotification, on: .default) { [weak self] in
             self?.scheduleLayout(after: Self.settleDelay, hidingCounts: true)
         }
-        // Back from a full-screen Space, where the Dock hides, nothing else reads it again.
+        // Back from a full-screen Space, where the Dock hides, nothing else reads it again. The counts come back at once,
+        // as the Dock does on a Space without an app that hides it; the read, and an app coming forward, tell.
         observe(NSWorkspace.activeSpaceDidChangeNotification, on: NSWorkspace.shared.notificationCenter) { [weak self] in
+            self?.setDockOut(true)
             self?.scheduleLayout(after: Self.settleDelay, hidingCounts: false)
         }
         preferencesWatcher.start { [weak self] in
@@ -267,6 +276,10 @@ final class DockController {
         if let item, let layout, layout.isOutdated(byHovered: item, displays: DisplayDirectory.current().map(\.bounds)) {
             scheduleLayout(after: Self.slideDelay, hidingCounts: true)
         }
+        // The pointer is on an icon: the Dock is out, even where an app hides it until the pointer comes.
+        if item != nil {
+            setDockOut(true)
+        }
         if showsPreviews {
             let app = item.flatMap { $0.kind == .application && !windows(for: $0).isEmpty ? $0 : nil }
             apply(machine.handle(.hovered(app)))
@@ -282,6 +295,7 @@ final class DockController {
     }
 
     private func appActivated() {
+        scheduleDockCheck()
         guard panel.isVisible else { return }
         apply(machine.handle(.dismissed))
     }
@@ -304,7 +318,8 @@ final class DockController {
 
     /// Stores the icons read, unless another read was asked for while this one ran: that one comes later and counts. A
     /// Dock read while hidden or sliding keeps the last layout read while it was out, and counts that stepped aside stay
-    /// aside until the next read.
+    /// aside until the next read. Read hidden with the pointer away from it, the Dock is not out, and the counts step aside
+    /// until it is: an app that hides it until the pointer comes (`.autoHideDock`) has it hide again when the pointer goes.
     private func readLayout() async {
         guard let dock else { return }
         let read = layoutSchedule.begin()
@@ -312,10 +327,14 @@ final class DockController {
         let fresh = await dock.layout(displays: displays)
         guard self.dock === dock, layoutSchedule.isCurrent(read) else { return }
         if let fresh, !fresh.isOnScreen(displays: displays) {
+            if !isPointerInDock {
+                setDockOut(false)
+            }
             return
         }
         layout = fresh
         isSettling = false
+        isDockOut = true
         refreshBadges()
     }
 
@@ -370,21 +389,6 @@ final class DockController {
         let id = Bundle(url: url)?.bundleIdentifier
         bundleIDs[url] = id
         return id
-    }
-
-    // MARK: Counts
-
-    private func refreshBadges() {
-        guard showsCounts, let layout, !isSettling, preferences.showsCounts(isHovering: isPointerInDock) else {
-            overlay.hide()
-            return
-        }
-        let windows = windowMap(for: layout.items)
-        let badges = layout.items.indices.compactMap { index -> DockBadgeOverlay.Badge? in
-            guard let text = DockBadgeLayout.text(for: windows[index]?.count ?? 0) else { return nil }
-            return DockBadgeOverlay.Badge(text: text, itemFrame: layout.items[index].frame)
-        }
-        overlay.show(badges, edge: layout.edge)
     }
 
     // MARK: Preview
@@ -522,6 +526,40 @@ final class DockController {
         )
         guard !keeps else { return }
         apply(machine.handle(.hovered(nil)))
+    }
+}
+
+// MARK: Counts
+
+extension DockController {
+    private func refreshBadges() {
+        guard showsCounts, let layout, !isSettling, isDockOut, preferences.showsCounts(isHovering: isPointerInDock) else {
+            overlay.hide()
+            return
+        }
+        let windows = windowMap(for: layout.items)
+        let badges = layout.items.indices.compactMap { index -> DockBadgeOverlay.Badge? in
+            guard let text = DockBadgeLayout.text(for: windows[index]?.count ?? 0) else { return nil }
+            return DockBadgeOverlay.Badge(text: text, itemFrame: layout.items[index].frame)
+        }
+        overlay.show(badges, edge: layout.edge)
+    }
+
+    /// Whether the Dock is still out where its icons were read, once an app that came forward has had it slide away
+    /// (`.hideDock`, `.autoHideDock` in its presentation options) or the app before it has had it slide back, which nothing
+    /// reports: the Dock is read again after a delay that the next activation replaces, and a read that finds it hidden
+    /// with the pointer away puts the counts aside (`readLayout`). The Dock's own window cannot tell: it covers the whole
+    /// display at the Dock's level whether the Dock shows or not (docs/os-quirks.md).
+    private func scheduleDockCheck() {
+        guard showsCounts else { return }
+        scheduleLayout(after: Self.activationDelay, hidingCounts: false)
+    }
+
+    /// The counts step aside while the Dock is not out, and come back when it is.
+    private func setDockOut(_ isOut: Bool) {
+        guard isOut != isDockOut else { return }
+        isDockOut = isOut
+        refreshBadges()
     }
 }
 
