@@ -95,6 +95,9 @@ extension InspectorViewController {
             case .needsAdministrator:
                 "Only its owner, macOS or another user, can open this folder, so what it holds is not counted. Full Disk Access "
                     + "does not change that; Read as Administrator, in the note above the views, does."
+            case .protectedByMacOS where model.hasFullDiskAccess == true:
+                "macOS keeps this folder from every app, even with Full Disk Access, which Oriel has: System Integrity "
+                    + "Protection guards macOS's own data there. What it holds is not counted."
             case .protectedByMacOS:
                 "macOS protects this folder, so what it holds is not counted. Full Disk Access opens it if it holds personal "
                     + "data; System Integrity Protection keeps it from every app."

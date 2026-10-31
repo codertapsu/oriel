@@ -64,7 +64,14 @@ extension InspectorViewController {
                 ))
             }
         }
-        if summary.protectedFolders > 0 {
+        if summary.protectedFolders > 0, model.hasFullDiskAccess == true {
+            views.append(PageParts.text("""
+            macOS keeps \(DiskFormat.count(summary.protectedFolders, "folder")) from every app, even with Full Disk Access, which \
+            Oriel has, and an administrator's password: System Integrity Protection guards macOS's own data there. Nothing can \
+            open them, and nothing needs to.
+            """, size: NSFont.smallSystemFontSize))
+            views += samples(summary.samples(.protectedByMacOS))
+        } else if summary.protectedFolders > 0 {
             views.append(PageParts.text("""
             macOS protects \(DiskFormat.count(summary.protectedFolders, "folder")). Full Disk Access opens those holding \
             personal data (Mail, Messages, Safari, other apps' data); System Integrity Protection keeps the rest from every \

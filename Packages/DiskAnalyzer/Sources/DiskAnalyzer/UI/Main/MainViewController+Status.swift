@@ -61,7 +61,16 @@ extension MainViewController {
             ) { [weak self] in self?.actions?.readAsAdministrator() })
         }
         let protected = summary.protectedFolders
-        if protected > 0 {
+        if protected > 0, model.hasFullDiskAccess == true {
+            // Full Disk Access has opened what it can: the rest is closed to every app.
+            notes.append(Note(
+                id: "protected",
+                symbol: "lock.shield",
+                tint: .secondaryLabelColor,
+                text: "\(DiskFormat.count(protected, "folder")) \(protected == 1 ? "is" : "are") kept from every app by macOS, "
+                    + "Full Disk Access and administrators included: System Integrity Protection guards its own data there."
+            ))
+        } else if protected > 0 {
             notes.append(Note(
                 id: "protected",
                 symbol: "lock.shield",

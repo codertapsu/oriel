@@ -62,6 +62,11 @@ final class DiskAnalyzerModel {
     /// changes it and before every read through it.
     var helperStatus = PrivilegedReader.Status.unavailable
 
+    /// Whether the open scan shows Full Disk Access in effect (`FullDiskAccessEvidence`); nil when it cannot tell.
+    var hasFullDiskAccess: Bool? {
+        tree.flatMap { FullDiskAccessEvidence.isGranted(in: $0, home: NSHomeDirectory()) }
+    }
+
     var duplicates = DuplicateSearch.idle
     /// The copies marked for removal in Duplicates.
     var duplicateMarks: Set<Int32> = []
