@@ -33,6 +33,15 @@ nonisolated struct DockLayout: Sendable, Equatable {
         return distances.min { $0.1 < $1.1 }?.0 ?? .bottom
     }
 
+    /// Whether the Dock was out, on one display, when it was read: a Dock that hides itself, or that a full-screen app
+    /// hides, reads beyond the display's edge, and one sliding in or out reads across it. Its icons are not where they
+    /// will be seen then.
+    func isOnScreen(displays: [CGRect]) -> Bool {
+        let area = items.reduce(frame) { $0.union($1.frame) }
+        guard let index = ScreenGeometry.bestDisplay(for: area, among: displays) else { return false }
+        return displays[index].insetBy(dx: -1, dy: -1).contains(area)
+    }
+
     /// Where an item read on its own (the hovered one) is among these: the app item with its URL under it, else the first
     /// with its URL.
     func index(of item: DockItem) -> Int? {

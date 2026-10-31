@@ -5,8 +5,8 @@ import SharedUI
 
 /// Window previews when the pointer rests on a Dock icon, and window counts on Dock icons (PLAN §7.1.12), from the
 /// switcher's store. It reads the Dock through `DockAccessibility` and reacts to events only: the Dock's hover and icon
-/// notifications, the store's snapshots, the Dock's preferences file, screen changes, app activations and clicks. Every
-/// delay is a one-shot sleep that the next event replaces (CLAUDE.md rule 3).
+/// notifications, the store's snapshots, the Dock's preferences file, screen and Space changes, app activations and clicks.
+/// Every delay is a one-shot sleep that the next event replaces (CLAUDE.md rule 3).
 final class DockController {
     /// After an icon is added or removed, or the Dock's settings change, the Dock moves its icons into place.
     static let settleDelay: Duration = .milliseconds(700)
@@ -155,6 +155,10 @@ final class DockController {
         observe(NSApplication.didChangeScreenParametersNotification, on: .default) { [weak self] in
             self?.scheduleLayout(after: Self.settleDelay, hidingCounts: true)
         }
+        // Back from a full-screen Space, where the Dock hides, nothing else reads it again.
+        observe(NSWorkspace.activeSpaceDidChangeNotification, on: NSWorkspace.shared.notificationCenter) { [weak self] in
+            self?.scheduleLayout(after: Self.settleDelay, hidingCounts: false)
+        }
         preferencesWatcher.start { [weak self] in
             guard let self else { return }
             preferences = DockPreferences.current()
@@ -286,12 +290,18 @@ final class DockController {
         }
     }
 
-    /// Stores the icons read, unless another read was asked for while this one ran: that one comes later and counts.
+    /// Stores the icons read, unless another read was asked for while this one ran: that one comes later and counts. A
+    /// Dock read while hidden or sliding keeps the last layout read while it was out, and counts that stepped aside stay
+    /// aside until the next read.
     private func readLayout() async {
         guard let dock else { return }
         let read = layoutSchedule.begin()
-        let fresh = await dock.layout(displays: DisplayDirectory.current().map(\.bounds))
+        let displays = DisplayDirectory.current().map(\.bounds)
+        let fresh = await dock.layout(displays: displays)
         guard self.dock === dock, layoutSchedule.isCurrent(read) else { return }
+        if let fresh, !fresh.isOnScreen(displays: displays) {
+            return
+        }
         layout = fresh
         isSettling = false
         refreshBadges()

@@ -66,6 +66,26 @@ struct DockTests {
         #expect(DockLayout.edge(nearest: CGRect(x: 1460, y: 400, width: 49, height: 37), on: main) == .right)
     }
 
+    @Test func aDockHiddenOrSlidingIsNotOnScreen() {
+        let displays = [CGRect(x: 0, y: 0, width: 1512, height: 982), Self.leftDisplay]
+        func left(movedBy dx: CGFloat) -> DockLayout {
+            let items = [Self.item(Self.chrome), Self.item(Self.code, y: 560)].map { item in
+                var item = item
+                item.frame.origin.x += dx
+                return item
+            }
+            return DockLayout(items: items, frame: CGRect(x: -1910 + dx, y: -35, width: 49, height: 985), edge: .left)
+        }
+        // Out on the left display, its icons at the display's edge.
+        #expect(left(movedBy: 0).isOnScreen(displays: displays))
+        // Sliding away across the edge, and hidden beyond it, as on a full-screen Space.
+        #expect(!left(movedBy: -20).isOnScreen(displays: displays))
+        #expect(!left(movedBy: -60).isOnScreen(displays: displays))
+        // A bottom Dock at rest on the main display, and sliding down out of it.
+        #expect(DockLayout(items: [], frame: CGRect(x: 300, y: 920, width: 900, height: 62), edge: .bottom).isOnScreen(displays: displays))
+        #expect(!DockLayout(items: [], frame: CGRect(x: 300, y: 950, width: 900, height: 62), edge: .bottom).isOnScreen(displays: displays))
+    }
+
     @Test func aHoveredIconIsFoundAmongTheItemsRead() {
         let layout = DockLayout(
             items: [Self.item(Self.code, y: 100), Self.item(Self.chrome, y: 140), Self.item(Self.chrome, y: 180)],
