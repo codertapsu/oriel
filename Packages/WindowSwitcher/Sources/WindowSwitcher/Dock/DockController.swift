@@ -12,6 +12,8 @@ final class DockController {
     static let settleDelay: Duration = .milliseconds(700)
     /// After the pointer leaves the Dock, it is read again for icons the user dragged to another place.
     static let leaveDelay: Duration = .milliseconds(400)
+    /// A Dock coming out, one that hides itself or one that moved to another display, slides into place first.
+    static let slideDelay: Duration = .milliseconds(300)
 
     private let store: WindowStore
     private let source: any WindowSource
@@ -261,6 +263,10 @@ final class DockController {
     private func hover(_ item: DockItem?) {
         let wasInDock = isPointerInDock
         isPointerInDock = item != nil
+        // A bottom Dock that moved to another display, which nothing reports: its counts step aside until it is read again.
+        if let item, let layout, layout.isOutdated(byHovered: item, displays: DisplayDirectory.current().map(\.bounds)) {
+            scheduleLayout(after: Self.slideDelay, hidingCounts: true)
+        }
         if showsPreviews {
             let app = item.flatMap { $0.kind == .application && !windows(for: $0).isEmpty ? $0 : nil }
             apply(machine.handle(.hovered(app)))
@@ -268,7 +274,7 @@ final class DockController {
         guard wasInDock != isPointerInDock else { return }
         if isPointerInDock, preferences.hidesAutomatically {
             // The Dock slides out first; its icons are read where they come to rest.
-            scheduleLayout(after: .milliseconds(300), hidingCounts: false)
+            scheduleLayout(after: Self.slideDelay, hidingCounts: false)
         } else if !isPointerInDock {
             scheduleLayout(after: Self.leaveDelay, hidingCounts: false)
         }

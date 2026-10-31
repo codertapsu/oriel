@@ -381,6 +381,25 @@ struct DockTests {
         #expect(!layout.holds(moved))
     }
 
+    @Test func aHoveredIconAwayFromTheIconsReadMeansTheDockMoved() {
+        // A bottom Dock read on the main display, with a second display to its right.
+        let displays = [CGRect(x: 0, y: 0, width: 1512, height: 982), CGRect(x: 1512, y: 0, width: 1920, height: 1080)]
+        func icon(x: CGFloat, y: CGFloat, size: CGFloat = 64) -> DockItem {
+            var item = Self.item(Self.chrome)
+            item.frame = CGRect(x: x, y: y, width: size, height: size)
+            return item
+        }
+        let bar = CGRect(x: 300, y: 908, width: 900, height: 70)
+        let layout = DockLayout(items: [icon(x: 700, y: 912)], frame: bar, edge: .bottom)
+        // Hovered where it was read, magnified there or not: the read still stands.
+        #expect(!layout.isOutdated(byHovered: icon(x: 700, y: 912), displays: displays))
+        #expect(!layout.isOutdated(byHovered: icon(x: 668, y: 850, size: 128), displays: displays))
+        // The Dock moved to the bottom of the right display, which nothing reported.
+        #expect(layout.isOutdated(byHovered: icon(x: 2400, y: 1010), displays: displays))
+        // Still sliding in across that display's bottom edge: not before it is out.
+        #expect(!layout.isOutdated(byHovered: icon(x: 2400, y: 1040), displays: displays))
+    }
+
     @Test func anAppWithNoWindowLeftHidesThePreview() {
         var machine = DockHoverMachine()
         let chrome = Self.item(Self.chrome)

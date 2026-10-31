@@ -52,6 +52,13 @@ nonisolated struct DockLayout: Sendable, Equatable {
         items.contains { $0.isSameIcon(as: item) }
     }
 
+    /// Whether a hover read of `item` shows that the Dock has moved since these icons were read, as a bottom Dock moves to
+    /// the display where the pointer pushes against the bottom edge, which nothing reports: the icon is not where these
+    /// have it, and it is wholly on one display, so the Dock is not sliding in or out.
+    func isOutdated(byHovered item: DockItem, displays: [CGRect]) -> Bool {
+        !holds(item) && displays.contains { $0.insetBy(dx: -1, dy: -1).contains(item.frame) }
+    }
+
     /// Where an item read on its own (the hovered one) is among these: the app item with its URL under it, else the first
     /// with its URL.
     func index(of item: DockItem) -> Int? {
