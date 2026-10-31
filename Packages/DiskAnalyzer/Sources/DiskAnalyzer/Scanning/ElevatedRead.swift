@@ -134,8 +134,9 @@ public nonisolated enum ElevatedRead {
         return result
     }
 
-    /// Puts what was read into `tree` at `folders`, the folders it was asked for, counting as a scan counts (a file with
-    /// several hard links counted elsewhere in the scan adds nothing again), marks what it added `readAsAdministrator`
+    /// Puts what was read into `tree` at `folders`, the folders it was asked for, in place of what they held (a folder a
+    /// refresh found closed keeps what it held before), counting as a scan counts (a file with several hard links counted
+    /// elsewhere in the scan adds nothing again), marks what it added `readAsAdministrator`
     /// (and `macOSVolume` below a folder of macOS's), and adds the digests to `summary`. A folder still unreadable takes
     /// the reason root got. Returns the folders whose totals must be summed again.
     static func apply(_ result: Result, folders: [String], to tree: inout ScanTree, summary: inout ScanSummary) -> Set<Int32> {
@@ -166,7 +167,7 @@ public nonisolated enum ElevatedRead {
             tree.removeFlags(UnreadableReason.allFlags.union(.partial), at: node)
             tree.insertFlags(listing.partialError == 0 ? added : added.union(.partial), at: node)
             dirty.insert(node)
-            for (child, item) in tree.merge(&digest, into: node) {
+            for (child, item) in tree.replaceContents(of: node, with: &digest, keepsSubfolders: false) {
                 stack.append((child, DirectoryDigest.childPath(path, item.name)))
             }
             summary.absorb(digest)

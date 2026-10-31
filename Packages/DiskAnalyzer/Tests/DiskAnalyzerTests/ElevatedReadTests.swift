@@ -208,6 +208,22 @@ struct ElevatedReadTests {
         #expect(read.summary.bytes == read.tree.root.size)
     }
 
+    /// A folder a refresh found closed keeps what it held before; what root reads replaces that rather than adding to it.
+    @Test func whatWasReadReplacesWhatAFolderHeldBeforeItClosed() throws {
+        var tree = Fixtures.tree(["Open/a.bin": 2_000_000, "Locked/old.bin": 5_000_000])
+        let locked = try #require(Fixtures.index("Locked", in: tree))
+        tree.setUnreadable(.needsAdministrator, at: locked)
+        var digest = DirectoryDigest()
+        digest.items = [Item(name: "secret.bin", kind: .file, size: 3_000_000, logicalSize: 3_000_000)]
+        let result = ElevatedRead.Result(listings: [ElevatedRead.Listing(path: "/Root/Locked", digest: digest)])
+        var summary = ScanSummary()
+        let dirty = ElevatedRead.apply(result, folders: ["/Root/Locked"], to: &tree, summary: &summary)
+        tree.recomputeTotals(dirty: dirty)
+        #expect(tree[locked].size == 3_000_000)
+        #expect(Fixtures.index("Locked/old.bin", in: tree) == nil)
+        #expect(tree.root.size == 5_000_000)
+    }
+
     /// A folder taken out of the scan since, or no longer waiting for an administrator, is left alone.
     @Test func onlyFoldersStillWaitingForAnAdministratorTakeWhatWasRead() throws {
         var tree = Fixtures.tree(["Open/": 0])
