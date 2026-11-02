@@ -1,3 +1,4 @@
+import Foundation
 import OrielCore
 
 /// Capture's settings, all named `capture.*` (Settings → Capture). `SettingsStore.removeAll(withPrefix: "capture.")`
@@ -11,6 +12,8 @@ nonisolated enum CaptureSettings {
     static let copiesToClipboard = SettingKey("capture.copiesToClipboard", default: true)
     /// A folder path; nil means the Desktop.
     static let saveFolder = SettingKey<String?>("capture.saveFolder", default: nil)
+    /// The same folder as a security-scoped bookmark, which the App Store edition's sandbox needs (PLAN §19).
+    static let saveFolderBookmark = SettingKey<Data?>("capture.saveFolderBookmark", default: nil)
     static let filenameTemplate = SettingKey("capture.filenameTemplate", default: FilenameTemplate.defaultTemplate)
     static let format = SettingKey("capture.format", default: CaptureImageFormat.png)
     /// HEIC only: capture HDR content and keep it as a gain map (`SCScreenshotConfiguration.dynamicRange`).

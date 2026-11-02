@@ -13,13 +13,15 @@ extension CaptureCoordinator: CommandProviding {
     }
 
     /// `oriel://capture/steps`, no default shortcut. "Start Step Capture", or "Finish Step Capture" while one runs.
+    /// Starting needs Oriel Pro; finishing never does.
     private var stepCaptureCommand: ToolCommand {
         ToolCommand(
             id: "stepCapture",
             title: StepSession.commandTitle(isCapturing: isStepCaptureActive),
             symbol: "list.number",
             group: .capture,
-            route: "capture/steps"
+            route: "capture/steps",
+            proFeature: isStepCaptureActive ? nil : .stepCapture
         ) { [weak self] in
             self?.toggleStepCapture()
         }

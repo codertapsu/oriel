@@ -46,7 +46,7 @@ extension CaptureCoordinator {
     /// all displays and previous area. Selections for recording, translation and Instant Capture keep them, because
     /// what they capture afterwards does.
     var hidesDesktop: Bool {
-        settings[CaptureSettings.hidesDesktopIcons]
+        settings[CaptureSettings.hidesDesktopIcons] && ProAccess.shared.allows(.cleanDesktop)
     }
 
     private func overlayCapture(_ mode: OverlayMode) async throws -> CapturedImage? {
@@ -223,8 +223,13 @@ extension CaptureCoordinator {
         }
     }
 
-    /// Automatic scrolling posts events, which needs Accessibility; without it the user scrolls (manual mode).
+    /// Automatic scrolling posts events, which needs Accessibility; without it the user scrolls (manual mode). The App
+    /// Store edition's sandbox cannot be granted Accessibility, so there the user always scrolls (PLAN §19).
     private func scrollingMode() async -> ScrollingMode {
+        if Sandbox.isActive {
+            Toast.show("Scroll the area yourself: Oriel adds each part once it settles", symbol: "hand.draw")
+            return .manual
+        }
         if permissions.status(of: .accessibility) == .granted {
             return .automatic
         }

@@ -1,3 +1,4 @@
+import SharedUI
 import SwiftUI
 
 /// The capture history window (PLAN §10.4): a grid of past captures, searchable by the text OCR found in them, the app
@@ -27,6 +28,8 @@ struct HistoryView: View {
         HStack(spacing: 12) {
             TextField("Search text in captures, apps and window titles", text: $model.query)
                 .textFieldStyle(.roundedBorder)
+                .disabled(!model.showsEverything)
+            ProBadge(.captureHistory)
             Text(status)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
@@ -37,7 +40,13 @@ struct HistoryView: View {
     }
 
     private var status: String {
-        let shown = model.query.isEmpty ? "\(model.entries.count) captures" : "\(model.filtered.count) of \(model.entries.count)"
+        let shown = if !model.showsEverything, model.entries.count > HistoryModel.freeCount {
+            "The last \(HistoryModel.freeCount) of \(model.entries.count)"
+        } else if model.query.isEmpty {
+            "\(model.entries.count) captures"
+        } else {
+            "\(model.filtered.count) of \(model.entries.count)"
+        }
         let pending = model.pendingCount
         guard model.isIndexing, pending > 0 else { return shown }
         return "\(shown) · reading text, \(pending) left"

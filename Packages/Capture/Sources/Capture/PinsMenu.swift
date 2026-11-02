@@ -56,8 +56,8 @@ enum PinsMenu {
     static func commandItems(for state: PinState, perform: @escaping @MainActor @Sendable (PinCommand) -> Void) -> [NSMenuItem] {
         [
             PinOpacitySlider.menuItem(opacity: state.opacity) { perform(.setOpacity($0)) },
-            toggle("Click-Through", symbol: "cursorarrow.rays", isOn: state.isClickThrough) { perform(.toggleClickThrough) },
-            toggle("Lock Position", symbol: "lock", isOn: state.isLocked) { perform(.toggleLock) },
+            pro(toggle("Click-Through", symbol: "cursorarrow.rays", isOn: state.isClickThrough) { perform(.toggleClickThrough) }),
+            pro(toggle("Lock Position", symbol: "lock", isOn: state.isLocked) { perform(.toggleLock) }),
             toggle("Border and Shadow", symbol: "square.on.square.dashed", isOn: state.showsBorder) { perform(.toggleBorder) },
             .separator(),
             ActionMenuItem("Zoom In", symbol: "plus.magnifyingglass", key: "+") { perform(.zoomIn) },
@@ -70,6 +70,12 @@ enum PinsMenu {
             .separator(),
             ActionMenuItem("Close", symbol: "xmark", key: "w") { perform(.close) },
         ]
+    }
+
+    /// Marks a pin option that needs Oriel Pro (PLAN §19).
+    private static func pro(_ item: NSMenuItem) -> NSMenuItem {
+        ProMenuBadge.apply(.pinTools, to: item)
+        return item
     }
 
     /// "Safari · 14:02": the app the capture came from (else its window, else how it was made) and when.

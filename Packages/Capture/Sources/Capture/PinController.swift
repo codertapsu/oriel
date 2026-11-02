@@ -94,15 +94,21 @@ final class PinController {
         case .bringToFront:
             pin.bringToFront()
         case .toggleLock:
+            // Turning a Pro option off always works, so a pin is never stuck locked or click-through.
+            guard pin.state.isLocked || ProAccess.shared.check(.pinTools) else { return }
             pin.toggleLock()
         case .toggleClickThrough:
+            guard pin.state.isClickThrough || ProAccess.shared.check(.pinTools) else { return }
             pin.toggleClickThrough()
             clickThroughChanged()
         case .toggleBorder:
             pin.toggleBorder()
         case let .setOpacity(value):
+            guard ProAccess.shared.check(.pinTools) else { return }
             pin.setOpacity(value)
         case let .changeOpacity(delta):
+            // ⌥-scroll: a locked pin ignores it rather than opening Settings in the middle of a gesture.
+            guard ProAccess.shared.allows(.pinTools) else { return }
             pin.setOpacity(pin.state.opacity + delta)
         case .zoomIn:
             pin.zoomIn()

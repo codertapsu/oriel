@@ -1,5 +1,6 @@
 import AppKit
 import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Settings → Capture (PLAN §10.1): what happens after a capture, where files go and how they are named and encoded,
@@ -43,7 +44,13 @@ struct CaptureSettingsView: View {
                 Toggle("Flash the captured area", isOn: settings.binding(CaptureSettings.flashes))
                 Toggle("Include the pointer", isOn: settings.binding(CaptureSettings.showsCursor))
                 Toggle("Include window shadows", isOn: settings.binding(CaptureSettings.windowShadow))
-                Toggle("Hide desktop icons and widgets", isOn: settings.binding(CaptureSettings.hidesDesktopIcons))
+                HStack {
+                    Toggle(
+                        "Hide desktop icons and widgets",
+                        isOn: settings.binding(CaptureSettings.hidesDesktopIcons).gated(by: .cleanDesktop)
+                    )
+                    ProBadge(.cleanDesktop)
+                }
                 Text("Captures of an area or a screen show the wallpaper without them. Finder is not changed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -122,7 +129,7 @@ struct CaptureSettingsView: View {
     }
 
     private var folderName: String {
-        guard let path = settings[CaptureSettings.saveFolder] else { return "Desktop" }
+        guard let path = settings[CaptureSettings.saveFolder] else { return Sandbox.isActive ? "Pictures/Oriel" : "Desktop" }
         return (path as NSString).abbreviatingWithTildeInPath
     }
 
@@ -147,6 +154,7 @@ struct CaptureSettingsView: View {
         panel.message = "Choose where Oriel saves captures."
         if panel.runModal() == .OK, let url = panel.url {
             settings[CaptureSettings.saveFolder] = url.path
+            settings[CaptureSettings.saveFolderBookmark] = FolderBookmark.make(for: url)
         }
     }
 }

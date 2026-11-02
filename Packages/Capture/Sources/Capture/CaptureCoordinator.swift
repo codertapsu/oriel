@@ -13,6 +13,8 @@ public final class CaptureCoordinator {
     /// upload. Quick Access and history hide those actions while this is nil.
     public weak var actions: (any CaptureActionHandling)?
 
+    /// The save folder resolved from its bookmark, in the App Store edition.
+    private var resolvedSaveFolder: (bookmark: Data, url: URL)?
     let settings: SettingsStore
     let permissions: PermissionCenter
     let textRecognizer: (any TextRecognizing)?
@@ -240,11 +242,33 @@ public final class CaptureCoordinator {
         return ImageEncoding.hdrHEICData(for: hdr, scale: result.scale)
     }
 
+    /// The folder captures are saved to: the one chosen in Settings, else the Desktop. The App Store edition's sandbox
+    /// reaches a chosen folder only through its bookmark and the Desktop not at all, so it falls back to Pictures/Oriel.
     var defaultFolder: URL {
+        if Sandbox.isActive {
+            return grantedSaveFolder ?? picturesFolder
+        }
         if let path = settings[CaptureSettings.saveFolder] {
             return URL(filePath: path, directoryHint: .isDirectory)
         }
         return FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? FileManager.default.homeDirectoryForCurrentUser
+    }
+
+    /// The chosen folder through its bookmark, resolved once per bookmark.
+    private var grantedSaveFolder: URL? {
+        guard let bookmark = settings[CaptureSettings.saveFolderBookmark] else { return nil }
+        if let granted = resolvedSaveFolder, granted.bookmark == bookmark {
+            return granted.url
+        }
+        let url = FolderBookmark.resolve(bookmark)
+        resolvedSaveFolder = url.map { (bookmark, $0) }
+        return url
+    }
+
+    private var picturesFolder: URL {
+        let pictures = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return (try? AppPaths.ensureDirectory(pictures.appending(path: "Oriel", directoryHint: .isDirectory))) ?? pictures
     }
 }
