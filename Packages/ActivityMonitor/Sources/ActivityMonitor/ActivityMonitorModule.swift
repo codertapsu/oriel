@@ -44,6 +44,10 @@ public final class ActivityMonitorModule: UtilityModule {
         Self.symbol
     }
 
+    public var guide: FeatureGuide? {
+        .activityMonitor
+    }
+
     /// Opens the window, or brings it to the front: from the status menu, a shortcut the user sets, or
     /// `oriel://activity`.
     public var commands: [ToolCommand] {

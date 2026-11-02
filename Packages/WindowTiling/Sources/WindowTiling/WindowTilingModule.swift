@@ -114,6 +114,10 @@ public final class WindowTilingModule: UtilityModule {
         "rectangle.split.2x1"
     }
 
+    public var guide: FeatureGuide? {
+        .windowTiling
+    }
+
     public var ipcCommands: [IPCCommandHandler] {
         []
     }

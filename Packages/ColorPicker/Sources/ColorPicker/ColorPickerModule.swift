@@ -76,6 +76,10 @@ public final class ColorPickerModule: UtilityModule {
         "eyedropper"
     }
 
+    public var guide: FeatureGuide? {
+        .colorPicker
+    }
+
     public var ipcCommands: [IPCCommandHandler] {
         []
     }

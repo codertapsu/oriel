@@ -4,6 +4,8 @@ import OrielCore
 /// App-level settings keys. Each module keeps its own keys.
 enum AppSettings {
     static let onboardingCompleted = SettingKey("app.onboardingCompleted", default: false)
+    /// The feature tour opened by itself once, after onboarding (PLAN §19).
+    static let featureTourShown = SettingKey("app.featureTourShown", default: false)
     /// Modules the user turned on; every default module is on until turned off.
     static let enabledModules = SettingKey("app.enabledModules", default: defaultModules.map(\.rawValue))
     /// Modules that are on by default, in Settings order.

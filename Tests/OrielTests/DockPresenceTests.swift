@@ -26,8 +26,9 @@ struct DockPresenceTests {
     @Test func theMenuBarHasNoQuit() throws {
         let previous = NSApp.mainMenu
         defer { NSApp.mainMenu = previous }
-        MainMenu.install(settings: {}, closeWindows: {})
+        MainMenu.install(settings: {}, tour: {}, closeWindows: {})
         let items = (NSApp.mainMenu?.items ?? []).flatMap { $0.submenu?.items ?? [] }
+        #expect(NSApp.helpMenu?.items.map(\.title) == ["Oriel Feature Tour", "Oriel Support"])
         #expect(!items.contains { $0.action == #selector(NSApplication.terminate(_:)) })
         let commandQ = try #require(items.first { $0.keyEquivalent == "q" && $0.keyEquivalentModifierMask == .command })
         #expect(commandQ.title == "Close All Windows")

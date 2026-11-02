@@ -3,12 +3,13 @@ import Permissions
 import SwiftUI
 
 /// Each permission with what it unlocks, its live state and the way to grant it (PLAN §8.2). Used by the
-/// onboarding window and Settings → Permissions.
+/// onboarding window, Settings → Permissions and, for the permissions a feature uses, the feature tour.
 struct PermissionList: View {
     let permissions: PermissionCenter
+    var kinds = PermissionKind.available
 
     var body: some View {
-        ForEach(PermissionKind.available) { kind in
+        ForEach(kinds) { kind in
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: icon(for: kind))
                     .foregroundStyle(color(for: kind))

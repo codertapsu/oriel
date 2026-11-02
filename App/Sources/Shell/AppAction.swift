@@ -10,7 +10,7 @@ enum AppAction: String, CaseIterable, Identifiable {
     case recordArea, recordWindow, recordScreen, stopRecording
     case translateArea
     case showCaptureHistory, showTranslationHistory, openImage
-    case showSettings, showOnboarding, quit
+    case showSettings, showOnboarding, showFeatureTour, quit
 
     var id: String {
         rawValue
@@ -40,6 +40,7 @@ enum AppAction: String, CaseIterable, Identifiable {
         case .openImage: "Open Image in Editor…"
         case .showSettings: "Settings…"
         case .showOnboarding: "Permissions…"
+        case .showFeatureTour: "Feature Tour…"
         case .quit: "Quit Oriel"
         }
     }
@@ -63,6 +64,7 @@ enum AppAction: String, CaseIterable, Identifiable {
         case .openImage: "photo"
         case .showSettings: "gearshape"
         case .showOnboarding: "lock.shield"
+        case .showFeatureTour: "map"
         case .quit: "power"
         }
     }
@@ -107,7 +109,7 @@ enum AppAction: String, CaseIterable, Identifiable {
             "capture/all": .captureAllDisplays, "record/area": .recordArea, "record/window": .recordWindow,
             "record/screen": .recordScreen, "record/stop": .stopRecording,
             "translate/area": .translateArea, "history": .showCaptureHistory,
-            "settings": .showSettings,
+            "settings": .showSettings, "tour": .showFeatureTour,
         ]
         guard let action = routes[path] else { return nil }
         self = action

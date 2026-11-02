@@ -1,6 +1,7 @@
 import Foundation
 @testable import OrielAppStore
 import OrielCore
+import Permissions
 import Testing
 
 /// The App Store edition, tested inside its own sandbox (PLAN §19): what the App Store's rules exclude is not in the
@@ -37,5 +38,23 @@ struct AppStoreEditionTests {
         #expect(!PermissionKind.available.contains(.accessibility))
         #expect(PermissionKind.screenRecording.isRequired)
         #expect(!PermissionKind.accessibility.isRequired)
+    }
+
+    /// The feature tour shows this edition's tools only, and promises nothing its sandbox rules out (PLAN §19).
+    @Test func theTourShowsOnlyWhatThisEditionHas() throws {
+        let suiteName = "com.codertapsu.oriel.tests.tour.\(UUID().uuidString)"
+        defer { UserDefaults().removePersistentDomain(forName: suiteName) }
+        let hub = try FeatureHub(
+            settings: SettingsStore(defaults: #require(UserDefaults(suiteName: suiteName))),
+            permissions: PermissionCenter(),
+            keychain: KeychainStore(prefix: "com.codertapsu.oriel.tests")
+        )
+        #expect(hub.guides.tools.map(\.id) == ["clipboard-history", "disk-analyzer", "color-picker", "screen-ruler"])
+        let text = (hub.guides.features + hub.guides.tools)
+            .flatMap { [$0.summary] + $0.highlights.map(\.detail) }
+            .joined(separator: " ")
+        for promise in ["SFTP", "keys you press", "Oriel scrolls", "paste it into the app"] {
+            #expect(!text.contains(promise), "\(promise)")
+        }
     }
 }

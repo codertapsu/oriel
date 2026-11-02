@@ -21,6 +21,8 @@ public protocol UtilityModule: CommandProviding {
     var ipcCommands: [IPCCommandHandler] { get }
     /// What only Oriel Pro unlocks in the module (PLAN §19).
     var proFeatures: [ProFeature] { get }
+    /// The module's page in the feature tour.
+    var guide: FeatureGuide? { get }
     func activate(context: ModuleContext) async
     func deactivate() async
 }
@@ -37,5 +39,9 @@ public extension UtilityModule {
 
     var proFeatures: [ProFeature] {
         []
+    }
+
+    var guide: FeatureGuide? {
+        nil
     }
 }

@@ -63,6 +63,10 @@ public final class ScreenRulerModule: UtilityModule {
         "ruler"
     }
 
+    public var guide: FeatureGuide? {
+        .screenRuler
+    }
+
     public var ipcCommands: [IPCCommandHandler] {
         []
     }

@@ -45,6 +45,10 @@ public final class DiskAnalyzerModule: UtilityModule {
         "internaldrive"
     }
 
+    public var guide: FeatureGuide? {
+        .diskAnalyzer
+    }
+
     /// Opens the window (`oriel://disk`), and asks for a folder to scan (`oriel://disk/scan`).
     public var commands: [ToolCommand] {
         [

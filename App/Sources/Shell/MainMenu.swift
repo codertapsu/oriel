@@ -6,6 +6,7 @@ import AppKit
 enum MainMenu {
     static func install(
         settings: @escaping @MainActor @Sendable () -> Void,
+        tour: @escaping @MainActor @Sendable () -> Void,
         closeWindows: @escaping @MainActor @Sendable () -> Void
     ) {
         let main = NSMenu()
@@ -41,6 +42,12 @@ enum MainMenu {
         window.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         main.addItem(submenu: window, title: "Window")
         NSApp.windowsMenu = window
+
+        let help = NSMenu(title: "Help")
+        help.addItem(ActionMenuItemFactory.make("Oriel Feature Tour", handler: tour))
+        help.addItem(ActionMenuItemFactory.make("Oriel Support") { NSWorkspace.shared.open(OrielLinks.support) })
+        main.addItem(submenu: help, title: "Help")
+        NSApp.helpMenu = help
         NSApp.mainMenu = main
     }
 }

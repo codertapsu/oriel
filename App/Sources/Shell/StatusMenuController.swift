@@ -77,6 +77,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         add(features, in: .library, to: menu)
         menu.addItem(pinnedItem())
         menu.addItem(.separator())
+        menu.addItem(item(.showFeatureTour))
         menu.addItem(item(.showSettings))
         menu.addItem(item(.quit))
     }
@@ -107,7 +108,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             item.keyEquivalent = ","
             item.keyEquivalentModifierMask = .command
         }
-        item.isEnabled = controller.hub.isAvailable(action) || [.showSettings, .showOnboarding, .quit].contains(action)
+        item.isEnabled = controller.hub.isAvailable(action) || [.showSettings, .showOnboarding, .showFeatureTour, .quit].contains(action)
         return item
     }
 }

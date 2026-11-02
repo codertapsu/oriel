@@ -69,6 +69,10 @@ public final class ClipboardHistoryModule: UtilityModule {
         "list.clipboard"
     }
 
+    public var guide: FeatureGuide? {
+        .clipboardHistory
+    }
+
     /// Opens or closes the panel. The id is the one the shortcut had as an app action, so a shortcut set before keeps
     /// working, and so does `oriel://clipboard`.
     public var commands: [ToolCommand] {

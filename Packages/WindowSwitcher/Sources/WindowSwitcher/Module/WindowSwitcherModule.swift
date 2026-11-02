@@ -97,6 +97,10 @@ public final class WindowSwitcherModule: UtilityModule {
         "rectangle.stack"
     }
 
+    public var guide: FeatureGuide? {
+        .windowSwitcher
+    }
+
     /// `windows list|focus|close|minimize` and, in Debug builds, `debug open-switcher`.
     public var ipcCommands: [IPCCommandHandler] {
         WindowCommands.handlers(for: self)

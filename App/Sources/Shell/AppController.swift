@@ -35,6 +35,7 @@ final class AppController {
     private var statusMenu: StatusMenuController?
     private var settingsWindow: SettingsWindowController?
     private var onboardingWindow: OnboardingWindowController?
+    private var featureTourWindow: FeatureTourWindowController?
     #if !APP_STORE
         private var ipcServer: IPCServer?
     #endif
@@ -59,7 +60,11 @@ final class AppController {
         IntentContext.controller = self
         configurePro()
         dockPresence.start()
-        MainMenu.install(settings: { [weak self] in self?.showSettings() }, closeWindows: { [weak self] in self?.closeWindows() })
+        MainMenu.install(
+            settings: { [weak self] in self?.showSettings() },
+            tour: { [weak self] in self?.showFeatureTour() },
+            closeWindows: { [weak self] in self?.closeWindows() }
+        )
         #if !APP_STORE
             if LaunchChecks.offerMoveToApplications() {
                 return // the copy in Applications takes over once this one has quit
@@ -122,6 +127,7 @@ final class AppController {
         switch action {
         case .showSettings: showSettings()
         case .showOnboarding: showOnboarding()
+        case .showFeatureTour: showFeatureTour()
         case .quit: NSApp.terminate(nil)
         default:
             if let feature = action.proFeature, !ProAccess.shared.check(feature) {
@@ -236,11 +242,32 @@ final class AppController {
     func showOnboarding() {
         if onboardingWindow == nil {
             onboardingWindow = OnboardingWindowController(permissions: permissions) { [weak self] in
-                self?.settings[AppSettings.onboardingCompleted] = true
-                self?.onboardingWindow = nil
+                guard let self else { return }
+                settings[AppSettings.onboardingCompleted] = true
+                onboardingWindow = nil
+                // The tour follows the first onboarding by itself, once (PLAN §19).
+                if !settings[AppSettings.featureTourShown] {
+                    settings[AppSettings.featureTourShown] = true
+                    showFeatureTour()
+                }
             }
         }
         onboardingWindow?.show()
+    }
+
+    func showFeatureTour() {
+        if featureTourWindow == nil {
+            featureTourWindow = FeatureTourWindowController(controller: self)
+        }
+        featureTourWindow?.show()
+    }
+
+    /// The current shortcut of an app action or command, for the feature tour.
+    func shortcut(of commandID: String) -> KeyCombo? {
+        if let action = AppAction(rawValue: commandID) {
+            return AppAction.shortcutActions.contains(action) ? settings[action.shortcutKey] : nil
+        }
+        return (hub.commands + registry.commands).first { $0.id == commandID }.flatMap { settings[$0.shortcutKey] }
     }
 
     var bootstrapImporter: BootstrapImporter {

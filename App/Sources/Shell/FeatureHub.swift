@@ -91,6 +91,11 @@ final class FeatureHub: CaptureActionHandling {
             + ProFeature.translationFeatures + modules.flatMap(\.proFeatures) + [.settingsSync]
     }
 
+    /// The feature tour's pages (PLAN §19): the features', then those of this edition's tools.
+    var guides: (features: [FeatureGuide], tools: [FeatureGuide]) {
+        ([.screenshots, .editor, .screenRecording, .translation, .upload], modules.compactMap(\.guide))
+    }
+
     /// The commands of the features (PLAN §6.5); the tools' own come through the module registry.
     var commands: [ToolCommand] {
         [instantCaptureCommand] + capture.commands + recording.commands + translation.commands + editor.commands
@@ -126,7 +131,7 @@ final class FeatureHub: CaptureActionHandling {
         case .showCaptureHistory: capture.showHistory()
         case .showTranslationHistory: translation.showHistory()
         case .openImage: openImage()
-        case .showSettings, .showOnboarding, .quit: break
+        case .showSettings, .showOnboarding, .showFeatureTour, .quit: break
         }
     }
 
