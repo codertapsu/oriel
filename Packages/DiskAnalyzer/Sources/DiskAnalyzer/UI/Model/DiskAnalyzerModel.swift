@@ -45,10 +45,21 @@ final class DiskAnalyzerModel {
     var selection: [Int32] = []
     var view: DiskView = .sunburst {
         didSet {
+            // Old Files and Duplicates need Oriel Pro; while it is locked the view stays (PLAN §19).
+            if let feature = view.proFeature, !ProAccess.shared.check(feature) {
+                view = oldValue
+                return
+            }
             if view != oldValue {
                 settings[DiskSettings.view] = view.rawValue
             }
         }
+    }
+
+    /// Whether Read as Administrator and its helper exist: not in the App Store edition, whose sandbox cannot reach root
+    /// and whose rules forbid asking for it (PLAN §19).
+    var canReadAsAdministrator: Bool {
+        !Sandbox.isActive
     }
 
     var search = ""
@@ -114,7 +125,8 @@ final class DiskAnalyzerModel {
     init(settings: SettingsStore, store: ScanSnapshotStore = ScanSnapshotStore()) {
         self.settings = settings
         self.store = store
-        view = DiskView(rawValue: settings[DiskSettings.view]) ?? .sunburst
+        let saved = DiskView(rawValue: settings[DiskSettings.view]) ?? .sunburst
+        view = saved.proFeature.map { ProAccess.shared.allows($0) } == false ? .sunburst : saved
         volumeWatcher.onChange = { [weak self] in self?.refreshSources() }
         watcher.onChange = { [weak self] in self?.filesChanged($0) }
     }

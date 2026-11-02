@@ -50,6 +50,15 @@ extension MainViewController {
                 tint: .controlAccentColor,
                 text: "Reading \(DiskFormat.count(administrator, "folder")) as an administrator…"
             ))
+        } else if administrator > 0, !model.canReadAsAdministrator {
+            // The App Store edition cannot read them at all (PLAN §19).
+            notes.append(Note(
+                id: "administrator",
+                symbol: "lock",
+                tint: .secondaryLabelColor,
+                text: "\(DiskFormat.count(administrator, "folder")) can be opened only by macOS or another user, so "
+                    + "\(administrator == 1 ? "its" : "their") space is not counted."
+            ))
         } else if administrator > 0 {
             notes.append(Note(
                 id: "administrator",

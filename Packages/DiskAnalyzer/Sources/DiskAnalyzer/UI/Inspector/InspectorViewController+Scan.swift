@@ -57,7 +57,7 @@ extension InspectorViewController {
             macOS asks for the password.
             """, size: NSFont.smallSystemFontSize))
             views += samples(summary.samples(.needsAdministrator))
-            if !model.isReadingAsAdministrator {
+            if model.canReadAsAdministrator, !model.isReadingAsAdministrator {
                 views.append(ButtonRow(
                     [("Read as Administrator…", { [weak self] in self?.actions?.readAsAdministrator() })],
                     primaryFirst: false
@@ -124,7 +124,7 @@ extension InspectorViewController {
             container, folders Oriel could not read, and the file system's own records. The volume's overview shows the \
             snapshots.
             """))
-            if (model.summary?.administratorFolders ?? 0) > 0, !model.isReadingAsAdministrator {
+            if model.canReadAsAdministrator, (model.summary?.administratorFolders ?? 0) > 0, !model.isReadingAsAdministrator {
                 views.append(ButtonRow(
                     [("Read as Administrator…", { [weak self] in self?.actions?.readAsAdministrator() })],
                     primaryFirst: false

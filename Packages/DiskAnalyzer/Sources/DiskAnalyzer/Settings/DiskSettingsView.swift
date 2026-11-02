@@ -38,7 +38,9 @@ struct DiskSettingsView: View {
                 .foregroundStyle(.secondary)
             }
             safety(settings)
-            administrator(settings)
+            if !Sandbox.isActive {
+                administrator(settings) // the App Store edition cannot reach root (PLAN §19)
+            }
             access
         }
         .formStyle(.grouped)

@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 import SharedUI
 
 /// Context menus, the window's shortcuts, and ⌘C.
@@ -23,6 +24,7 @@ extension DiskWindowController {
         })
         if nodes.count == 1, tree[nodes[0]].kind.isContainer {
             menu.addItem(item("Clean Up…", symbol: "sparkles") { [weak self] in self?.cleanUp(nodes[0]) })
+            menu.items.last.map { ProMenuBadge.apply(.cleanUp, to: $0) }
         }
         menu.addItem(.separator())
         menu.addItem(item("Copy", symbol: "doc.on.clipboard") { [weak self] in
@@ -62,10 +64,12 @@ extension DiskWindowController {
         menu.addItem(item("Copy Path", symbol: "link") { [weak self] in self?.model.copyPaths([focus]) })
         if model.tree?[focus].kind.isContainer == true {
             menu.addItem(item("Clean Up…", symbol: "sparkles") { [weak self] in self?.cleanUp(focus) })
+            menu.items.last.map { ProMenuBadge.apply(.cleanUp, to: $0) }
         }
         menu.addItem(.separator())
         menu.addItem(item("Scan Again", symbol: "arrow.clockwise") { [weak self] in self?.model.rescan() })
         menu.addItem(item("Export as CSV…", symbol: "square.and.arrow.up") { [weak self] in self?.exportCSV() })
+        menu.items.last.map { ProMenuBadge.apply(.csvExport, to: $0) }
     }
 
     private func addFolderTools(for node: Int32, to menu: NSMenu) {

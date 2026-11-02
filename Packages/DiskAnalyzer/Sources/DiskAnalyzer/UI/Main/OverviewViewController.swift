@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 
 /// What the sidebar's selection is before it is scanned: a volume's capacity, purgeable space with what it is, local
 /// snapshots and the Trash; a cloud folder and why its plan is not shown; a folder scanned before.
@@ -65,7 +66,8 @@ final class OverviewViewController: NSViewController, DiskContentController {
             PageParts.heading("Purgeable space"),
             PageParts.text(Self.purgeableNote),
         ]
-        if volume.canHaveLocalSnapshots {
+        // tmutil, which lists and removes them, is out of the App Store edition's sandbox (PLAN §19).
+        if volume.canHaveLocalSnapshots, !Sandbox.isActive {
             views += snapshotViews(volume)
         }
         if volume.kind == .startup {

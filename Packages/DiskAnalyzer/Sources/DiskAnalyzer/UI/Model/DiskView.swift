@@ -1,6 +1,17 @@
+import OrielCore
+
 /// The views of a scan, in the order of the view switcher (⌘1–⌘8).
 nonisolated enum DiskView: String, CaseIterable, Sendable {
     case sunburst, treemap, list, biggest, old, duplicates, types, hogs
+
+    /// The Pro feature the view is, if it needs Oriel Pro (PLAN §19).
+    var proFeature: ProFeature? {
+        switch self {
+        case .old: .oldFiles
+        case .duplicates: .duplicates
+        default: nil
+        }
+    }
 
     var title: String {
         switch self {

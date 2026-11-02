@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 import SharedUI
 
 /// Clean Up (PLAN §7.10 item 19): the sheet, and carrying out what the user chose, for a folder of the scan or any other
@@ -16,7 +17,7 @@ extension DiskWindowController {
     }
 
     private func cleanUp(path: String, icon: NSImage) {
-        guard let window else { return }
+        guard let window, ProAccess.shared.check(.cleanUp) else { return }
         let sheet = CleanupSheetController(name: (path as NSString).lastPathComponent, path: path, icon: icon)
         cleanupSheet = sheet
         sheet.onChoose = { [weak self] method, facts in

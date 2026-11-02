@@ -15,7 +15,8 @@ extension DiskAnalyzerModel {
     /// Reads the folders that need an administrator and adds what they hold. A read through the helper that fails falls
     /// back to the password prompt, unless it was `automatic` (after a scan), when the note stays instead.
     func readAsAdministrator(through route: AdministratorRoute, automatic: Bool = false) {
-        guard let tree, !phase.isScanning, !isReadingAsAdministrator, let executable = Bundle.main.executablePath else { return }
+        guard canReadAsAdministrator, let tree, !phase.isScanning, !isReadingAsAdministrator,
+              let executable = Bundle.main.executablePath else { return }
         var nodes = tree.descendants(of: ScanTree.rootIndex) { $0.flags.contains(.needsAdministrator) }.sorted()
         if tree.root.flags.contains(.needsAdministrator) {
             nodes.insert(ScanTree.rootIndex, at: 0)
@@ -50,7 +51,9 @@ extension DiskAnalyzerModel {
 
     /// After a complete scan, when the helper is allowed: reads those folders without asking.
     func readAsAdministratorAfterScan() {
-        guard helperStatus == .allowed, settings[DiskSettings.readsAsAdministrator], (summary?.administratorFolders ?? 0) > 0 else {
+        guard canReadAsAdministrator, helperStatus == .allowed, settings[DiskSettings.readsAsAdministrator],
+              (summary?.administratorFolders ?? 0) > 0
+        else {
             return
         }
         readAsAdministrator(through: .helper, automatic: true)
@@ -89,6 +92,7 @@ extension DiskAnalyzerModel {
     /// Reads the helper's state again: when the window opens, whenever Oriel comes to the front, as after a visit to
     /// System Settings, and when Settings installs or removes it. Nothing polls.
     func refreshHelperStatus() {
+        guard canReadAsAdministrator else { return }
         Task {
             let status = await Task.detached(priority: .utility) { PrivilegedReader.status }.value
             helperStatus = status

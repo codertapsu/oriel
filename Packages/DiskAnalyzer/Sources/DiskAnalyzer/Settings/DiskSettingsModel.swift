@@ -49,6 +49,7 @@ final class DiskSettingsModel {
     }
 
     func refreshHelperStatus() {
+        guard !Sandbox.isActive else { return }
         Task {
             helperStatus = await Task.detached(priority: .utility) { PrivilegedReader.status }.value
         }

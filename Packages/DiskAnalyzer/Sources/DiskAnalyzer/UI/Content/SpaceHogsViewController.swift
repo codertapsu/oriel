@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 
 /// Space Hogs: the usual suspects — caches, Xcode's build data, simulators, device backups, installers, `node_modules`
 /// — with what each is, whether it comes back by itself, how much it takes here, one safe action, and Clean Up, which
@@ -170,7 +171,7 @@ final class SpaceHogsViewController: NSViewController, DiskContentController, NS
         switch hog.action {
         case .trashContents, .trashItems: button.isEnabled = hasItems
         case .reveal: button.isEnabled = hasItems
-        case .deleteUnavailableSimulators: button.isEnabled = Simulators.exist()
+        case .deleteUnavailableSimulators: button.isEnabled = !Sandbox.isActive && Simulators.exist() // xcrun is out of the sandbox
         case .openTrash: button.isEnabled = true
         }
         return button

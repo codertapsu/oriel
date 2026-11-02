@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 import UniformTypeIdentifiers
 
 /// The actions that need a confirmation or a panel. A removal always names how many items and how much space;
@@ -69,10 +70,13 @@ extension DiskWindowController: DiskActions {
     /// `trash(paths:bytes:title:)` with a check after the confirmation; nothing goes when it fails.
     func trash(paths: [String], bytes: Int64, title: String, recheck: (@MainActor () async -> Bool)?) {
         guard let plan = model.plan(.trash, paths: paths, bytes: bytes) else { return }
+        // The App Store edition's sandbox hides other apps' open files from Clean Up's check (PLAN §19).
+        let unseen = recheck != nil && Sandbox.isActive
+            ? " Quit the apps that use them first: in this edition Oriel cannot see which files other apps have open." : ""
         confirm(
             title: "Move \(title) to the Trash?",
             text: "\(listing(plan))\(DiskFormat.count(plan.count, "item")), \(DiskFormat.bytes(bytes)). Undo or the Trash brings "
-                + "them back.",
+                + "them back.\(unseen)",
             button: "Move to Trash"
         ) { [weak self] in self?.run(plan, after: recheck) }
     }
@@ -90,6 +94,13 @@ extension DiskWindowController: DiskActions {
     }
 
     func scan(_ path: String) {
+        guard !Sandbox.isActive else {
+            // The sandbox reads only what the user granted: ask once for each drive or folder (PLAN §19).
+            FolderGrants(settings: model.settings).request(path, from: window) { [weak self] granted in
+                self?.model.scan(path: granted)
+            }
+            return
+        }
         let home = NSHomeDirectory()
         let coversHome = path == "/" || home.hasPrefix(path.hasSuffix("/") ? path : path + "/") || path == home
             || path.hasPrefix(home + "/")
@@ -155,14 +166,14 @@ extension DiskWindowController: DiskActions {
     }
 
     func showChanges() {
-        guard let window, let diff = model.diff else { return }
+        guard let window, let diff = model.diff, ProAccess.shared.check(.scanHistory) else { return }
         let sheet = ChangesSheetController(diff: diff, rootName: model.target?.displayName ?? "")
         changesSheet = sheet
         window.beginSheet(sheet.panel) { [weak self] _ in self?.changesSheet = nil }
     }
 
     func exportCSV() {
-        guard let window, let tree = model.tree else { return }
+        guard let window, let tree = model.tree, ProAccess.shared.check(.csvExport) else { return }
         let nodes = main.exportableNodes()
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.commaSeparatedText]
@@ -208,6 +219,8 @@ extension DiskWindowController: DiskActions {
     }
 
     func readAsAdministrator() {
+        // Root is out of the App Store edition's reach, and its rules forbid asking for it (PLAN §19).
+        guard model.canReadAsAdministrator else { return }
         switch model.helperStatus {
         case .allowed: model.readAsAdministrator(through: .helper)
         case .unavailable: model.readAsAdministrator(through: .password)

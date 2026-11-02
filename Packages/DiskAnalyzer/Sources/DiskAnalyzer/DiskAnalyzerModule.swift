@@ -37,6 +37,10 @@ public final class DiskAnalyzerModule: UtilityModule {
         AnyView(DiskSettingsView(model: settingsModel))
     }
 
+    public var proFeatures: [ProFeature] {
+        ProFeature.diskAnalyzerFeatures
+    }
+
     public var settingsSymbol: String {
         "internaldrive"
     }
