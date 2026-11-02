@@ -1,4 +1,6 @@
 *.xcodeproj
+# Xcode's per-user state for each local package, written while the project is open
+.swiftpm/
 build/
 dist/
 .build/
