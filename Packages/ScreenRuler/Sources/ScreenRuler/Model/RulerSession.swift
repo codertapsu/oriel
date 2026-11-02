@@ -29,6 +29,8 @@ nonisolated struct RulerSession: Sendable {
     var selectedGuide: UUID?
     var draggingGuide: UUID?
     var guideOrientation = Guide.Orientation.vertical
+    /// Whether Oriel Pro is unlocked: Guides, kept measurements and the tolerance keys need it (PLAN §19).
+    var isProUnlocked = true
     private var edgeMaps: [CGDirectDisplayID: EdgeMap] = [:]
 
     init(displays: [RulerDisplay], mode: RulerMode, unit: RulerUnit, tolerance: Int, edgeStatus: EdgeStatus) {

@@ -50,9 +50,13 @@ final class RulerOverlay: RulerEventHandling {
             displays: displays,
             mode: settings[RulerSettings.defaultMode],
             unit: settings[RulerSettings.unit],
-            tolerance: settings[RulerSettings.tolerance],
+            tolerance: ProAccess.shared.allows(.rulerStyle) ? settings[RulerSettings.tolerance] : RulerSettings.tolerance.defaultValue,
             edgeStatus: canRead ? .reading : .notPermitted
         )
+        session.isProUnlocked = ProAccess.shared.isUnlocked
+        if session.mode == .guides, !session.isProUnlocked {
+            session.setMode(.dimensions)
+        }
     }
 
     var isOpen: Bool {
@@ -64,7 +68,8 @@ final class RulerOverlay: RulerEventHandling {
         guard !isOpen else { return }
         let current = NSRunningApplication.current
         previousApp = NSWorkspace.shared.frontmostApplication.flatMap { $0 == current ? nil : $0 }
-        let color = RulerColor.color(hex: settings[RulerSettings.guideColor]) ?? RulerColor.fallback
+        let chosen = ProAccess.shared.allows(.rulerStyle) ? RulerColor.color(hex: settings[RulerSettings.guideColor]) : nil
+        let color = chosen ?? RulerColor.fallback
         for screen in screens {
             guard let id = ScreenLocator.displayID(of: screen), let display = session.display(id) else { continue }
             let window = RulerWindow(screen: screen, display: display, lineColor: color)
@@ -211,6 +216,9 @@ final class RulerOverlay: RulerEventHandling {
             fit(rect, on: displayID, tolerance: tolerance)
         case let .toleranceChanged(percent):
             settings[RulerSettings.tolerance] = percent
+        case let .needsPro(feature):
+            close()
+            ProAccess.shared.check(feature)
         case .beep:
             NSSound.beep()
         }

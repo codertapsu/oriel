@@ -7,10 +7,11 @@ nonisolated extension RulerSession {
     mutating func handle(_ key: RulerKey) -> RulerEffect? {
         switch key {
         case .nextMode:
-            setMode(mode.next)
+            setMode(freeMode(after: mode.next, going: \.next))
         case .previousMode:
-            setMode(mode.previous)
+            setMode(freeMode(after: mode.previous, going: \.previous))
         case let .mode(mode):
+            guard mode != .guides || isProUnlocked else { return .needsPro(.rulerGuides) }
             setMode(mode)
         case .toggleUnit:
             unit = unit.toggled
@@ -26,6 +27,7 @@ nonisolated extension RulerSession {
         case let .arrow(dx, dy, resizes):
             return arrow(dx: dx, dy: dy, resizes: resizes)
         case let .tolerance(delta):
+            guard isProUnlocked else { return .needsPro(.rulerStyle) }
             let range = RulerSettings.toleranceRange
             let changed = min(max(tolerance + delta, range.lowerBound), range.upperBound)
             guard changed != tolerance else { return .beep }
@@ -89,5 +91,10 @@ nonisolated extension RulerSession {
             selectedGuide = nil
         }
         return nil
+    }
+
+    /// Tab passes over Guides while Oriel Pro is locked, rather than stopping on a mode that asks for it.
+    private func freeMode(after candidate: RulerMode, going step: KeyPath<RulerMode, RulerMode>) -> RulerMode {
+        candidate == .guides && !isProUnlocked ? candidate[keyPath: step] : candidate
     }
 }

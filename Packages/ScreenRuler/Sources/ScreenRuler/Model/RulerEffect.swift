@@ -1,4 +1,5 @@
 import CoreGraphics
+import OrielCore
 
 /// What the session asks the overlay to do after an event; the session itself only changes state.
 nonisolated enum RulerEffect: Equatable, Sendable {
@@ -11,5 +12,7 @@ nonisolated enum RulerEffect: Equatable, Sendable {
     case fit(PixelRect, displayID: CGDirectDisplayID, tolerance: Int)
     /// The edge tolerance changed; keep it for next time.
     case toleranceChanged(Int)
+    /// A Pro feature while Oriel Pro is locked: close, and show what Pro adds (PLAN §19).
+    case needsPro(ProFeature)
     case beep
 }

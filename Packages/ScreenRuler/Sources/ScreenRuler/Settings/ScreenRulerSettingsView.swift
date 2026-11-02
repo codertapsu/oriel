@@ -1,5 +1,6 @@
 import AppKit
 import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Settings → Screen Ruler: the mode and unit it opens with, the color it draws in, and how readily Dimensions finds
@@ -32,7 +33,11 @@ struct ScreenRulerSettingsView: View {
                 Text("On a Retina display one point is two pixels. U switches while measuring.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ColorPicker("Line color", selection: colorBinding(settings), supportsOpacity: false)
+                HStack {
+                    ColorPicker("Line color", selection: colorBinding(settings), supportsOpacity: false)
+                        .disabled(!ProAccess.shared.allows(.rulerStyle))
+                    ProBadge(.rulerStyle)
+                }
                 Text("Guides and measurements are drawn in this color.").font(.caption).foregroundStyle(.secondary)
             }
             Section("Dimensions") {
@@ -41,6 +46,7 @@ struct ScreenRulerSettingsView: View {
                         // Whole percents through the binding: a `step` would draw fifty tick marks.
                         Slider(value: toleranceBinding(settings), in: 0 ... Double(RulerSettings.toleranceRange.upperBound))
                             .frame(width: 180)
+                            .disabled(!ProAccess.shared.allows(.rulerStyle))
                             .accessibilityLabel("Edge tolerance")
                             .accessibilityValue("\(settings[RulerSettings.tolerance]) percent")
                         Text("\(settings[RulerSettings.tolerance])%")

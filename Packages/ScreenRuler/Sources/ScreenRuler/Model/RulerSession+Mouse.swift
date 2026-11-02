@@ -70,6 +70,7 @@ nonisolated extension RulerSession {
             guard moved >= AreaSelection.minimumDrag else {
                 // A click keeps the box under the pointer, or lets a kept one go when it is clicked again.
                 let live = dimensions
+                guard isProUnlocked || live == nil else { return .needsPro(.keptMeasurements) }
                 pinned = live == nil || pinned?.box == live?.box ? nil : live
                 return live == nil && edgeStatus != .ready ? .beep : nil
             }

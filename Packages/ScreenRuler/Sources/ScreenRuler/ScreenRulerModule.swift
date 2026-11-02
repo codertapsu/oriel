@@ -55,6 +55,10 @@ public final class ScreenRulerModule: UtilityModule {
         AnyView(ScreenRulerSettingsView(model: settingsModel))
     }
 
+    public var proFeatures: [ProFeature] {
+        ProFeature.screenRulerFeatures
+    }
+
     public var settingsSymbol: String {
         "ruler"
     }
