@@ -115,7 +115,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     @discardableResult
     func perform(_ command: EditorCommand) -> Bool {
         switch command {
-        case let .tool(tool): session.selectTool(tool)
+        case let .tool(tool):
+            guard tool.proFeature.map(ProAccess.shared.check) ?? true else { return false }
+            session.selectTool(tool)
         case .delete: session.deleteSelection()
         case let .nudge(dx, dy): session.nudgeSelection(dx: dx, dy: dy)
         case .cancel: session.cancel()
@@ -124,7 +126,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         case .redo: session.redo()
         case .selectAll: session.selectAll()
         case .copy: copyImage()
-        case .save: save()
+        case .save:
+            guard ProAccess.shared.check(.editorDocuments) else { return false }
+            save()
         case .export: export()
         case .quickLook: toggleQuickLook()
         case .zoomIn: zoomIn()
@@ -133,7 +137,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         case .actualSize: setZoom(1, anchor: nil)
         case .close: window?.performClose(nil)
         case .smartRedact:
-            guard let smartTools, smartTools.canReadText else { return false }
+            guard let smartTools, smartTools.canReadText, ProAccess.shared.check(.smartRedact) else { return false }
             session.commitPendingEdits()
             smartTools.isRedactPresented = true
         }

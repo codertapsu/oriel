@@ -1,3 +1,5 @@
+import OrielCore
+
 /// The canvas tools, in toolbar order, with the single-key shortcut each answers to.
 nonisolated enum EditorTool: String, CaseIterable, Sendable, Identifiable {
     case select
@@ -16,6 +18,15 @@ nonisolated enum EditorTool: String, CaseIterable, Sendable, Identifiable {
 
     var id: String {
         rawValue
+    }
+
+    /// The Pro feature the tool is, if it needs Oriel Pro (PLAN §19).
+    var proFeature: ProFeature? {
+        switch self {
+        case .counter: .numberedSteps
+        case .spotlight: .spotlight
+        default: nil
+        }
     }
 
     /// The button's accessibility label and the first part of its tooltip.

@@ -12,6 +12,11 @@ nonisolated enum EditorExportFormat: String, CaseIterable, Codable, Sendable, Id
         rawValue
     }
 
+    /// HEIC and PDF need Oriel Pro; PNG and JPEG are free (PLAN §19).
+    var isPro: Bool {
+        self == .heic || self == .pdf
+    }
+
     var title: String {
         switch self {
         case .png: "PNG"

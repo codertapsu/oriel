@@ -43,7 +43,8 @@ struct EditorToolbar: View {
                 symbol: "eye.slash",
                 title: "Smart Redact",
                 help: "Smart Redact: hide private details found in the text (⇧⌘R)",
-                isPresented: Binding(get: { smart.isRedactPresented }, set: { smart.isRedactPresented = $0 })
+                isPresented: Binding(get: { smart.isRedactPresented }, set: { smart.isRedactPresented = $0 }),
+                proFeature: .smartRedact
             ) {
                 SmartRedactPanel(tools: smart)
             }
@@ -51,7 +52,8 @@ struct EditorToolbar: View {
                 symbol: "text.redaction",
                 title: "Simplify",
                 help: "Simplify: replace text with bars",
-                isPresented: $isSimplifyPresented
+                isPresented: $isSimplifyPresented,
+                proFeature: .simplify
             ) {
                 SimplifyPanel(tools: smart, isPresented: $isSimplifyPresented)
             }
@@ -60,7 +62,8 @@ struct EditorToolbar: View {
             symbol: "wand.and.stars",
             title: "Smart Move",
             help: "Smart Move: lift text and objects so you can move or delete them",
-            isPresented: $isSmartMovePresented
+            isPresented: $isSmartMovePresented,
+            proFeature: .smartMove
         ) {
             SmartMovePanel(tools: smart, isPresented: $isSmartMovePresented)
         }
