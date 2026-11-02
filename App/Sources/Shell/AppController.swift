@@ -4,6 +4,9 @@ import OrielCore
 import os
 import Permissions
 import SharedUI
+#if APP_STORE
+    import Licensing
+#endif
 #if !APP_STORE
     import IPC
 #endif
@@ -15,6 +18,10 @@ final class AppController {
     let settings = SettingsStore()
     private let launchWindow = LaunchWindow()
     private let dockPresence = DockPresence()
+    #if APP_STORE
+        /// Oriel Pro, bought once through the App Store (PLAN §19).
+        let proStore = ProStore()
+    #endif
     let permissions = PermissionCenter()
     /// Keyed by bundle ID, so a Debug build never reads, or prompts for, the installed app's items.
     let keychain = Bundle.main.bundleIdentifier.map { KeychainStore(prefix: $0) } ?? KeychainStore()
@@ -32,6 +39,7 @@ final class AppController {
         private var ipcServer: IPCServer?
     #endif
     private var settingsObserver: NSObjectProtocol?
+    private var proObserver: NSObjectProtocol?
     private let log = Log.logger("app")
 
     init() {
@@ -49,6 +57,7 @@ final class AppController {
     /// opened last, unless this copy is moving to Applications.
     func start(opensWindow: Bool = false, opening urls: [URL] = []) {
         IntentContext.controller = self
+        configurePro()
         dockPresence.start()
         MainMenu.install(settings: { [weak self] in self?.showSettings() }, closeWindows: { [weak self] in self?.closeWindows() })
         #if !APP_STORE
@@ -114,7 +123,11 @@ final class AppController {
         case .showSettings: showSettings()
         case .showOnboarding: showOnboarding()
         case .quit: NSApp.terminate(nil)
-        default: Task { await hub.perform(action) }
+        default:
+            if let feature = action.proFeature, !ProAccess.shared.check(feature) {
+                return
+            }
+            Task { await hub.perform(action) }
         }
     }
 
@@ -150,9 +163,39 @@ final class AppController {
         return true
     }
 
-    /// Every command the features and the turned-on tools offer (PLAN §6.5).
+    /// Every command the features and the turned-on tools offer (PLAN §6.5), gated, so a Pro one asks first (PLAN §19).
     var commands: [ToolCommand] {
-        hub.commands + registry.commands
+        (hub.commands + registry.commands).map { $0.gated(by: .shared) }
+    }
+
+    /// The commands the status menu lists: the features' and the active tools', gated.
+    var menuCommands: (features: [ToolCommand], tools: [ToolCommand]) {
+        (hub.commands.filter(\.showsInMenu).map { $0.gated(by: .shared) }, registry.menuCommands.map { $0.gated(by: .shared) })
+    }
+
+    // MARK: Oriel Pro
+
+    /// A locked Pro feature opens Settings → Oriel Pro. The App Store edition unlocks Pro with its purchase; the
+    /// Developer ID edition includes it (PLAN §19).
+    private func configurePro() {
+        ProAccess.shared.onLocked = { [weak self] feature in self?.showPro(feature) }
+        #if APP_STORE
+            proStore.start()
+        #else
+            ProAccess.shared.setUnlocked(true)
+        #endif
+        proObserver = NotificationCenter.default.addObserver(
+            forName: ProAccess.didChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.sync.update() }
+        }
+    }
+
+    func showPro(_ feature: ProFeature? = nil) {
+        if settingsWindow == nil {
+            settingsWindow = SettingsWindowController(controller: self)
+        }
+        settingsWindow?.showPro(feature)
     }
 
     /// Oriel's Dock icon was clicked, or Oriel was opened again while running: its windows come forward with it, a

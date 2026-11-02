@@ -73,7 +73,7 @@ final class SettingsSyncService {
 
     /// Starts or stops with the setting; called at launch and whenever the setting changes.
     func update() {
-        if settings[AppSettings.syncSettings] {
+        if settings[AppSettings.syncSettings], ProAccess.shared.allows(.settingsSync) {
             start()
         } else {
             stop()

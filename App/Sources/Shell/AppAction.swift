@@ -1,3 +1,4 @@
+import Capture
 import Foundation
 import OrielCore
 
@@ -13,6 +14,11 @@ enum AppAction: String, CaseIterable, Identifiable {
 
     var id: String {
         rawValue
+    }
+
+    /// The Pro feature the action starts, if it needs Oriel Pro (PLAN §19).
+    var proFeature: ProFeature? {
+        self == .captureScrolling ? .scrollingCapture : nil
     }
 
     var title: String {

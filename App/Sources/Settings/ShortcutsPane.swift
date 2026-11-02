@@ -1,5 +1,6 @@
 import Hotkeys
 import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Global shortcuts for capture, recording, translation and every tool that is on (Carbon hot keys, no permission
@@ -40,7 +41,7 @@ struct ShortcutsPane: View {
     }
 
     private func rowView(_ row: ShortcutRow) -> some View {
-        LabeledContent(row.title) {
+        LabeledContent {
             HStack {
                 ShortcutRecorder(combo: controller.settings.binding(row.key), inUse: inUse(except: row))
                     .frame(width: 160, height: 24)
@@ -51,6 +52,13 @@ struct ShortcutsPane: View {
                 }
                 Button("Default") { controller.settings.reset(row.key) }
                     .disabled(controller.settings[row.key] == row.key.defaultValue)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(row.title)
+                if let feature = row.proFeature {
+                    ProBadge(feature)
+                }
             }
         }
     }
@@ -71,16 +79,19 @@ private struct ShortcutRow: Identifiable {
     let id: String
     let title: String
     let key: SettingKey<KeyCombo?>
+    let proFeature: ProFeature?
 
     init(_ action: AppAction) {
         id = action.rawValue
         title = action.title
         key = action.shortcutKey
+        proFeature = action.proFeature
     }
 
     init(_ command: ToolCommand) {
         id = command.id
         title = command.title
         key = command.shortcutKey
+        proFeature = command.proFeature
     }
 }

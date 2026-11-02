@@ -6,7 +6,15 @@ struct SettingsView: View {
     @Bindable var navigation: SettingsNavigation
 
     private var panes: [SettingsPaneEntry] {
-        [SettingsPaneEntry(id: "general", title: "General", symbol: "gearshape", view: AnyView(GeneralPane(controller: controller)))]
+        [
+            SettingsPaneEntry(id: "general", title: "General", symbol: "gearshape", view: AnyView(GeneralPane(controller: controller))),
+            SettingsPaneEntry(
+                id: ProPane.id,
+                title: "Oriel Pro",
+                symbol: "star.circle",
+                view: AnyView(ProPane(controller: controller, navigation: navigation))
+            ),
+        ]
             + controller.hub.settingsPanes
             + [
                 SettingsPaneEntry(

@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 import SwiftUI
 
 /// The Settings window: SwiftUI panes hosted in an AppKit window (PLAN §10.1).
@@ -23,5 +24,11 @@ final class SettingsWindowController {
         }
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Settings → Oriel Pro, naming the Pro feature the user tried, if any (PLAN §19).
+    func showPro(_ feature: ProFeature?) {
+        navigation.proFeature = feature
+        show(tab: ProPane.id)
     }
 }

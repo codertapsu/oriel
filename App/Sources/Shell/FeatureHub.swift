@@ -85,6 +85,12 @@ final class FeatureHub: CaptureActionHandling {
         #endif
     }
 
+    /// Every Pro feature, the features' then the tools' then the app's, in Settings order (PLAN §19).
+    var proFeatures: [ProFeature] {
+        ProFeature.captureFeatures + ProFeature.uploadFeatures + ProFeature.editorFeatures + ProFeature.recordingFeatures
+            + ProFeature.translationFeatures + modules.flatMap(\.proFeatures) + [.settingsSync]
+    }
+
     /// The commands of the features (PLAN §6.5); the tools' own come through the module registry.
     var commands: [ToolCommand] {
         [instantCaptureCommand] + capture.commands + recording.commands + translation.commands + editor.commands
@@ -132,7 +138,8 @@ final class FeatureHub: CaptureActionHandling {
             symbol: "bolt.square",
             group: .capture,
             defaultShortcut: KeyCombo(keyCode: KeyCode.ansi2, modifiers: [.control, .shift]),
-            route: "capture/instant"
+            route: "capture/instant",
+            proFeature: .instantCapture
         ) { [weak self] in
             Task { await self?.instantCapture() }
         }

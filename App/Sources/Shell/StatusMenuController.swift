@@ -49,8 +49,7 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
             moduleItems.forEach(menu.addItem)
             menu.addItem(.separator())
         }
-        let features = controller.hub.commands.filter(\.showsInMenu)
-        let tools = controller.registry.menuCommands
+        let (features, tools) = controller.menuCommands
         for action in [AppAction.captureArea, .captureWindow, .captureScreen, .captureScrolling, .capturePreviousArea, .captureWithTimer] {
             menu.addItem(item(action))
         }

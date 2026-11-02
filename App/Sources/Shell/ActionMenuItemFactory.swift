@@ -15,11 +15,15 @@ enum ActionMenuItemFactory {
     }
 
     static func make(_ action: AppAction, shortcut: KeyCombo?, handler: @escaping @MainActor @Sendable () -> Void) -> NSMenuItem {
-        withShortcut(ActionMenuItem(action.title, symbol: action.symbol, handler: handler), shortcut)
+        let item = withShortcut(ActionMenuItem(action.title, symbol: action.symbol, handler: handler), shortcut)
+        ProMenuBadge.apply(action.proFeature, to: item)
+        return item
     }
 
     static func make(_ command: ToolCommand, shortcut: KeyCombo?) -> NSMenuItem {
-        withShortcut(ActionMenuItem(command.title, symbol: command.symbol, handler: command.perform), shortcut)
+        let item = withShortcut(ActionMenuItem(command.title, symbol: command.symbol, handler: command.perform), shortcut)
+        ProMenuBadge.apply(command.proFeature, to: item)
+        return item
     }
 
     private static func withShortcut(_ item: NSMenuItem, _ shortcut: KeyCombo?) -> NSMenuItem {

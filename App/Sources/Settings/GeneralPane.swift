@@ -1,4 +1,5 @@
 import OrielCore
+import SharedUI
 import SwiftUI
 
 struct GeneralPane: View {
@@ -41,8 +42,14 @@ struct GeneralPane: View {
                 }
             }
             Section {
-                Toggle("Sync settings through iCloud", isOn: controller.settings.binding(AppSettings.syncSettings))
+                HStack {
+                    Toggle(
+                        "Sync settings through iCloud",
+                        isOn: controller.settings.binding(AppSettings.syncSettings).gated(by: .settingsSync)
+                    )
                     .disabled(controller.sync.method == nil && !controller.settings[AppSettings.syncSettings])
+                    ProBadge(.settingsSync)
+                }
                 if controller.settings[AppSettings.syncSettings] {
                     HStack {
                         Text(syncStatus)
