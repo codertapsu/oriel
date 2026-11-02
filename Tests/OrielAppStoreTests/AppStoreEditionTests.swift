@@ -40,6 +40,18 @@ struct AppStoreEditionTests {
         #expect(!PermissionKind.accessibility.isRequired)
     }
 
+    /// The privacy manifest App Store Connect checks: no tracking, nothing collected, and a reason for each
+    /// required-reason API the edition uses.
+    @Test func itCarriesItsPrivacyManifest() throws {
+        let url = try #require(Bundle.main.url(forResource: "PrivacyInfo", withExtension: "xcprivacy"))
+        let manifest = try #require(NSDictionary(contentsOf: url) as? [String: Any])
+        #expect(manifest["NSPrivacyTracking"] as? Bool == false)
+        #expect((manifest["NSPrivacyCollectedDataTypes"] as? [Any])?.isEmpty == true)
+        let declared = manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]] ?? []
+        let types = Set(declared.compactMap { $0["NSPrivacyAccessedAPIType"] as? String })
+        #expect(types == Set(["UserDefaults", "FileTimestamp", "DiskSpace"].map { "NSPrivacyAccessedAPICategory\($0)" }))
+    }
+
     /// The feature tour shows this edition's tools only, and promises nothing its sandbox rules out (PLAN §19).
     @Test func theTourShowsOnlyWhatThisEditionHas() throws {
         let suiteName = "com.codertapsu.oriel.tests.tour.\(UUID().uuidString)"

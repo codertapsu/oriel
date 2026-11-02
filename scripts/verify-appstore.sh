@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify-appstore.sh — checks a built App Store edition (PLAN §19) for what App Review rejects or the sandbox forbids:
 # both slices, no private API names (Guidelines 2.5.1), no root helper daemon and no embedded CLI (2.4.5), the sandbox in
-# its entitlements, and the export-compliance answer in its Info.plist.
+# its entitlements, the export-compliance answer in its Info.plist, and its privacy manifest.
 #
 #   bash scripts/verify-appstore.sh build/Release-AppStore/Oriel.app
 set -euo pipefail
@@ -38,3 +38,10 @@ echo "    ✓ sandboxed ($entitlements)"
 [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist")" = "com.codertapsu.oriel" ] \
   || fail "the bundle ID is not com.codertapsu.oriel"
 echo "    ✓ Info.plist: com.codertapsu.oriel, export compliance answered"
+
+manifest="$APP/Contents/Resources/PrivacyInfo.xcprivacy"
+[ -f "$manifest" ] || fail "the privacy manifest is missing"
+[ "$(/usr/libexec/PlistBuddy -c 'Print :NSPrivacyTracking' "$manifest")" = "false" ] || fail "the manifest declares tracking"
+/usr/libexec/PlistBuddy -c 'Print :NSPrivacyAccessedAPITypes:0:NSPrivacyAccessedAPIType' "$manifest" >/dev/null \
+  || fail "the manifest declares no required-reason API"
+echo "    ✓ privacy manifest: no tracking, required-reason APIs declared"
