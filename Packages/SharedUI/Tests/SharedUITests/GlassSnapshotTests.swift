@@ -43,7 +43,8 @@ struct GlassSnapshotTests {
         let view = switcherBackground()
         view.apply(reduced)
         view.appearance = NSAppearance(named: .darkAqua)
-        Snapshot.expect(Snapshot.render(view), matches: "switcher-opaque-dark")
+        // macOS 27.2 draws the dark separator up to 6 levels off 27.1's; a fill left light would be 100+ off.
+        Snapshot.expect(Snapshot.render(view), matches: "switcher-opaque-dark", tolerance: 8)
     }
 
     /// macOS announces a change of the options; the view then draws for the system's.
