@@ -52,6 +52,7 @@ extension ClipboardPanelController: NSSearchFieldDelegate {
     func handleKeyEquivalent(_ event: NSEvent) -> Bool {
         let flags = Self.modifiers(of: event)
         if flags == .command, let index = KeyCode.digits.firstIndex(of: event.keyCode) {
+            guard ProAccess.shared.check(.clipboardQuickPaste) else { return true }
             if let item = model.item(quickPasteNumber: index + 1) {
                 paste([item], plainText: pastesPlainTextByDefault)
             } else {

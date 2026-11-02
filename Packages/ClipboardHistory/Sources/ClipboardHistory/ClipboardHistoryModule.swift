@@ -61,6 +61,10 @@ public final class ClipboardHistoryModule: UtilityModule {
         AnyView(ClipboardSettingsView(model: settingsModel))
     }
 
+    public var proFeatures: [ProFeature] {
+        ProFeature.clipboardFeatures
+    }
+
     public var settingsSymbol: String {
         "list.clipboard"
     }

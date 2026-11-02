@@ -1,4 +1,5 @@
 import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Settings → Clipboard History: pasting, how much is kept and for how long, Paste from Other Apps, and the apps whose
@@ -67,6 +68,15 @@ struct ClipboardSettingsView: View {
             }
             LabeledContent("Kept now") {
                 Text(keptNow).foregroundStyle(.secondary)
+            }
+            if !ProAccess.shared.isUnlocked {
+                HStack {
+                    Text("Without Oriel Pro the panel shows the last \(ClipboardPanelModel.freeCount) items from the past "
+                        + "\(ClipboardPanelModel.freeDays) days; the rest are kept for when you unlock it.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ProBadge(.clipboardUnlimited)
+                }
             }
             Text(Self.storageNote)
                 .font(.caption)

@@ -197,7 +197,8 @@ final class ClipboardPanelController: NSObject {
         case .allowed:
             break
         }
-        if permissions.status(of: .accessibility) != .granted {
+        // The App Store edition's sandbox cannot be granted Accessibility: it always copies, and the toast says ⌘V.
+        if !Sandbox.isActive, permissions.status(of: .accessibility) != .granted {
             return .init(
                 symbol: "keyboard",
                 text: "Pasting needs Accessibility. Until then Oriel copies the item and you press ⌘V.",

@@ -106,6 +106,7 @@ extension ClipboardPanelController {
         }
         let pinned = Set(model.index.pinned.map(\.id))
         let pins = !items.allSatisfy { pinned.contains($0.id) }
+        guard !pins || allowsPinning(items.count { !pinned.contains($0.id) }) else { return }
         let store = recorder.store
         Task {
             try? await store.setPinned(items.map(\.id), pins)
@@ -133,11 +134,18 @@ extension ClipboardPanelController {
     }
 
     func move(_ ids: [UUID], to section: ClipboardSection, at position: Int) {
+        let pinned = Set(model.index.pinned.map(\.id))
+        guard section != .pinned || allowsPinning(ids.count { !pinned.contains($0) }) else { return }
         let store = recorder.store
         Task {
             try? await store.move(ids, to: section, at: position)
             await changed(selecting: ids)
         }
+    }
+
+    /// Whether `newPins` more items may be pinned: any number with Oriel Pro, else up to `ClipboardPanelModel.freePins`.
+    private func allowsPinning(_ newPins: Int) -> Bool {
+        model.fitsFreePins(adding: newPins) || ProAccess.shared.check(.clipboardUnlimited)
     }
 
     func copyRecognizedText(of item: ClipboardItem) {
