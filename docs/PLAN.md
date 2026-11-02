@@ -1,6 +1,8 @@
 # Oriel — Technical Design and Implementation Plan
 
-**Version 2.11 · 2026-10-31 · Supersedes v2.10, v2.9, v2.8, v2.7, v2.6, v2.5, v2.4, v2.3, v2.2, v2.1, v2.0 (consolidated), the v1 research plan and the v2 addendum**
+**Version 2.12 · 2026-11-02 · Supersedes v2.11, v2.10, v2.9, v2.8, v2.7, v2.6, v2.5, v2.4, v2.3, v2.2, v2.1, v2.0 (consolidated), the v1 research plan and the v2 addendum**
+
+**Changes in 2.12** (release 1.0.0, `docs/reports/08-app-store-edition.md`): the first release is 1.0.0, in both editions; it supersedes the 0.1.0 builds. Oriel comes in two editions from one source tree (D3, §18): the Developer ID edition, unchanged, and a sandboxed Mac App Store edition with the release's bundle ID, `com.codertapsu.oriel`, built by a second app target, `OrielAppStore`, with `APP_STORE`, in its own configurations and scheme (Appendix D). The App Store edition leaves out what the App Store's rules or the sandbox exclude, the window switcher, Window Tiling, Activity Monitor, private APIs, the CLI and root, and adapts the rest: scrolling capture is manual, captures are saved through a security-scoped bookmark or to Pictures, Disk Space Analyzer reads what the user allows, uploads have no SFTP, and Clipboard History copies instead of pasting (§19.1). It is free, with Oriel Pro, a US$10.00 one-time purchase not shared through Family Sharing, sold through StoreKit with no server (D15, §19.2–§19.4); every feature and tool declares its Pro features, and the Developer ID edition includes them all. A feature tour, whose pages the features and tools declare, opens after the first onboarding and from the menus (§19.5). Text goes to a translation provider off the Mac only after the user allows it, in both editions (§19.6); a privacy manifest declares the required-reason APIs (§19.7); Oriel's privacy policy, support page and terms are on the Codertapsu site (§19.8). Releases notarize through a keychain profile (§15 item 4). The App Store edition's entitlements are the sandbox's (§8.1); the Developer ID edition's are unchanged. No private API or dependency was added.
 
 **Changes in 2.11** (release 0.1.0, `docs/reports/07-review-tests-measurements.md`): fixes from a fresh-eyes review. Read as Administrator's helper answers only administrators' accounts, a release accepts only Developer ID builds closed to debuggers, and the CLI's `disk scan` never uses it; the window asks macOS for its state before every read and before registering it again, a slow read is not sent twice, and refreshes keep what it read (§7.10 item 17). Clean Up recommends nothing that may be the user's own: older versions only for the tools that keep a folder per version, the user's folders judged before names, no caches inside code or projects, a Python environment only by its bare layout, `/tmp` kept, and under "Look before you remove it" and "Keep it" the recommended method only shows the folder; what goes is checked for processes before the confirmation and after it, with every file a process has open (§7.10 item 19). The Dock's previews and counts tell copies of one app apart by their bundles, follow Space changes and magnified icons, keep the last layout read while the Dock was out, never cut the icons' settle short and rebuild a preview only when its windows change (§7.1.12). Tiling keeps Oriel's windows within their size limits (§7.14); a file that launches Oriel is opened once it has started (§10.1); the opaque glass fallback follows Dark Mode (§10.2). Tests: an image-diff helper, timing tests against §9, a gesture recorder, UI tests and a Screen Recording test (§14.4), with measured figures in §9. Then the items the review left: a hard-linked file is counted once across refreshes and administrator reads, Other space, File Types and the summary's other counts are summed again after each (the tree records the kinds and the cloud-only files of its aggregated small files, which Clean Up now counts too, and the entries each folder could not read), every folder holding a further hard link is remembered, `.bin` counts as Other, Read as Administrator replaces what a folder held, and the Trash is read again after Oriel's own moves (§7.10 items 3 and 5); the Dock's counts follow a bottom Dock to another display and step aside while an app hides the Dock, a list the Dock replaces is found again, and the switcher installs its outside-click monitor outside the tap callback (§7.1.12); Settings gives way to an intent that launches Oriel (§10.1); OCR reads its lines' languages on every core, 500 lines in 50 ms instead of 320 (§7.6); and the timing tests for stitching and OCR grouping (§14.4). After build 112: Oriel is in the Dock while one of its windows is open, its icon's preview showing them, and back in the menu bar only once the last has closed; ⌘Q and Quit in the Dock's menu close its windows, and only Quit Oriel in the status menu, the end of the session, Quit & Reopen in System Settings, scripts and other apps quit it (§10.1, §7.1.12); a scan that read Safari's, Mail's or Messages' folder shows that Oriel has Full Disk Access, and the notes then say that the folders macOS still refuses are closed to every app instead of asking for it (§7.10 item 6). No entitlement, private API or dependency was added.
 
@@ -24,7 +26,7 @@
 
 **Changes in 2.1** (bootstrap review, `docs/reports/00-bootstrap.md`): the CLI is embedded at `Oriel.app/Contents/Helpers/oriel` (target `oriel-cli`, module `OrielCLI`), because in `Contents/MacOS` the name `oriel` is the app's own executable on a case-insensitive volume; the `Translation` package is `OrielTranslation`; packages use `swift-tools-version: 6.2`; UI tests are opt-in with `ORIEL_UI_TESTS=1`; `make test` forwards `ORIEL_TCC_TESTS` to the Xcode test bundles; `make run` launches a Debug build; the team ID and signing identity are filled in; Appendices A.4, B, C and D match the repository files; spike S8 answered Appendix F items 1 and 2.
 
-Oriel is an internal, native macOS menu-bar utility with three main tools, an AltTab-class window switcher, a snipping tool (screenshot, screen recording, editor) and instant screenshot translation, and six utilities beside them: Clipboard History, Disk Space Analyzer, Activity Monitor, Color Picker, Screen Ruler and Window Tiling (§7.9–§7.14). It is written from scratch in Swift 6 (AppKit + SwiftUI), targets macOS 26.0 and later, is built with the macOS 27 SDK, ships as a Universal binary, is Developer ID signed and notarized, is not sandboxed, and has zero runtime dependencies.
+Oriel is an internal, native macOS menu-bar utility with three main tools, an AltTab-class window switcher, a snipping tool (screenshot, screen recording, editor) and instant screenshot translation, and six utilities beside them: Clipboard History, Disk Space Analyzer, Activity Monitor, Color Picker, Screen Ruler and Window Tiling (§7.9–§7.14). It is written from scratch in Swift 6 (AppKit + SwiftUI), targets macOS 26.0 and later, is built with the macOS 27 SDK, ships as a Universal binary, is Developer ID signed and notarized, is not sandboxed, and has zero runtime dependencies. A second, sandboxed edition of the same sources goes to the Mac App Store without the tools the sandbox cannot run, free, with Oriel Pro as a one-time purchase (§18, §19).
 
 ---
 
@@ -123,7 +125,7 @@ References for features and UX patterns only: CleanShot X, Monosnap, Snagit, Lig
 
 ### 1.5 Non-goals for 1.0
 
-Mac App Store distribution; sandboxing; localization of the app's own UI; VoiceOver polish; public documentation; supporting macOS 25 or earlier.
+Localization of the app's own UI; VoiceOver polish; public documentation beyond the App Store edition's pages (§19.8); supporting macOS 25 or earlier. Mac App Store distribution and sandboxing, once non-goals, are the second edition's (§18).
 
 ---
 
@@ -135,7 +137,7 @@ Mac App Store distribution; sandboxing; localization of the app's own UI; VoiceO
 |---|---|---|
 | D1 | **Deployment target macOS 26.0**, built with the **macOS 27 SDK (Xcode 27.1+)**, primary test target **macOS 27.x**. | ADR-001 (§2.2). |
 | D2 | **Universal binary** (arm64 + x86_64). Apple silicon has the full feature set; Intel is best-effort, verified under Rosetta. | Intel costs two build settings and one smoke test. No hosted Intel CI, no mandatory physical Intel QA. |
-| D3 | **Developer ID + Hardened Runtime + notarization. Not sandboxed.** Distributed through a **private Homebrew tap** (DMG on `<FILEHOST>`) and `make install`. No Sparkle, no public cask, no privacy manifest, no App Store path. | The switcher needs the Accessibility API, private SkyLight/HIServices symbols and event taps that consume keystrokes; sandboxed apps can use none of these. Notarization is one step of the local release script and removes Gatekeeper friction; Homebrew gives fleet updates with no in-app updater. |
+| D3 | **Two editions** (§18). The **Developer ID edition**: Developer ID + Hardened Runtime + notarization, not sandboxed, distributed through a **private Homebrew tap** (DMG on `<FILEHOST>`) and `make install`; no Sparkle, no public cask. The **Mac App Store edition**: the same sources, sandboxed, with the same bundle ID, without the window switcher, Window Tiling, Activity Monitor, private APIs, the CLI and root (§19). | The switcher needs the Accessibility API, private SkyLight/HIServices symbols and event taps that consume keystrokes, which sandboxed apps cannot use, so the full app stays outside the store; notarization is one step of the local release script, and Homebrew gives fleet updates with no in-app updater. Everything else uses public APIs, and the App Store reaches people the private tap does not; one bundle ID keeps a user's permissions and settings when they move between editions. |
 | D4 | **Zero runtime dependencies.** Own Carbon hotkey engine and shortcut recorder; `SMAppService` called directly; in-repo image-diff test helper. | From-scratch codebase. |
 | D5 | **Reference policy: read, don't copy** (see §0.3). | Internal use is not GPL distribution, and the code is ours regardless. Reading de-risks the private-API spikes. |
 | D6 | **Private APIs are the primary path** for focus/Spaces (SkyLight), Cmd-Tab takeover (`CGSSetSymbolicHotKeyEnabled`) and, if needed, gestures (MultitouchSupport). Every symbol is loaded with `dlsym`, reported as a capability flag, and has a public fallback or a disabled-feature path. | Only breakage risk remains; the fallbacks exist for that. |
@@ -147,6 +149,7 @@ Mac App Store distribution; sandboxing; localization of the app's own UI; VoiceO
 | D12 | **Kept:** Reduce Transparency, Increase Contrast, Reduce Motion, Sticky Keys handling. **Deferred:** VoiceOver polish, localization. | Internal audience; the kept items are cheap and affect the glass panels. |
 | D13 | **MDM is optional:** if the fleet is managed, a PPPC profile pre-grants Accessibility, lets standard users approve Screen Recording, and `forceBypassScreenCaptureAlert` suppresses the periodic screen-recording prompt. | Removes the biggest UX headache when available. |
 | D14 | **Name: Oriel.** Bundle ID `com.codertapsu.oriel` (Debug builds `com.codertapsu.oriel.debug`, CLAUDE.md rule 14), CLI `oriel`, URL scheme `oriel://`, tap `homebrew-oriel`, packages under plain names, prefixed `Oriel` where the plain name is too generic or already taken (`OrielCore`; `OrielTranslation`, because the SDK ships `Translation.framework`). | A single find-and-replace if it ever changes. |
+| D15 | **Oriel Pro: one non-consumable in-app purchase, no server.** `com.codertapsu.oriel.pro`, US$10.00, not family shareable; StoreKit 2's signed transactions are the entitlement. Every tool stays useful without it; Pro adds the advanced half of each (§19.2). | No account, no receipt server, nothing to run: StoreKit verifies transactions on the Mac, works offline and restores on every Mac with the Apple Account. A subscription would need ongoing value Oriel does not provide. |
 
 ### 2.2 ADR-001: Deployment floor
 
@@ -168,7 +171,7 @@ Mac App Store distribution; sandboxing; localization of the app's own UI; VoiceO
 
 ### 2.3 Assumptions
 
-1. Direct distribution only (D3). If App Store distribution were ever wanted, the switcher is not viable there; capture and translation could ship as a separate sandboxed app using `SCContentSharingPicker`, Vision and Translation. No package other than `WindowSwitcher` depends on `PrivateAPIs` (the app target links it as well, for the Diagnostics flags), so that split stays possible.
+1. Two editions (D3, §18). The App Store edition cannot have the switcher; it ships capture, recording, the editor, translation, upload and four tools, sandboxed. No package other than `WindowSwitcher` depends on `PrivateAPIs` (the Developer ID app target links it as well, for the Diagnostics flags; the App Store target does not), which is what made the split possible.
 2. Minimum tooling: Xcode 27.1 (Swift 6.4), macOS 27 SDK, XcodeGen, SwiftLint, SwiftFormat.
 3. The internal fleet runs macOS 26 or 27. Nothing older is tested or worked around.
 
@@ -995,7 +998,7 @@ Settings → General → Sync: **Sync settings through iCloud** (`app.syncSettin
 
 1. **What syncs** (`SettingsSyncPolicy`, by name): shortcuts (`shortcuts.*`), the tools that are on (`app.enabledModules`) and the settings under the prefixes `capture.`, `recording.`, `editor.`, `translation.`, `clipboard.`, `switcher.`, `disk.`, `activity.`, `colorPicker.`, `screenRuler.` and `tiling.`. A name containing folder, directory, path, bookmark, location, last used, last opened or last scan stays on each Mac, as do `clipboard.openedPasteboardSettings` and `disk.explainedFolderAccess`, upload destinations (`upload.*`, whose credentials are in that Mac's keychain), the other `app.*` settings such as one-time notices, and the sync bookkeeping (`sync.*`). Secrets never reach `SettingsStore` (rule 7), so they cannot sync.
 2. **How:** each Mac publishes one snapshot of its synced settings (`SettingsSnapshot`: each setting's stored JSON and when it last changed on that Mac, a random device ID, `sync.deviceID`, and the computer's name) and reads the others' snapshots. Per setting, the newest change wins (`SettingsMerge`). A setting a Mac never changed counts as changed at `distantPast`, so a Mac that turns sync on adopts what the others have, and the first Mac to turn it on (`sync.seeded`) seeds the others with its settings. Changes that come from another Mac are marked (`userInfo["origin"] == "sync"`), so they are not sent back; a synced change of the tools starts or stops them (§6.3).
-3. **Where:** iCloud key-value storage (`NSUbiquitousKeyValueStore`), the store meant for preferences, when the app carries the `com.apple.developer.ubiquity-kvstore-identifier` entitlement, which it checks with `SecTaskCopyValueForEntitlement`. A Developer ID app gets that entitlement only with a provisioning profile that has iCloud, which Oriel's signing does not have yet (§16). Until then, a folder in iCloud Drive: `Oriel/Settings/<device>.json`, one file per Mac, so iCloud never reconciles two versions of one file, written and read through `NSFileCoordinator` (a coordinated read downloads a file still in iCloud), with an `NSFilePresenter` on the folder reporting other Macs' files. With neither, the toggle is dimmed.
+3. **Where:** iCloud key-value storage (`NSUbiquitousKeyValueStore`), the store meant for preferences, when the app carries the `com.apple.developer.ubiquity-kvstore-identifier` entitlement, which it checks with `SecTaskCopyValueForEntitlement`. A Developer ID app gets that entitlement only with a provisioning profile that has iCloud, which Oriel's signing does not have yet (§16). Until then, a folder in iCloud Drive: `Oriel/Settings/<device>.json`, one file per Mac, so iCloud never reconciles two versions of one file, written and read through `NSFileCoordinator` (a coordinated read downloads a file still in iCloud), with an `NSFilePresenter` on the folder reporting other Macs' files. With neither, the toggle is dimmed. The App Store edition carries the entitlement in Release, signed with the App Store profile Xcode makes when it archives, so it syncs through key-value storage; it has no iCloud Drive folder to fall back to, and Debug-AppStore builds, without iCloud, do not sync (§19.1).
 4. **Events, not polling (rule 3):** a local change goes out two seconds after the last one, a one-shot delay that each change restarts; other Macs' changes are read when iCloud reports them, when Oriel becomes active and after wake. While sync is off it observes nothing.
 5. **UI:** the toggle, the status ("Synced with 1 other Mac at 14:02", "iCloud Drive is off…") and Sync Now.
 6. **Limits:** values sync, not data, so histories, pins, palettes, glossaries and caches stay on each Mac. A setting both Macs change while offline goes to the later change. With iCloud Drive, macOS may ask once whether Oriel may use it (`NSFileProviderDomainUsageDescription`, Appendix D). Uninstall (§15 item 8) leaves the Mac's file in iCloud Drive.
@@ -1034,11 +1037,11 @@ Settings → General → Sync: **Sync settings through iCloud** (`app.syncSettin
 | Administrator password | Activity Monitor signalling another user's process (§7.11); Disk Space Analyzer thinning local snapshots when macOS refuses the user, and Read as Administrator without its helper (§7.10) | macOS's own prompt, through `osascript … with administrator privileges`, each time; Oriel never sees the password | Not a TCC service |
 | Disk Space Analyzer's helper (optional) | Read as Administrator without a password each time (§7.10 item 17) | `SMAppService.daemon(plistName:)`: **Install Helper…** registers it; the user switches it on in System Settings → General → Login Items & Extensions, with an administrator's password, once; `status` is read when the window opens and when Oriel comes to the front | Not a TCC service; registered again after an update; Remove Helper and Uninstall Oriel unregister it |
 | Input Monitoring, Automation | Not needed | — | Keep it that way |
-| Network | Providers, uploads | — | Not sandboxed; plain-HTTP local endpoints need `NSAllowsLocalNetworking` in ATS |
+| Network | Providers, uploads | — | The Developer ID edition is not sandboxed; the App Store edition has `network.client`. Plain-HTTP local endpoints need `NSAllowsLocalNetworking` in ATS |
 
 Activity Monitor needs no permission: `sysctl` and libproc read the user's own processes, `/bin/ps` is setuid root, and nettop needs none. Color Picker needs none either (the system loupe hands over only the clicked color), nor do the video editor and the file translation window.
 
-Hardened Runtime entitlements: only `device.audio-input` and `device.camera`. No sandbox, no `disable-library-validation`, no JIT. Settings sync adds no iCloud entitlement (§7.16).
+The Developer ID edition's Hardened Runtime entitlements: only `device.audio-input` and `device.camera`. No sandbox, no `disable-library-validation`, no JIT; settings sync adds no iCloud entitlement (§7.16). The App Store edition's (`App/AppStore/OrielAppStore.entitlements`): `app-sandbox`, `network.client`, `files.user-selected.read-write`, `files.bookmarks.app-scope`, `assets.pictures.read-write`, `device.audio-input`, `device.camera` and `ubiquity-kvstore-identifier`. Accessibility cannot be granted to a sandboxed app, so that edition never asks for it (§19.1).
 
 ### 8.2 Onboarding
 
@@ -1383,6 +1386,19 @@ spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.
 - [ ] Oriel's own window in front is arranged through AppKit on the main thread, never by the AX actor. **Verify:** `--filter OwnWindowTilerTests`
 - [ ] Tiles real windows on the installed app. **Verify:** manual (`docs/qa-checklists.md`).
 
+### 13.21 Editions, Oriel Pro and the feature tour
+- [ ] The App Store edition builds for both slices, unsigned, and has no private symbol, helper, daemon or CLI, the sandbox on, export compliance answered and the privacy manifest. **Verify:** `make appstore-check`
+- [ ] It runs sandboxed, never asks for Accessibility, carries its manifest, and its tour lists only its tools and promises nothing the sandbox rules out. **Verify:** `xcodebuild test -scheme "Oriel App Store"` (`AppStoreEditionTests`)
+- [ ] Oriel Pro: the $10 non-consumable, not family shareable; a purchase reaching the listener unlocks, a refund locks, a relaunch finds the purchase; each transaction decided from itself. **Verify:** `ProStoreTests` in the App Store scheme; `swift test --package-path Packages/Licensing`
+- [ ] `ProAccess`: allows, check and its `onLocked`, the change notification; `ToolCommand.gated(by:)`. **Verify:** `swift test --package-path Packages/OrielCore --filter ProAccessTests`
+- [ ] Each tool's free limits: capture history, clipboard window, image search, quick paste and pins, the ruler's guides, tolerance and kept measurements, and the Pro formats, tools, views and providers. **Verify:** `--filter Pro` in Capture, ClipboardHistory, ScreenRuler, ColorPicker, Editor, DiskAnalyzer and OrielTranslation
+- [ ] The catalog: unique ids, every feature described, every gated command and action in it. **Verify:** `--filter ProCatalogTests` (app)
+- [ ] The feature tour: a described page per feature and tool that opens its pane, Try It naming a real command, every Pro feature on a page; Help's items. **Verify:** `--filter 'FeatureTourTests|DockPresenceTests'` (app)
+- [ ] Consent before text leaves the Mac: only providers off the Mac need it, kept per provider and withdrawn in Settings; the headless path fails instead of asking. **Verify:** `swift test --package-path Packages/OrielTranslation --filter ProviderConsentTests`
+- [ ] Oriel's privacy, support and terms pages are live. **Verify:** `curl -sI https://codertapsu-web.web.app/oriel/{privacy,support,terms}` answers 200
+- [ ] Buying, restoring and pending purchases in a TestFlight build, and the tour and Pro pane on the installed App Store edition. **Verify:** manual (`docs/qa-checklists.md` items 49–53)
+
+
 ---
 
 ## 14. Testing strategy
@@ -1428,7 +1444,7 @@ Multi-display, mixed-scale (Retina + 1× external) setups are tested manually be
 1. **Project:** XcodeGen `project.yml` (Appendix D); the generated `.xcodeproj` is git-ignored; local packages under `Packages/`. `MARKETING_VERSION` is SemVer; the build number (`CURRENT_PROJECT_VERSION`) is the git commit count at archive time, set by `scripts/release/export-app.sh`.
 2. **Certificates:** one "Apple Development" certificate shared by every dev machine (export once; TCC grants are tied to the signing identity) and one "Developer ID Application" certificate for releases. The two signatures cannot share a bundle ID's permission entries, so Debug builds use `com.codertapsu.oriel.debug` ("Oriel Debug") and the release `com.codertapsu.oriel`; the release's certificate is chained to the current Developer ID CA (the original CA expires 2027-02-01). No "Developer ID Installer": there is no `.pkg`.
 3. **Signing:** Hardened Runtime on the app and the CLI; sign inside-out (CLI first, then the app); `--deep` is for verification only. The CLI embeds its Info.plist, so it signs as `com.codertapsu.oriel.cli` rather than `oriel`. Plain builds, Release included, keep `com.apple.security.get-task-allow` so Instruments can attach; only the `developer-id` export strips it, so only `dist/` output gets notarized.
-4. **Notarization:** `scripts/release/notarize.sh` runs `xcrun notarytool submit … --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait`, checks that the result is Accepted (printing Apple's log if not), staples the ticket and validates it. The release script uses it twice: on the exported app, so the copy a user drags out of the DMG carries its own ticket, and then on the DMG built from it. The four variables come from `scripts/apple-credentials.env`, git-ignored and shared with the other desktop apps; `APPLE_PASSWORD` is an app-specific password.
+4. **Notarization:** `scripts/release/notarize.sh` runs `xcrun notarytool submit … --wait` signed in through `notary-auth.sh`: the keychain profile `codertapsu-notary` (`NOTARY_PROFILE`; made once with `xcrun notarytool store-credentials`, `docs/RELEASING.md`), which keeps the app-specific password in the login keychain, else `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` from `scripts/apple-credentials.env`, git-ignored and shared with the other desktop apps. It checks that the result is Accepted (printing Apple's log if not), staples the ticket and validates it. The release script uses it twice: on the exported app, so the copy a user drags out of the DMG carries its own ticket, and then on the DMG built from it.
 5. **DMG:** `scripts/release/make-dmg.sh` runs `hdiutil create -volname Oriel -srcfolder dist/dmgroot -ov -format ULFO dist/Oriel-$VERSION.dmg` with the stapled app and an `/Applications` symlink, then `codesign --sign "$APPLE_SIGNING_IDENTITY" --timestamp` on the DMG.
 6. **Install:**
    - `make install` on a dev Mac (`scripts/install.sh`: Developer ID export, copy to /Applications, `codesign --verify`, open; local builds are not quarantined, so Gatekeeper never prompts).
@@ -1437,6 +1453,7 @@ Multi-display, mixed-scale (Retina + 1× external) setups are tested manually be
    - Settings → About shows the version and a "Copy update command" button (`brew upgrade --cask oriel`). No updater code.
 7. **CI (GitHub Actions):** `ci.yml` on pull requests and pushes to `main` (arm64 runner: XcodeGen, lint, Debug build, unit tests, Release Universal build, `lipo` check, Rosetta self-test after `softwareupdate --install-rosetta --agree-to-license`), signing ad hoc through the Makefile's `XCODEBUILD_FLAGS` (`CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=`), on `macos-26` with Xcode 27.1 unless the repository variables `ORIEL_CI_RUNNER` and `ORIEL_CI_XCODE` say otherwise; no release workflow: installers are built, notarized and verified on the maintainer's Mac by `scripts/release/release-macos.sh` (`docs/RELEASING.md`), as Gitweaver's and Mother Claude's are, so CI holds no signing secrets. `nightly-tcc.yml` targets a self-hosted runner only if one is ever set up.
 8. **Uninstall:** Advanced → "Uninstall Oriel…" removes Application Support data, Keychain items, the login item and the CLI symlink; the cask's `zap` stanza does the same from Homebrew.
+9. **The App Store edition** (§18): `make appstore-check` builds its Release for both slices, unsigned, and `scripts/verify-appstore.sh` checks it; the release gate runs both. It is signed by Apple: `make appstore-archive` (or Xcode, scheme "Oriel App Store", Product → Archive) archives it with automatic signing for the team, which needs the Mac registered as one of the team's devices, then Xcode's Organizer validates and uploads it to App Store Connect, for TestFlight and review (`docs/APP_STORE.md`, `docs/RELEASING.md`). Its build number is the same commit count.
 
 ---
 
@@ -1498,7 +1515,7 @@ Everything this section listed for after 1.0, for 1.x and 2.x, is built in 0.1.0
 | 2.x | Screen ruler | Screen Ruler, ⌃⇧M (§7.13) |
 | 2.x | Window tiling hotkeys | Window Tiling (§7.14) |
 | 2.x | App Intents for capture, translate and focus | Five intents and four App Shortcuts (§7.17) |
-| 2.x | iCloud KVS settings sync | Settings sync through iCloud Drive, and through key-value storage once the app has the entitlement (§7.16) |
+| 2.x | iCloud KVS settings sync | Settings sync through iCloud Drive, and through key-value storage in the App Store edition (§7.16) |
 | — | Not listed | Disk Space Analyzer (§7.10), Activity Monitor (§7.11), and tools and features that declare their own commands (§6.3, §6.5) |
 | — | Asked for during testing (`docs/reports/06-dock-and-clean-up.md`) | Dock previews and window counts (§7.1.12); Clean Up in Disk Space Analyzer (§7.10 item 19) |
 
@@ -1510,8 +1527,104 @@ Everything this section listed for after 1.0, for 1.x and 2.x, is built in 0.1.0
 - **Editor:** a solid-bar redaction beside blur and pixelate; magnifier callouts and stickers (§7.5).
 - **Translation:** Translate Under Cursor capturing only its area (`SCScreenshotConfiguration.sourceRect`) rather than the whole display; its translations and file translations in the history; DeepL's v3 glossaries, which can be edited; the glossary pop-up in the overlay's toolbar; rich formatting rebuilt in file exports.
 - **Tools:** CLI verbs for Color Picker (`oriel color convert`, `oriel color contrast`; the model supports both) and Window Tiling, with `oriel://` routes that do not bring Oriel to the front; a key that reads the screen again in Screen Ruler; Remove Download for File Provider domains, if an API appears; dragging items out of Disk Space Analyzer; stopping a scan in the app when `oriel disk scan` gives up; pausing Activity Monitor's sampling while its window is covered.
-- **Settings sync:** iCloud key-value storage, once Oriel is signed with an iCloud provisioning profile (§7.16).
+- **Settings sync:** iCloud key-value storage in the Developer ID edition, once it is signed with an iCloud provisioning profile (§7.16); the App Store edition has it.
 - The non-goals of §1.5, VoiceOver polish and localization, stand.
+
+---
+
+## 18. Two editions
+
+Oriel is built in two editions from one source tree (D3).
+
+| | Developer ID edition | Mac App Store edition |
+|---|---|---|
+| Target, configurations, scheme | `Oriel`; Debug, Release; "Oriel" | `OrielAppStore` with `APP_STORE`; Debug-AppStore, Release-AppStore; "Oriel App Store" |
+| Bundle ID | `com.codertapsu.oriel`; Debug `com.codertapsu.oriel.debug` | `com.codertapsu.oriel`; Debug-AppStore `com.codertapsu.oriel.appstore.debug`, "Oriel App Store Debug" |
+| Signing and distribution | Developer ID, notarized; `make install` and the Homebrew tap (§15) | Apple's, through an Xcode archive and App Store Connect (§15 item 9) |
+| Sandbox | No | Yes (§19.1) |
+| Tools | The window switcher, Clipboard History, Disk Space Analyzer, Activity Monitor, Color Picker, Screen Ruler, Window Tiling | Clipboard History, Disk Space Analyzer, Color Picker, Screen Ruler |
+| Features | Capture, recording, the editor, translation, upload, the CLI and IPC, App Intents | The same without the CLI and IPC, SFTP, keystrokes, automatic scrolling, Read as Administrator and Focus Window |
+| Oriel Pro | Included | A one-time purchase; every tool works without it (§19.2) |
+
+1. **One tree.** The App Store target compiles `App/Sources` without `SelfTest.swift`, `Shell/IPCRouter.swift`, `System/CLIInstaller.swift`, `System/Uninstaller.swift`, `Sync/ICloudDriveSyncBackend.swift` and the Focus Window intent, and links none of PrivateAPIs, IPC, WindowSwitcher, WindowTiling and ActivityMonitor; `#if APP_STORE` covers the app's other differences. Packages are shared and never see the flag: where they must behave differently they ask `Sandbox.isActive` (`APP_SANDBOX_CONTAINER_ID`, which macOS sets in the sandbox), so both paths are in their tests.
+2. **Products.** Only the App Store archive is `Oriel.app`; every other App Store build is `OrielAppStore.app`, so neither scheme's implicit dependencies take one edition's app for the other's, and the App Store scheme builds only its explicit dependencies (`docs/os-quirks.md`).
+3. **One bundle ID.** Both editions are `com.codertapsu.oriel`, whose designated requirement accepts Apple's App Store signature as well as Developer ID, so a user moving between editions keeps their permissions, settings and keychain items. They must not run at the same time; the App Store edition never offers Move to Applications.
+4. **Checks.** `make test` runs both schemes' tests; `make appstore-check` builds the App Store Release for both slices, unsigned, and `scripts/verify-appstore.sh` checks it for private symbols, a root helper or CLI, the sandbox, the export-compliance answer and the privacy manifest; the release gate runs both (§15).
+
+---
+
+## 19. The App Store edition: sandbox, Oriel Pro and the feature tour
+
+### 19.1 The sandbox
+
+The Mac App Store requires the App Sandbox (Guidelines 2.4.5(i)), and Accessibility cannot be granted to a sandboxed app. What each part does there:
+
+| Part | In the App Store edition |
+|---|---|
+| Permissions | `PermissionKind.available` leaves Accessibility out, and Screen Recording is the required one (§8.2) |
+| Scrolling capture | Manual: the user scrolls and Oriel adds each part once it settles; posting scroll events needs Accessibility |
+| Saving captures | To the folder chosen in Settings → Capture, kept as a security-scoped bookmark (`FolderBookmark`), else `Pictures/Oriel` (`assets.pictures.read-write`): the sandbox reaches neither the Desktop nor a folder it holds no bookmark for |
+| Clipboard History | Choosing an item copies it and the toast says ⌘V; no Accessibility banner |
+| Recording | No keystroke display: it needs Accessibility |
+| Upload | No SFTP (`/usr/bin/sftp` and `~/.ssh` are out of reach); shared folders keep security-scoped bookmarks |
+| Disk Space Analyzer | Scans what the user allows: an open panel asks once for each drive or folder, and `FolderGrants` keeps the grants as bookmarks. No Read as Administrator, helper, local snapshots or simulator clean-up (root, `tmutil` and `xcrun` are out of reach); the administrator code is compiled in and unreachable, since every entry point checks `canReadAsAdministrator`. Clean Up asks to quit the apps that use a folder first, because the sandbox hides other apps' open files |
+| Settings sync | iCloud key-value storage only (§7.16) |
+| Left out | The window switcher, Window Tiling, Activity Monitor, private APIs, the CLI and its socket, the disk reader's daemon, Move to Applications, Uninstall, Focus Window, the Homebrew update command |
+
+Security-scoped access starts once per folder and launch (`FolderBookmark.startAccessing`): each start holds another of the kernel's sandbox extensions.
+
+### 19.2 Free and Pro
+
+Every tool is useful without Oriel Pro; Pro adds the advanced half of each. Settings → Oriel Pro lists the catalog:
+
+| Feature or tool | Free | Oriel Pro |
+|---|---|---|
+| Screenshots | Area, window, screen and timer captures, Quick Access, pins, Capture Text, the latest 20 captures in the history | Scrolling, Instant and Step Capture; pin lock, click-through and opacity; the whole history and its search; a clean desktop |
+| Upload | — | Uploads to every destination |
+| Editor | Every drawing tool, blur, pixelate, crop; PNG and JPEG | Smart Redact, Simplify, Smart Move, backgrounds, numbered steps, the spotlight; `.oriel` documents, HEIC and PDF |
+| Screen recording | A screen, window or area with audio; trim; MP4 | The video editor, the camera bubble, click highlights and keystrokes, GIF and constant-frame-rate exports |
+| Translation | Translate Area with Apple Translation and Apple Intelligence | The other providers, Translate Under Cursor, files, glossaries, AI Vision |
+| Clipboard History | The last 100 items from the past 7 days, 5 pins | Everything kept, any number of pins, text in images, ⌘1–⌘9 |
+| Disk Space Analyzer | Scans, the views, Biggest Files, File Types, Space Hogs, Move to Trash with Undo | Clean Up, Duplicates, Old Files, what grew, CSV export |
+| Color Picker | Picking; HEX, RGB(A) and HSL | The other formats, palettes, the contrast checker |
+| Screen Ruler | Dimensions, Measure Area | Guides, kept measurements, tolerance and color |
+| App | — | Settings sync |
+
+The free tier deletes nothing: the histories keep everything, so unlocking Pro shows it all. Turning a Pro option off always works.
+
+### 19.3 How Pro is gated
+
+1. **Declared by the feature.** A package declares its `ProFeature`s (id, title, summary, module) as `nonisolated static let`s with a list (`ProFeature.captureFeatures`…); a `UtilityModule` returns its list from `proFeatures`, and `FeatureHub.proFeatures` collects them for Settings. A new tool brings its own.
+2. **One switch.** `ProAccess.shared` (OrielCore, `@MainActor @Observable`) holds `isUnlocked` and posts `didChangeNotification`. `allows(_:)` answers silently, for drawing and background paths; `check(_:)` answers and, while Pro is locked, calls `onLocked`, which opens Settings → Oriel Pro on that feature. The Developer ID edition unlocks it at launch.
+3. **At the edges.** A `ToolCommand` names its `proFeature`, and `gated(by:)` checks before performing, so shortcuts, menus, URLs and intents ask alike; `AppAction.proFeature` does the same for the app's actions. In views: `ProBadge` (shown only while Pro is locked; a click shows what Pro adds), `Binding.gated(by:)` (a toggle turns on only once Pro allows it, and always turns off) and `ProMenuBadge` (an `NSMenuItemBadge`, set as menus are built).
+4. **Tests.** Each package tests its free limits with an injected answer (an `allows` closure or its own `ProAccess`); an app test checks that ids are unique, every feature is described and every gate is in the catalog.
+
+### 19.4 StoreKit
+
+`Packages/Licensing`, in the App Store edition only: `ProStore`, for the product `com.codertapsu.oriel.pro`.
+
+1. **Launch:** Pro is set at once from the last answer (`pro.lastKnownUnlocked`, a hint, never the authority); then `Transaction.updates` is listened to for the life of the app, and `Transaction.currentEntitlements(for:)` decides.
+2. **Purchase:** `product.purchase(confirmIn:)` with a window, or SwiftUI's `PurchaseAction` from Settings → Oriel Pro: the sheet needs a window. A pending purchase (Ask to Buy) says so, and unlocks through the listener once approved.
+3. **Each transaction** is decided from itself, verified, for this product and not revoked (`ProEntitlement`, pure), because the entitlements list can lag a purchase or a refund; then it is finished.
+4. **Restore Purchases:** `AppStore.sync()`, then the entitlements again.
+5. **Offline:** verified transactions are on the Mac, and nothing needs the network after the purchase. No server, no account, no receipt validation of our own.
+6. **Testing:** `App/StoreKit/Oriel.storekit` (US$10.00, not family shareable) for Xcode's StoreKit testing from the scheme, and `SKTestSession` tests in the App Store edition's own test host: the product, a purchase reaching the listener, a refund that locks Pro, a relaunch that finds the purchase.
+
+### 19.5 Feature tour
+
+A window (SwiftUI, of the onboarding kind, rule 4) with a welcome page and a page for each feature and for each tool of the edition. Each declares its page as a `FeatureGuide`: its id (its Settings pane's), title, symbol, summary, highlights with their Pro feature, the command Try It runs, and the permissions it uses. `FeatureHub.guides` lists the features, then this edition's tools. A page shows the command's current shortcut, Try It (or that the tool is off, with a way to Settings → General), Settings…, the highlights with their `ProBadge`s, and the `PermissionList` of the permissions this edition can ask for; text that differs between the editions is chosen with `Sandbox.isActive`. It opens once after the first onboarding (`app.featureTourShown`), and from Feature Tour… in the status menu, Help → Oriel Feature Tour and `oriel://tour`. Tests: every feature and tool has a described page that opens its pane, Try It names a real command, every Pro feature of a feature or tool is on a page, and the App Store edition lists only its tools and promises nothing its sandbox rules out.
+
+### 19.6 Consent before text leaves the Mac
+
+Guidelines 5.1.2(i) ask an app to say so and get permission before it shares personal data with a third-party AI service. `ProviderConsent` asks once per provider, before its first request, in an alert above Oriel's overlays: the text read from the screen or a file (and, for AI Vision, the image) goes to that provider, under its privacy policy. The answer is kept per provider (`translation.consentedProviders`), and Settings → Translation shows and withdraws it. Apple Translation, Apple Intelligence and servers on this Mac (`Endpoint.isLocal`) need none. Translate Area, Translate Under Cursor and file translation ask; the headless path behind Shortcuts and the CLI never shows a dialog and fails with `TranslationFailure.notAllowed`. Both editions ask.
+
+### 19.7 Privacy manifest
+
+`App/Resources/PrivacyInfo.xcprivacy`, in both editions: no tracking, no collected data, and a reason for each required-reason API: UserDefaults (CA92.1), file timestamps (3B52.1 for folders the user chose, C617.1 for the container), disk space (85F4.1, shown in Disk Space Analyzer; E174.1, checked before a recording). The App Privacy answer in App Store Connect matches it: Data Not Collected (`docs/APP_STORE.md`).
+
+### 19.8 Pages and App Store Connect
+
+Oriel's privacy policy, support page and terms of use (EULA) are on the Codertapsu site (repository `codertapsu-web`, Firebase Hosting, generated from its `apps.json`): `https://codertapsu-web.web.app/oriel/privacy`, `/oriel/support` and `/oriel/terms` (`OrielLinks`). Settings → Oriel Pro links the terms and the privacy policy, and Help links the support page. Setting up App Store Connect, archiving, uploading and review are in `docs/APP_STORE.md`.
 
 ---
 
@@ -1528,8 +1641,10 @@ oriel/
 ├── ExportOptions.plist              # method: developer-id, signingStyle: manual, teamID
 ├── .gitignore  .swiftlint.yml  .swiftformat
 ├── App/
-│   ├── Sources/                     # AppDelegate, Shell/ (status menu, ModuleRegistry, FeatureHub), Onboarding/, Settings/, Bootstrap/, System/, Sync/, Intents/
-│   ├── Resources/                   # Assets.xcassets (app icon: window with a projecting bay), Localizable.xcstrings (en only)
+│   ├── Sources/                     # AppDelegate, Shell/ (status menu, ModuleRegistry, FeatureHub), Onboarding/, Tour/, Settings/, Bootstrap/, System/, Sync/, Intents/
+│   ├── Resources/                   # Assets.xcassets (app icon: window with a projecting bay), Localizable.xcstrings (en only), PrivacyInfo.xcprivacy
+│   ├── AppStore/                    # the App Store edition's Info.plist and entitlements (§18)
+│   ├── StoreKit/Oriel.storekit      # Oriel Pro for Xcode's StoreKit testing (§19.4)
 │   ├── Info.plist
 │   └── Oriel.entitlements
 ├── CLI/Sources/main.swift           # oriel command (argument parsing by hand; no swift-argument-parser)
@@ -1537,20 +1652,21 @@ oriel/
 │   ├── OrielCore/  PrivateAPIs/  Permissions/  Hotkeys/  SharedUI/  IPC/
 │   ├── WindowSwitcher/  Capture/  Recording/  Editor/
 │   ├── OCR/  OrielTranslation/  Upload/
-│   └── ClipboardHistory/  DiskAnalyzer/  ActivityMonitor/  ColorPicker/  ScreenRuler/  WindowTiling/
+│   ├── ClipboardHistory/  DiskAnalyzer/  ActivityMonitor/  ColorPicker/  ScreenRuler/  WindowTiling/
+│   └── Licensing/                   # Oriel Pro through StoreKit, the App Store edition only (§19.4)
 ├── Spikes/S0-Release/ … S9-Recording/     # throwaway packages, deleted after Phase 1
 ├── Tests/
-│   ├── OrielTests/  OrielUITests/
+│   ├── OrielTests/  OrielAppStoreTests/  OrielUITests/
 │   └── Fixtures/  (images/, gestures/, ocr/, scroll-frames/, snapshots/)
 ├── scripts/
-│   ├── idle-cpu.sh  perf-capture.sh  verify-windows.sh  verify-recording.sh  verify-cmdtab-restore.sh
+│   ├── idle-cpu.sh  perf-capture.sh  verify-windows.sh  verify-recording.sh  verify-cmdtab-restore.sh  verify-appstore.sh
 │   ├── fixtures/open-windows.sh
 │   ├── install.sh                   # make install
 │   ├── apple-credentials.env.example  # copy to apple-credentials.env (git-ignored), shared with the other desktop apps
-│   └── release/  (release-macos.sh, export-app.sh, notarize.sh, make-dmg.sh; bump-cask.sh once the tap exists)
+│   └── release/  (release-macos.sh, export-app.sh, notarize.sh, notary-auth.sh, make-dmg.sh; bump-cask.sh once the tap exists)
 ├── docs/
 │   ├── PLAN.md                      # this document
-│   ├── checklist.md  provenance.md  os-quirks.md  qa-checklists.md  bootstrap.example.json  RELEASING.md
+│   ├── checklist.md  provenance.md  os-quirks.md  qa-checklists.md  bootstrap.example.json  RELEASING.md  APP_STORE.md  USER_GUIDE.md
 │   ├── decisions/ADR-001-deployment-floor.md
 │   ├── spikes/S0.md … S9.md
 │   └── reports/00-bootstrap.md, phase-0.md, …
@@ -1649,8 +1765,10 @@ end
 # Oriel — instructions for Claude Code
 
 ## Product
-Internal menu-bar macOS utility: window switcher, screenshot/recording + editor, screenshot translation.
-Developer ID signed, Hardened Runtime, notarized, NOT sandboxed. Deployment target macOS 26.0, built with the
+Menu-bar macOS utility: window switcher, screenshot/recording + editor, screenshot translation, and tools.
+Two editions from one tree (PLAN §18): the Developer ID edition (target Oriel) is Developer ID signed, Hardened
+Runtime, notarized, NOT sandboxed; the Mac App Store edition (target OrielAppStore, APP_STORE) is sandboxed, leaves
+out the tools the sandbox cannot run and sells Oriel Pro through StoreKit (PLAN §19). Deployment target macOS 26.0, built with the
 macOS 27 SDK, primary target macOS 27. Universal binary (arm64 + x86_64); Intel is best-effort.
 Swift 6 language mode, strict concurrency = complete. Zero runtime dependencies.
 
@@ -1666,8 +1784,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
    frameworks directly. Every private call has a public fallback or a disabled-feature path.
 3. No polling: no repeating Timer, DispatchSourceTimer or sleep loop outside an active Recording or ScrollingCapture
    session, or while Activity Monitor's window is open (it samples only then). Everything else reacts to events.
-4. AppKit for overlays, panels, switcher and editor canvas. SwiftUI only for settings, onboarding, history,
-   the translation panel and the language-pack download sheet.
+4. AppKit for overlays, panels, switcher and editor canvas. SwiftUI only for settings, onboarding, the feature
+   tour, history, the translation panel and the language-pack download sheet.
 5. APIs newer than 26.0 (26.4 Translation strategy, anything 27-only, Apple Intelligence features) go
    behind `#available` AND a FeatureGate; UI is hidden when unavailable. Intel/Rosetta are runtime gates.
 6. Never call AX on the main thread in hot paths; use the AX actor with messaging timeout 0.25 s. Never send an AX
@@ -1686,10 +1804,18 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
 12. Never give two targets, products, modules or bundle files names that differ only by case: the default APFS
     volume is case-insensitive, so `oriel` and `Oriel` are the same file (docs/os-quirks.md).
 13. scripts/apple-credentials.env holds real Apple credentials. Never print it, copy its values anywhere or
-    commit it; the release scripts read them from the environment after it is sourced (docs/RELEASING.md).
-14. The release is `com.codertapsu.oriel`; Debug builds are `com.codertapsu.oriel.debug` ("Oriel Debug"). Never
-    give a Debug build the release's bundle ID: macOS keeps one permission entry per bundle ID, signed by the
-    build that asked first, and a Debug-signed entry locks the release out of Accessibility (docs/os-quirks.md).
+    commit it; the release scripts read them from the environment after it is sourced, and notarize through the
+    keychain profile codertapsu-notary when it exists (docs/RELEASING.md).
+14. The release is `com.codertapsu.oriel`, in both editions; Debug builds are `com.codertapsu.oriel.debug` ("Oriel
+    Debug") and the App Store edition's `com.codertapsu.oriel.appstore.debug`. Never give a Debug build the
+    release's bundle ID: macOS keeps one permission entry per bundle ID, signed by the build that asked first, and a
+    Debug-signed entry locks the release out of Accessibility (docs/os-quirks.md).
+15. The App Store edition must pass App Review and run sandboxed: it never links PrivateAPIs, IPC, WindowSwitcher,
+    WindowTiling or ActivityMonitor, never asks for Accessibility, embeds no helper, daemon or CLI, and reaches files
+    only as the user chooses them or through security-scoped bookmarks. Packages never test APP_STORE; they ask
+    `Sandbox.isActive`. A Pro feature is declared by its package as a `ProFeature` and gated through `ProAccess`
+    (PLAN §19.3); the free tier never deletes data. Run `make appstore-check` before finishing any task that touches
+    the App Store edition.
 
 ## Workflow
 - Follow the phases in order; tick a checklist item only after its Verify command passes; commit per item.
@@ -1697,7 +1823,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
   `.requiresTCC` trait and run only with ORIEL_TCC_TESTS=1 on the dev Mac or the macOS 26 VM. UI tests
   (XCUITest) run only with ORIEL_UI_TESTS=1, because they need macOS Automation Mode.
 - Commands: `make generate`, `make build`, `make run`, `make test`, `make lint`, `make universal-check`,
-  `make install`, `make release-dry-run` (after `source scripts/apple-credentials.env`).
+  `make appstore-check`, `make appstore-archive`, `make install`, `make release-dry-run` (after
+  `source scripts/apple-credentials.env`).
 - Test on macOS 27 first, then the macOS 26 VM. Never add workarounds for macOS < 26.
 - When an Apple API behaves differently between 26 and 27, note it in docs/os-quirks.md with the build number.
 - End each phase with docs/reports/phase-N.md: what was built, what deviated from the plan, open questions.
@@ -1714,6 +1841,7 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
 
 ```makefile
 SCHEME      := Oriel
+APPSTORE    := Oriel App Store
 PROJECT     := Oriel.xcodeproj
 CONFIG_DIR  := build
 DIST        := dist
@@ -1727,7 +1855,7 @@ UI_TESTS    := $(if $(filter 1,$(ORIEL_UI_TESTS)),,-skip-testing:OrielUITests)
 # Extra xcodebuild arguments for build, test and universal-check; CI signs ad hoc with them (.github/workflows/ci.yml).
 XCODEBUILD_FLAGS ?=
 
-.PHONY: generate build run test lint universal-check install release-dry-run clean tools
+.PHONY: generate build run test lint universal-check appstore-check appstore-archive install release-dry-run clean tools
 
 tools:
 	@for t in $(TOOL_LIST); do command -v $$t >/dev/null || { echo "missing $$t (brew install $$t)"; exit 1; }; done
@@ -1746,6 +1874,7 @@ run: build
 test: generate
 	TEST_RUNNER_ORIEL_TCC_TESTS="$(ORIEL_TCC_TESTS)" xcodebuild -project $(PROJECT) -scheme $(SCHEME) -destination 'platform=macOS' test $(UI_TESTS) \
 	$(XCODEBUILD_FLAGS)
+	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -destination 'platform=macOS' test $(XCODEBUILD_FLAGS)
 	@for p in $(PACKAGES); do echo "== $$p"; swift test --package-path "$$p" || exit 1; done
 
 lint: tools
@@ -1759,6 +1888,22 @@ universal-check: generate
 	lipo -archs $(CONFIG_DIR)/Release/Oriel.app/Contents/Helpers/oriel | grep -q "x86_64 arm64\|arm64 x86_64"
 	arch -x86_64 $(CONFIG_DIR)/Release/Oriel.app/Contents/MacOS/Oriel --self-test
 	$(CONFIG_DIR)/Release/Oriel.app/Contents/MacOS/Oriel --self-test
+
+# The App Store edition's Release build, both slices, unsigned (signing for the App Store goes through Xcode's account),
+# checked for what App Review rejects: private symbols, a root helper, an embedded CLI (PLAN §19).
+appstore-check: generate
+	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -configuration Release-AppStore -destination 'generic/platform=macOS' \
+	ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO CONFIGURATION_BUILD_DIR=$(CURDIR)/$(CONFIG_DIR)/Release-AppStore \
+	build $(XCODEBUILD_FLAGS)
+	bash scripts/verify-appstore.sh $(CONFIG_DIR)/Release-AppStore/Oriel.app
+
+# Archives the App Store edition for upload (docs/RELEASING.md). Xcode signs it with your account and, the first time,
+# registers the App ID's capabilities and creates the App Store profiles; then upload from Xcode's Organizer. The build
+# number is the commit count, as in the Developer ID release (scripts/release/export-app.sh).
+appstore-archive: generate
+	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -configuration Release-AppStore -destination 'generic/platform=macOS' \
+	CURRENT_PROJECT_VERSION=$$(git rev-list --count HEAD) -archivePath $(DIST)/Oriel-AppStore.xcarchive \
+	-allowProvisioningUpdates archive
 
 install: generate
 	bash scripts/install.sh        # archive → export (developer-id) → /Applications → codesign --verify → open
@@ -1780,6 +1925,11 @@ clean:
 name: Oriel
 options:
   bundleIdPrefix: com.codertapsu
+configs:                             # the -AppStore pair builds the App Store edition into its own products folder
+  Debug: debug
+  Release: release
+  Debug-AppStore: debug
+  Release-AppStore: release
   deploymentTarget:
     macOS: "26.0"
   xcodeVersion: "27.1"
@@ -1806,6 +1956,7 @@ packages:
   ColorPicker:      { path: Packages/ColorPicker }
   ScreenRuler:      { path: Packages/ScreenRuler }
   WindowTiling:     { path: Packages/WindowTiling }
+  Licensing:        { path: Packages/Licensing }       # StoreKit; the App Store edition only
 
 settings:
   base:
@@ -1818,7 +1969,7 @@ settings:
     DEVELOPMENT_TEAM: 4XVYLW8RXS
     DEAD_CODE_STRIPPING: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0.0"
     CURRENT_PROJECT_VERSION: "1"
   configs:
     Debug:
@@ -1827,6 +1978,13 @@ settings:
     Release:
       ONLY_ACTIVE_ARCH: NO
       CODE_SIGN_IDENTITY: "Developer ID Application"
+      SWIFT_COMPILATION_MODE: wholemodule
+    Debug-AppStore:
+      ONLY_ACTIVE_ARCH: YES
+      CODE_SIGN_IDENTITY: "Apple Development"
+    Release-AppStore:
+      ONLY_ACTIVE_ARCH: NO
+      CODE_SIGN_IDENTITY: "Apple Development"
       SWIFT_COMPILATION_MODE: wholemodule
 
 targets:
@@ -1933,6 +2091,94 @@ targets:
           destination: wrapper
           subpath: Contents/Helpers
 
+  # The App Store edition (PLAN §19): the same app sources with APP_STORE, sandboxed, without what the sandbox or the
+  # App Store rules exclude (the window switcher, Window Tiling, Activity Monitor, private APIs, the CLI, root), and with
+  # Oriel Pro sold through StoreKit. The release's bundle ID; only its archive is Oriel.app, built in the -AppStore
+  # configurations, so the two Oriel.app bundles never share a products folder.
+  OrielAppStore:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+        excludes:
+          - SelfTest.swift
+          - Shell/IPCRouter.swift
+          - System/CLIInstaller.swift
+          - System/Uninstaller.swift
+          - Sync/ICloudDriveSyncBackend.swift
+          - Intents/FocusWindowIntent.swift
+          - Intents/WindowEntity.swift
+          - Intents/WindowQuery.swift
+      - App/Resources
+      - path: App/StoreKit
+        buildPhase: none             # for Xcode's StoreKit testing; never shipped
+    settings:
+      base:
+        PRODUCT_NAME: OrielAppStore  # unique, so neither scheme takes it for the other's Oriel.app
+        PRODUCT_MODULE_NAME: OrielAppStore
+        PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel
+        ORIEL_DISPLAY_NAME: Oriel
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) APP_STORE
+        CODE_SIGN_ENTITLEMENTS: App/AppStore/OrielAppStore.entitlements
+      configs:
+        Debug-AppStore:              # its own ID and container, apart from the release and the Developer ID Debug build
+          PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel.appstore.debug
+          ORIEL_DISPLAY_NAME: Oriel App Store Debug
+          CODE_SIGN_ENTITLEMENTS: App/AppStore/OrielAppStoreDebug.entitlements   # no iCloud: that needs a profile
+        Release-AppStore:            # Xcode signs for the App Store when archiving and re-signs on upload
+          PRODUCT_NAME: Oriel
+          CODE_SIGN_STYLE: Automatic
+    info:
+      path: App/AppStore/Info.plist
+      properties:
+        CFBundleDisplayName: $(ORIEL_DISPLAY_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSMinimumSystemVersion: "26.0"
+        LSApplicationCategoryType: public.app-category.utilities
+        ITSAppUsesNonExemptEncryption: false   # only the encryption built into macOS (App Store export compliance)
+        NSMicrophoneUsageDescription: "Oriel records your microphone only during screen recordings you start."
+        NSCameraUsageDescription: "Oriel shows your camera only in the recording overlay you enable."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true      # Ollama / LM Studio / llama.cpp on localhost
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.codertapsu.oriel.document
+            UTTypeDescription: Oriel Document
+            UTTypeConformsTo: [com.apple.package, public.composite-content]
+            UTTypeTagSpecification:
+              public.filename-extension: [oriel]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Oriel Document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [com.codertapsu.oriel.document]
+          - CFBundleTypeName: Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.png, public.jpeg, public.heic, public.tiff]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.codertapsu.oriel
+            CFBundleURLSchemes: [oriel]
+    dependencies:
+      - package: OrielCore
+      - package: Permissions
+      - package: Hotkeys
+      - package: SharedUI
+      - package: Capture
+      - package: Recording
+      - package: Editor
+      - package: OCR
+      - package: OrielTranslation
+      - package: Upload
+      - package: ClipboardHistory
+      - package: DiskAnalyzer
+      - package: ColorPicker
+      - package: ScreenRuler
+      - package: Licensing
+
   oriel-cli:                         # target name must differ from "Oriel" by more than case (shared intermediates dir)
     type: tool
     platform: macOS
@@ -1961,6 +2207,21 @@ targets:
       - package: OrielCore
         product: OrielTestSupport
 
+  OrielAppStoreTests:                # run inside the sandboxed App Store edition
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/OrielAppStoreTests
+      - path: App/StoreKit             # for StoreKit test sessions
+        buildPhase: resources
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: OrielAppStore
+      - package: OrielCore
+        product: OrielTestSupport
+
   OrielUITests:
     type: bundle.ui-testing
     platform: macOS
@@ -1983,6 +2244,22 @@ schemes:
         ORIEL_TCC_TESTS: "0"
     archive:
       config: Release
+  Oriel App Store:
+    build:
+      targets: { OrielAppStore: all }
+      buildImplicitDependencies: false   # both editions make an Oriel.app; only the explicit dependencies belong here
+    run:
+      config: Debug-AppStore
+      storeKitConfiguration: App/StoreKit/Oriel.storekit
+    test:
+      config: Debug-AppStore
+      targets: [OrielAppStoreTests]
+    profile:
+      config: Release-AppStore
+    analyze:
+      config: Debug-AppStore
+    archive:
+      config: Release-AppStore
 ```
 
 If XcodeGen rejects any key (its schema moves), fix the key rather than the intent, and note it in `docs/reports/00-bootstrap.md`.

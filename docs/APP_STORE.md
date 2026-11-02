@@ -1,163 +1,109 @@
-# Oriel and the Mac App Store
+# Oriel in the Mac App Store
 
-## The short answer
+The Mac App Store edition is the same app, sandboxed, built by the `OrielAppStore` target (PLAN §18, §19). It has the release's bundle ID, `com.codertapsu.oriel`, leaves out the tools the sandbox cannot run (the window switcher, Window Tiling and Activity Monitor), and is free, with **Oriel Pro** as a one-time in-app purchase. This document is the checklist for getting it into the store. PLAN §19 explains how the edition works; `docs/RELEASING.md` → The App Store edition covers archiving and uploading each version.
 
-**Oriel as built cannot be published in the Mac App Store**, and the plan does not intend to (PLAN §1.5, D3). Oriel is distributed with Developer ID, notarized, which needs no review and has none of the restrictions below (`docs/BUILDING.md`).
+## What the repository already has
 
-What blocks it is not a missing setting but how the window switcher works:
-
-| Oriel needs | App Store rule it breaks |
+| Item | Where |
 |---|---|
-| Private SkyLight and HIServices functions to list windows on other Spaces, focus a single window and take over Cmd-Tab (`Packages/PrivateAPIs`) | Guideline 2.5.1: apps may only use public APIs. Resolving them with `dlsym` does not help: the symbol names are in the binary. |
-| An active event tap that consumes keystrokes (the switcher's shortcuts), synthetic scroll events (automatic scrolling capture), control of other apps' windows through Accessibility | Guideline 2.4.5(i): Mac App Store apps must be sandboxed. These calls are either unavailable in the App Sandbox or are a review risk even when the user grants Accessibility. |
-| The `oriel` command-line tool linked into `/usr/local/bin`, using an administrator password | 2.4.5(ii) and (v): an App Store app must be self-contained, may not install code in shared locations and may not ask for root privileges. |
+| The target, its configurations and scheme | `project.yml`: `OrielAppStore`; Debug-AppStore and Release-AppStore; scheme **Oriel App Store** |
+| Entitlements | `App/AppStore/OrielAppStore.entitlements` (Release): sandbox, network client, user-selected files and their bookmarks, Pictures, microphone, camera, iCloud key-value storage. `OrielAppStoreDebug.entitlements` is the same without iCloud, which needs a provisioning profile |
+| Info.plist | `App/AppStore/Info.plist`: export compliance (`ITSAppUsesNonExemptEncryption` false), the Utilities category, the purpose strings |
+| Privacy manifest | `App/Resources/PrivacyInfo.xcprivacy` (PLAN §19.7) |
+| Oriel Pro | `Packages/Licensing`, product ID `com.codertapsu.oriel.pro`; `App/StoreKit/Oriel.storekit` for testing in Xcode |
+| Checks | `make appstore-check` (`scripts/verify-appstore.sh`: both slices, no private symbol, no helper or CLI, the sandbox, export compliance, the manifest) and the edition's tests in `make test` |
+| Privacy policy, support page, terms of use | <https://codertapsu-web.web.app/oriel/privacy>, [/oriel/support](https://codertapsu-web.web.app/oriel/support), [/oriel/terms](https://codertapsu-web.web.app/oriel/terms) |
 
-The capture, editor, recording, OCR and translation tools use public APIs only, and could ship in the App Store as a separate, sandboxed app. The plan kept that door open on purpose: no package except WindowSwitcher depends on PrivateAPIs (PLAN §2.3). The rest of this document is the step-by-step path to that edition, called **Oriel Capture** below.
+## One-time setup in your Apple account
 
-## What an App Store edition contains
+These steps need the Account Holder or an Admin of team `4XVYLW8RXS`; nothing in the repository can do them.
 
-| Feature | In Oriel Capture? |
+### 1. Agreements, tax and banking
+
+App Store Connect → **Business**: accept the **Paid Apps** agreement and complete the bank account and tax forms. Until then Oriel Pro cannot be sold, and outside Xcode's StoreKit testing the product does not load, so Settings → Oriel Pro shows the button without a price.
+
+### 2. The App ID
+
+`com.codertapsu.oriel` already exists for Developer ID. The first `make appstore-archive` (or Product → Archive in Xcode) with automatic signing turns on the capabilities the entitlements ask for and makes the App Store profiles.
+
+An archive is signed for development first and for the App Store when it is uploaded, and a development profile needs a registered device. The team had none on 2026-11-02, so the first archive stops with "Your team has no devices from which to generate a provisioning profile". Register this Mac once: in Xcode, the OrielAppStore target → **Signing & Capabilities**, with **Automatically manage signing** on, offers it when it reports the missing device; or add it at developer.apple.com → **Devices**, with the Provisioning UDID from System Information → Hardware. To do it by hand instead: developer.apple.com → Certificates, Identifiers & Profiles → **Identifiers** → `com.codertapsu.oriel` → turn on **iCloud** (key-value storage needs no container); **In-App Purchase** is on for every App ID.
+
+### 3. The app record
+
+App Store Connect → **Apps** → **+** → **New App**: macOS, primary language English (U.S.), bundle ID `com.codertapsu.oriel`, SKU such as `oriel-mac`, and the name:
+
+| Field | Suggested | Why |
+|---|---|---|
+| Name (30 characters) | **Oriel: Screenshot & Translate** (29) | Keeps the brand first and names what sets it apart; App Store names are unique, so a descriptive name is also likelier to be free |
+| If it is taken | **Oriel: Capture & Translate**, or **Oriel Screen Toolkit** | Same idea, shorter |
+| Subtitle (30 characters) | **Record, annotate, extract text** (30) | The other half of what it does, without repeating the name's words |
+| Keywords (100 characters) | `screen capture,screen recorder,ocr,annotate,clipboard history,color picker,ruler,disk space` | Words the name and subtitle do not already cover |
+
+Only App Store Connect knows whether a name is free: names can be reserved by apps that are not on sale. On 2026-11-02 no Mac app was called plain "Oriel" (an iPad app is called "Bouygues Oriel"). The name under the icon stays **Oriel** (`CFBundleDisplayName`), whatever the store name.
+
+### 4. Oriel Pro
+
+In the app record → **Monetization** → **In-App Purchases** → **+**:
+
+| Field | Value |
 |---|---|
-| Screenshots (area, window, screen, timer), Quick Access Overlay, pins, history | Yes. ScreenCaptureKit works in the sandbox; the user still grants Screen Recording. Apple also offers `SCContentSharingPicker`, which needs no standing permission, for window and screen capture. |
-| Editor and exports | Yes. Saving outside the container goes through `NSSavePanel` (user-selected files) or a security-scoped bookmark to the chosen default folder. |
-| Screen recording, system audio, microphone, camera bubble, click rings | Yes, with the microphone and camera entitlements. |
-| Keystroke HUD | No: global key monitoring is what the sandbox and review restrict. |
-| Scrolling capture | Manual mode only (the user scrolls); automatic mode posts synthetic events. |
-| OCR and translation (Apple Translation, Foundation Models, cloud and local LLM providers) | Yes, with the network client entitlement. Local endpoints over plain HTTP need an ATS exception, which review may question; prefer HTTPS. |
-| S3 upload | Yes. |
-| Window switcher, Cmd-Tab takeover, trackpad gestures | No. |
-| `oriel` CLI and IPC socket | No: drop it, and keep the App Intents for Shortcuts instead (PLAN §7.17). |
-| Launch at login (`SMAppService`) | Yes, but only if the user turns it on (2.4.5(iii)). |
-| Bootstrap import | From the app's container or a managed `BootstrapURL`; there is no shared Application Support folder. |
+| Type | Non-Consumable |
+| Reference name | Oriel Pro |
+| Product ID | `com.codertapsu.oriel.pro` (it must match `ProStore.productID`) |
+| Price | US$10.00 |
+| Family Sharing | **Off**. Once turned on, it cannot be turned off again |
+| Display name and description | "Oriel Pro" · "Every Pro feature of every tool, with one purchase." |
+| Review | A screenshot of Settings → Oriel Pro, and a note: "Unlocks the Pro features listed in Settings → Oriel Pro. Restore Purchases is in the same pane." |
 
-## Step by step
+The first version of the app must go to review with the in-app purchase attached (step 5 of the release steps).
 
-### 1. Developer account and identifiers
+### 5. App information and price
 
-1. Use the same Apple Developer Program team (`4XVYLW8RXS`).
-2. developer.apple.com → Certificates, Identifiers & Profiles → **Identifiers** → **+** → App IDs → App. Register a new bundle ID, for example `com.codertapsu.oriel.capture`. Use a different ID from the Developer ID app, so both can be installed side by side. No extra capabilities are needed.
-3. App Store Connect (appstoreconnect.apple.com) → **Apps** → **+** → New macOS App. Pick the bundle ID, name (e.g. "Oriel Capture"), primary language and SKU.
+- **Price:** Free, in Pricing and Availability; choose the territories.
+- **Category:** Utilities (the bundle's `LSApplicationCategoryType`), and Productivity as the secondary one.
+- **Age rating:** answer the questionnaire; Oriel has no such content and no web browser, so expect 4+.
+- **URLs:** privacy policy <https://codertapsu-web.web.app/oriel/privacy>, support <https://codertapsu-web.web.app/oriel/support>.
+- **License agreement:** keep Apple's standard EULA; Oriel's terms add to it. End the description with "Terms of Use: https://codertapsu-web.web.app/oriel/terms".
+- **Copyright:** 2026 Hoàng Duy Khánh.
 
-### 2. Certificates and profile
+### 6. App Privacy
 
-| Certificate | Purpose | On this Mac today |
+App Store Connect → **App Privacy**: **Data Not Collected**. Oriel sends the developer nothing. Text goes to a translation provider only when the user chooses one and allows it, under their own account and key; captures go only to the upload destinations they set up; preferences go to their iCloud only if they turn sync on. The privacy policy and the manifest say the same.
+
+### 7. The listing
+
+- Subtitle (30 characters), description, keywords and promotional text. Describe only this edition: no window switcher, Window Tiling or Activity Monitor (Guidelines 2.3.1).
+- Screenshots: at least one at 1280 × 800, 1440 × 900, 2560 × 1600 or 2880 × 1800. Suggested: the capture overlay, the editor, a translation drawn over a page, Clipboard History, Disk Space Analyzer, the feature tour, Settings → Oriel Pro.
+- App Review information: a contact, and the notes below.
+
+## Each version
+
+`docs/RELEASING.md` → The App Store edition: archive, upload from the Organizer, test in TestFlight, submit. App Store builds are not notarized: App Review stands in for it.
+
+### Notes for App Review
+
+Paste and adapt:
+
+> Oriel is a menu-bar utility: after it opens, its icon is in the menu bar at the top right, and Help → Oriel Feature Tour shows each tool. Screen & System Audio Recording is used only for the screenshots, recordings, on-screen translations and Screen Ruler measurements the user starts. The microphone and camera are used only in recordings, if the user turns them on. Translation runs on the Mac with Apple Translation and Apple Intelligence; the other providers (DeepL, Google Translate, OpenAI, Anthropic or the user's own server) need the user's own API key and ask the user's permission before the first request. Oriel Pro is a non-consumable in-app purchase; Settings → Oriel Pro lists what it adds and has Restore Purchases. Oriel has no account and no server.
+
+### Rejections to pre-empt
+
+| Guideline | What it rejects | Where Oriel stands |
 |---|---|---|
-| Apple Distribution | Signs the app for the App Store | Present (`security find-identity -v -p codesigning`) |
-| Mac Installer Distribution (formerly "3rd Party Mac Developer Installer") | Signs the `.pkg` that is uploaded | **Missing**: create it in Xcode → Settings → Accounts → Manage Certificates → **+** |
+| 2.5.1 | Private APIs, even as strings | The edition links no PrivateAPIs; `make appstore-check` looks for the names |
+| 2.4.5 | Entitlements without a feature, files outside the container without the user's choice, launching at login unasked, root, helpers | Each entitlement has its feature (network: providers and uploads; user-selected files and bookmarks: the save folder, Disk Space Analyzer's grants, shared folders, opened images and files; Pictures: the default save folder; microphone and camera: recordings; iCloud: settings sync). Open at login is off until the user turns it on. No helper, daemon or CLI |
+| 3.1.1 | Unlocking features without in-app purchase; no Restore | Pro is sold only through StoreKit; Restore Purchases is in Settings → Oriel Pro |
+| 5.1.1 | Missing purpose strings or privacy policy | The purpose strings are in the Info.plist; the policy is linked in App Store Connect and in the app |
+| 5.1.2(i) | Sharing personal data with third-party AI without permission | Oriel asks before the first request to each provider off the Mac (PLAN §19.6) |
+| 2.3.1 | Metadata describing what the app does not do | The listing describes this edition only |
 
-Then create a provisioning profile: Profiles → **+** → Distribution → **Mac App Store Connect**, for the new bundle ID and the Apple Distribution certificate. Download it and double-click it to install. Alternatively, let Xcode manage signing for that target.
+## What the App Store edition leaves out, and why
 
-### 3. A second target in `project.yml`
-
-Add a target (and a scheme) next to `Oriel`, built from the same packages minus WindowSwitcher, PrivateAPIs and IPC:
-
-```yaml
-  OrielCapture:
-    type: application
-    platform: macOS
-    sources: [App/Sources, App/Resources]        # with the switcher, CLI and IPC code behind #if !APP_STORE
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel.capture
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) APP_STORE"
-        CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "Apple Distribution"
-        ENABLE_APP_SANDBOX: YES
-    entitlements:
-      path: App/OrielCapture.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true                 # translation providers, uploads
-        com.apple.security.files.user-selected.read-write: true # save panels, the chosen default folder
-        com.apple.security.files.bookmarks.app-scope: true      # remember that folder
-        com.apple.security.device.audio-input: true             # microphone in recordings
-        com.apple.security.device.camera: true                  # camera bubble
-    dependencies:
-      - package: OrielCore
-      - package: Permissions
-      - package: SharedUI
-      - package: Hotkeys          # Carbon hot keys work in the sandbox; the event tap is not used
-      - package: Capture
-      - package: Recording
-      - package: Editor
-      - package: OCR
-      - package: OrielTranslation
-      - package: Upload
-```
-
-### 4. Code changes for the sandbox
-
-- Compile out everything that references `WindowSwitcherModule`, `PrivateAPIs`, `IPCServer`, `CLIInstaller` and `EventTapEngine` with `#if !APP_STORE`. The App Store binary must not contain the private symbol names at all, not even as strings.
-- In Capture, offer only manual scrolling capture under `APP_STORE`. In Recording, hide the keystroke HUD.
-- Replace the default save folder with one the user picks once in an `NSOpenPanel`, kept as a security-scoped bookmark.
-- History, recordings and the bootstrap file move to the container; `AppPaths` already resolves `applicationSupportDirectory`, which the sandbox redirects into it.
-- Keychain items are per app in the sandbox, and nothing else changes for `KeychainStore`.
-- Add to the target's Info.plist: `ITSAppUsesNonExemptEncryption = NO` (Oriel uses only the system's HTTPS, which is exempt), and an `LSApplicationCategoryType` such as `public.app-category.productivity`.
-
-### 5. Privacy manifest
-
-Add `App/Resources/PrivacyInfo.xcprivacy` to the App Store target. Declare no tracking, no collected data, and the "required reason" APIs Oriel uses:
-
-| API category | Why Oriel uses it | Reason code |
-|---|---|---|
-| `NSPrivacyAccessedAPICategoryUserDefaults` | Its own settings | `CA92.1` |
-| `NSPrivacyAccessedAPICategoryFileTimestamp` | Sorting history and recordings in its container | `C617.1` |
-| `NSPrivacyAccessedAPICategorySystemBootTime` | Measuring elapsed time (recording timer, timeouts) | `35F9.1` |
-
-Check the current list in Apple's "Describing use of required reason API" documentation before submitting; it changes. In App Store Connect → App Privacy, answer "Data Not Collected". Translation text goes only to the provider the user configures, at the user's request; say so in the privacy policy.
-
-### 6. Store listing
-
-Fill in, in App Store Connect:
-
-- the description and keywords;
-- a support URL and a privacy policy URL (both required);
-- the category and the age rating questionnaire;
-- at least one screenshot at 1280×800, 1440×900, 2560×1600 or 2880×1800;
-- the 1024×1024 icon, which comes from the asset catalog in the build.
-
-### 7. Archive, validate and upload
-
-**With Xcode:** choose the `OrielCapture` scheme, then Product → **Archive**. In the Organizer, choose **Validate App**, fix whatever it reports, then **Distribute App** → **App Store Connect** → **Upload**. Xcode signs with Apple Distribution and the installer certificate and uses the profile.
-
-**From the command line:** archive the scheme, then export with an `ExportOptions-AppStore.plist`:
-
-```xml
-<dict>
-    <key>method</key>          <string>app-store-connect</string>
-    <key>destination</key>     <string>upload</string>
-    <key>teamID</key>          <string>4XVYLW8RXS</string>
-    <key>signingStyle</key>    <string>automatic</string>
-</dict>
-```
-
-```bash
-xcodebuild archive -project Oriel.xcodeproj -scheme OrielCapture -configuration Release \
-  -destination 'generic/platform=macOS' -archivePath build/OrielCapture.xcarchive
-xcodebuild -exportArchive -archivePath build/OrielCapture.xcarchive \
-  -exportOptionsPlist ExportOptions-AppStore.plist -exportPath dist/appstore -allowProvisioningUpdates \
-  -authenticationKeyPath AuthKey_XXXXXXXXXX.p8 -authenticationKeyID XXXXXXXXXX -authenticationKeyIssuerID <issuer-uuid>
-```
-
-The API key comes from App Store Connect → Users and Access → Integrations → App Store Connect API (Developer role). With `destination` set to `export` instead, you get a `.pkg` to upload with Apple's **Transporter** app.
-
-App Store builds are not notarized separately: App Review replaces notarization.
-
-### 8. TestFlight
-
-Each uploaded build appears in App Store Connect → TestFlight after processing, which takes minutes to an hour. Add internal testers (team members) to try it before review. Mac TestFlight builds install through the TestFlight app.
-
-### 9. Submit for review
-
-Create the version in App Store Connect, select the build, and write review notes. Explain that Screen Recording is used only for screenshots and recordings the user starts, that the microphone and camera are optional for recordings, and which network services translation can call. Then submit. First reviews usually take one to three days.
-
-### 10. Common rejections to pre-empt
-
-- **2.5.1**: a private symbol name anywhere in the binary. Check with `strings`, for example `strings -a OrielCapture | grep -E 'SLS|SLPS|_AXUIElement|CGSSetSymbolic'`, which must print nothing.
-- **2.4.5**: an entitlement that is not used, writing outside the container without user consent, launching at login without the user turning it on.
-- **5.1.1**: missing or vague purpose strings (`NSMicrophoneUsageDescription`, `NSCameraUsageDescription`), or no privacy policy.
-- **4.2**: an app that does too little. Oriel Capture is a full screenshot, recording and translation tool, so this should not apply.
-
-## Effort
-
-Expect roughly one to two weeks for the second target, the `#if APP_STORE` gates, bookmarks for the save folder, the privacy manifest and the listing, plus review time. The Developer ID app stays as it is, and both editions build from the same packages.
+| Left out | Why |
+|---|---|
+| The window switcher, Window Tiling | They need Accessibility, which cannot be granted to a sandboxed app |
+| Activity Monitor | It reads and signals other processes, and runs `/bin/ps` and `nettop`, which the sandbox refuses |
+| Automatic scrolling capture, the keystroke display, pasting from Clipboard History | They need Accessibility: the user scrolls, keystrokes are hidden, and choosing an item copies it for ⌘V |
+| The CLI and its socket, Read as Administrator and its helper, Move to Applications, Uninstall | Guidelines 2.4.5: no code outside the bundle, no root |
+| SFTP uploads, local snapshots, simulator clean-up | `/usr/bin/sftp`, `~/.ssh`, `tmutil` and `xcrun` are outside the sandbox |
+| Private APIs | Guidelines 2.5.1 |

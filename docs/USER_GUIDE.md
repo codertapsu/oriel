@@ -14,6 +14,10 @@ Oriel lives in the menu bar (the bay-window icon). While one of its windows is o
 
 Settings → General → Tools turns the window switcher, Clipboard History and the last five on and off. A tool that is off uses no memory, keyboard tap or observers, and leaves its shortcuts to other apps.
 
+This guide describes the edition you download and install yourself, which includes every tool and every Oriel Pro feature. The Mac App Store edition leaves out three tools and sells Oriel Pro; see [Oriel Pro and the Mac App Store edition](#oriel-pro-and-the-mac-app-store-edition).
+
+**Feature tour.** After the welcome window, a tour shows what each tool does: its shortcut, a **Try It** button that starts it, what Oriel Pro adds and the permissions it uses. Open it again any time from **Feature Tour…** in the menu, **Help → Oriel Feature Tour** while Oriel is in the Dock, or `oriel://tour`. Help also has **Oriel Support**, which opens the support page.
+
 ## Installing
 
 1. Open `Oriel-<version>.dmg` and drag **Oriel** to **Applications**.
@@ -177,6 +181,7 @@ Translate Area (⌃⇧T): select text on screen and the translation is drawn ove
 - **Settings → Translation** sets up each provider: endpoint, model, API key (kept in your keychain) and **Test connection**. It also sets the default target language, the glossary, usage limits and history.
 - **Google glossaries:** enter a Cloud Translation glossary under Google, by its full name (`projects/…/locations/…/glossaries/…`) or by its ID (looked for in `us-central1` of the key's project), then **Add Service Account Key…**: the JSON key file from the Google Cloud console, which goes into your keychain. Glossaries need Cloud Translation Advanced, which does not accept API keys; without a glossary Google uses the API key as before. Test connection reads the glossary. A glossary project can name a Cloud glossary too ([Glossaries](#glossaries)).
 - **Intel Macs:** a model running on the Mac itself (an endpoint on `localhost`) is very slow on an Intel processor, and Settings says so; Apple Translation or a model server on another Mac is much faster.
+- **Permission before text leaves your Mac:** the first time you translate with a provider that is not on your Mac (DeepL, Google Translate, OpenAI, Anthropic, or a server on another computer), Oriel asks whether it may send that provider the text it reads (and, with AI Vision, the image). Nothing is sent until you choose **Allow**. Settings → Translation → the provider → **Allow sending text to…** takes it back. Apple Translation, Apple Intelligence and models on your own Mac never ask. Translations from the Shortcuts app or the command line do not ask: they fail until you allow the provider in Settings.
 
 ### Translate Under Cursor
 
@@ -325,7 +330,7 @@ Arrange the window you are working in without reaching for the mouse. Every shor
 
 ## Sync settings
 
-Settings → General → **Sync settings through iCloud** keeps your shortcuts, the tools you have turned on and most preferences the same on each Mac that runs Oriel. Folders, upload destinations, passwords and API keys stay on each Mac, and so do your histories, pins, palettes and glossaries. Turn it on first on the Mac whose settings you want to keep; the other Macs then adopt them. After that, the latest change on any Mac wins, and **Sync Now** syncs at once. Oriel keeps the settings in an **Oriel** folder in iCloud Drive (one small file per Mac), so iCloud Drive must be on; macOS may ask once whether Oriel may use it.
+Settings → General → **Sync settings through iCloud** keeps your shortcuts, the tools you have turned on and most preferences the same on each Mac that runs Oriel. Folders, upload destinations, passwords and API keys stay on each Mac, and so do your histories, pins, palettes and glossaries. Turn it on first on the Mac whose settings you want to keep; the other Macs then adopt them. After that, the latest change on any Mac wins, and **Sync Now** syncs at once. Oriel keeps the settings in an **Oriel** folder in iCloud Drive (one small file per Mac), so iCloud Drive must be on; macOS may ask once whether Oriel may use it. In the Mac App Store edition, sync is part of Oriel Pro and uses iCloud's key-value storage, so iCloud Drive need not be on.
 
 ## Shortcuts app
 
@@ -363,6 +368,18 @@ Oriel also opens URLs: `oriel://capture/area`, `oriel://capture/window`, `oriel:
 ## Shared team configuration
 
 A `bootstrap.json` in `~/Library/Application Support/Oriel/` is imported on the next launch and then deleted. Its format is in `docs/bootstrap.example.json`. It holds the translation providers, the default provider and an S3 upload destination, keys included, which go into the keychain; the destination becomes the default in Settings → Upload, or updates the one an earlier import made. A Google provider can also have `"glossary"` and `"serviceAccountKey"` (the key file's JSON object pasted in as it is). Settings → Advanced → **Reload shared configuration** imports it again. A managed `BootstrapURL` preference can point at an internal HTTPS copy instead.
+
+## Oriel Pro and the Mac App Store edition
+
+Oriel comes in two editions built from the same code. The one this guide describes, installed from the disk image, includes everything. The **Mac App Store edition** runs in Apple's App Sandbox and is free, with **Oriel Pro**, a one-time purchase, for the advanced features.
+
+**What the App Store edition leaves out.** The window switcher and Window Tiling need Accessibility, which macOS does not let App Store apps have, and Activity Monitor needs to read other apps' processes; they are not in it. For the same reason scrolling capture is manual (you scroll, Oriel adds each part), recordings cannot show keystrokes, and choosing an item in Clipboard History copies it for you to press ⌘V. It has no command-line tool, SFTP uploads or Read as Administrator. Captures are saved to the folder you choose in Settings → Capture, or to Pictures → Oriel; Disk Space Analyzer asks you to allow each drive or folder once; settings sync through iCloud's key-value storage.
+
+**What is free.** Every tool works without Oriel Pro: screenshots of an area, window or screen with Quick Access and pins, Capture Text, the editor's drawing tools with blur, pixelate and crop, screen recordings with sound, translation with Apple Translation and Apple Intelligence, Clipboard History's last 100 items from the past week, Disk Space Analyzer's scans and views, the Color Picker's HEX, RGB and HSL, and the Screen Ruler's Dimensions and Measure Area.
+
+**What Oriel Pro adds**, tool by tool, is listed in **Settings → Oriel Pro**, and marked **PRO** in Settings and in the feature tour: among others scrolling, Instant and Step Capture, Smart Redact and backgrounds, the video editor, the other translation providers and Translate Under Cursor, the whole clipboard history, Clean Up and Duplicates, palettes and contrast, guides, uploads and settings sync. Trying a Pro feature without it opens Settings → Oriel Pro on that feature. Nothing is deleted while Pro is locked: the histories keep everything, so unlocking Pro shows it all.
+
+**Buying and restoring.** Settings → Oriel Pro → **Unlock Oriel Pro** buys it once, with no subscription; the App Store shows the price in your currency. With Ask to Buy, Pro unlocks as soon as the purchase is approved. It stays unlocked on every Mac where you use the same Apple Account: on another Mac, choose **Restore Purchases** in the same pane. It is not shared through Family Sharing, and it works offline once bought. Refunds go through Apple's [Report a Problem](https://reportaproblem.apple.com). Terms: <https://codertapsu-web.web.app/oriel/terms>; privacy: <https://codertapsu-web.web.app/oriel/privacy>.
 
 ## Troubleshooting
 

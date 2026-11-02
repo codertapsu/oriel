@@ -228,3 +228,15 @@ spctl -a -t open --context context:primary-signature -vv "dist/Oriel-${VERSION}.
 - [ ] Reads the front app's focused window for real. **Verify:** `ORIEL_TCC_TESTS=1 swift test --package-path Packages/WindowTiling --filter SystemAccessTests` (read-only)
 - [x] Oriel's own window in front is arranged through AppKit on the main thread, never by the AX actor. **Verify:** `--filter OwnWindowTilerTests`
 - [ ] Tiles real windows on the installed app. **Verify:** manual (`docs/qa-checklists.md`).
+
+## 13.21 Editions, Oriel Pro and the feature tour
+- [x] The App Store edition builds for both slices, unsigned, and has no private symbol, helper, daemon or CLI, the sandbox on, export compliance answered and the privacy manifest. **Verify:** `make appstore-check`
+- [x] It runs sandboxed, never asks for Accessibility, carries its manifest, and its tour lists only its tools and promises nothing the sandbox rules out. **Verify:** `xcodebuild test -scheme "Oriel App Store"` (`AppStoreEditionTests`)
+- [x] Oriel Pro: the $10 non-consumable, not family shareable; a purchase reaching the listener unlocks, a refund locks, a relaunch finds the purchase; each transaction decided from itself. **Verify:** `ProStoreTests` in the App Store scheme; `swift test --package-path Packages/Licensing`
+- [x] `ProAccess`: allows, check and its `onLocked`, the change notification; `ToolCommand.gated(by:)`. **Verify:** `swift test --package-path Packages/OrielCore --filter ProAccessTests`
+- [x] Each tool's free limits: capture history, clipboard window, image search, quick paste and pins, the ruler's guides, tolerance and kept measurements, and the Pro formats, tools, views and providers. **Verify:** `--filter Pro` in Capture, ClipboardHistory, ScreenRuler, ColorPicker, Editor, DiskAnalyzer and OrielTranslation
+- [x] The catalog: unique ids, every feature described, every gated command and action in it. **Verify:** `--filter ProCatalogTests` (app)
+- [x] The feature tour: a described page per feature and tool that opens its pane, Try It naming a real command, every Pro feature on a page; Help's items. **Verify:** `--filter 'FeatureTourTests|DockPresenceTests'` (app)
+- [x] Consent before text leaves the Mac: only providers off the Mac need it, kept per provider and withdrawn in Settings; the headless path fails instead of asking. **Verify:** `swift test --package-path Packages/OrielTranslation --filter ProviderConsentTests`
+- [x] Oriel's privacy, support and terms pages are live. **Verify:** `curl -sI https://codertapsu-web.web.app/oriel/{privacy,support,terms}` answers 200
+- [ ] Buying, restoring and pending purchases in a TestFlight build, and the tour and Pro pane on the installed App Store edition. **Verify:** manual (`docs/qa-checklists.md` items 49–53)

@@ -1,8 +1,10 @@
 # Oriel — instructions for Claude Code
 
 ## Product
-Internal menu-bar macOS utility: window switcher, screenshot/recording + editor, screenshot translation.
-Developer ID signed, Hardened Runtime, notarized, NOT sandboxed. Deployment target macOS 26.0, built with the
+Menu-bar macOS utility: window switcher, screenshot/recording + editor, screenshot translation, and tools.
+Two editions from one tree (PLAN §18): the Developer ID edition (target Oriel) is Developer ID signed, Hardened
+Runtime, notarized, NOT sandboxed; the Mac App Store edition (target OrielAppStore, APP_STORE) is sandboxed, leaves
+out the tools the sandbox cannot run and sells Oriel Pro through StoreKit (PLAN §19). Deployment target macOS 26.0, built with the
 macOS 27 SDK, primary target macOS 27. Universal binary (arm64 + x86_64); Intel is best-effort.
 Swift 6 language mode, strict concurrency = complete. Zero runtime dependencies.
 
@@ -18,8 +20,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
    frameworks directly. Every private call has a public fallback or a disabled-feature path.
 3. No polling: no repeating Timer, DispatchSourceTimer or sleep loop outside an active Recording or ScrollingCapture
    session, or while Activity Monitor's window is open (it samples only then). Everything else reacts to events.
-4. AppKit for overlays, panels, switcher and editor canvas. SwiftUI only for settings, onboarding, history,
-   the translation panel and the language-pack download sheet.
+4. AppKit for overlays, panels, switcher and editor canvas. SwiftUI only for settings, onboarding, the feature
+   tour, history, the translation panel and the language-pack download sheet.
 5. APIs newer than 26.0 (26.4 Translation strategy, anything 27-only, Apple Intelligence features) go
    behind `#available` AND a FeatureGate; UI is hidden when unavailable. Intel/Rosetta are runtime gates.
 6. Never call AX on the main thread in hot paths; use the AX actor with messaging timeout 0.25 s. Never send an AX
@@ -38,10 +40,18 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
 12. Never give two targets, products, modules or bundle files names that differ only by case: the default APFS
     volume is case-insensitive, so `oriel` and `Oriel` are the same file (docs/os-quirks.md).
 13. scripts/apple-credentials.env holds real Apple credentials. Never print it, copy its values anywhere or
-    commit it; the release scripts read them from the environment after it is sourced (docs/RELEASING.md).
-14. The release is `com.codertapsu.oriel`; Debug builds are `com.codertapsu.oriel.debug` ("Oriel Debug"). Never
-    give a Debug build the release's bundle ID: macOS keeps one permission entry per bundle ID, signed by the
-    build that asked first, and a Debug-signed entry locks the release out of Accessibility (docs/os-quirks.md).
+    commit it; the release scripts read them from the environment after it is sourced, and notarize through the
+    keychain profile codertapsu-notary when it exists (docs/RELEASING.md).
+14. The release is `com.codertapsu.oriel`, in both editions; Debug builds are `com.codertapsu.oriel.debug` ("Oriel
+    Debug") and the App Store edition's `com.codertapsu.oriel.appstore.debug`. Never give a Debug build the
+    release's bundle ID: macOS keeps one permission entry per bundle ID, signed by the build that asked first, and a
+    Debug-signed entry locks the release out of Accessibility (docs/os-quirks.md).
+15. The App Store edition must pass App Review and run sandboxed: it never links PrivateAPIs, IPC, WindowSwitcher,
+    WindowTiling or ActivityMonitor, never asks for Accessibility, embeds no helper, daemon or CLI, and reaches files
+    only as the user chooses them or through security-scoped bookmarks. Packages never test APP_STORE; they ask
+    `Sandbox.isActive`. A Pro feature is declared by its package as a `ProFeature` and gated through `ProAccess`
+    (PLAN §19.3); the free tier never deletes data. Run `make appstore-check` before finishing any task that touches
+    the App Store edition.
 
 ## Workflow
 - Follow the phases in order; tick a checklist item only after its Verify command passes; commit per item.
@@ -49,7 +59,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
   `.requiresTCC` trait and run only with ORIEL_TCC_TESTS=1 on the dev Mac or the macOS 26 VM. UI tests
   (XCUITest) run only with ORIEL_UI_TESTS=1, because they need macOS Automation Mode.
 - Commands: `make generate`, `make build`, `make run`, `make test`, `make lint`, `make universal-check`,
-  `make install`, `make release-dry-run` (after `source scripts/apple-credentials.env`).
+  `make appstore-check`, `make appstore-archive`, `make install`, `make release-dry-run` (after
+  `source scripts/apple-credentials.env`).
 - Test on macOS 27 first, then the macOS 26 VM. Never add workarounds for macOS < 26.
 - When an Apple API behaves differently between 26 and 27, note it in docs/os-quirks.md with the build number.
 - End each phase with docs/reports/phase-N.md: what was built, what deviated from the plan, open questions.
