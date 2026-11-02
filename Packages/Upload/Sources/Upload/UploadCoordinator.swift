@@ -43,6 +43,7 @@ public final class UploadCoordinator {
     /// the link and says so.
     @discardableResult
     public func upload(_ image: CGImage, scale: CGFloat = 2, name: String = "Oriel", to destinationID: UUID? = nil) async -> URL? {
+        guard ProAccess.shared.check(.upload) else { return nil }
         let label = Self.safeName(name)
         return await run(to: destinationID) { service in
             try await service.prepare(image: image, scale: scale, name: label)
@@ -52,6 +53,7 @@ public final class UploadCoordinator {
     /// Uploads any file (a recording, an export) and returns its link.
     @discardableResult
     public func upload(fileAt url: URL, to destinationID: UUID? = nil) async -> URL? {
+        guard ProAccess.shared.check(.upload) else { return nil }
         let strips = (destinationID.flatMap(destinations.destination) ?? destinations.defaultDestination)?.stripsMetadata ?? true
         return await run(to: destinationID) { service in
             try await service.prepare(fileAt: url, stripsMetadata: strips)

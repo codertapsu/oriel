@@ -1,3 +1,5 @@
+import OrielCore
+
 /// The services an upload destination can be (PLAN §7.8, §17). Raw values are stored in settings, so they never change.
 public nonisolated enum UploadDestinationKind: String, Codable, CaseIterable, Sendable, Identifiable {
     case s3
@@ -9,6 +11,12 @@ public nonisolated enum UploadDestinationKind: String, Codable, CaseIterable, Se
 
     public var id: String {
         rawValue
+    }
+
+    /// The kinds this edition offers: SFTP runs /usr/bin/sftp with the keys in ~/.ssh, which the App Store edition's
+    /// sandbox reaches neither of (PLAN §19).
+    public static var available: [UploadDestinationKind] {
+        Sandbox.isActive ? allCases.filter { $0 != .sftp } : allCases
     }
 
     /// The name in Settings and in a new destination's name.

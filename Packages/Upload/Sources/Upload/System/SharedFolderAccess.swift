@@ -1,11 +1,14 @@
 import Foundation
+import OrielCore
 
-/// Finding and checking a shared folder. The bookmark is a plain one (Oriel is not sandboxed): it finds the folder
-/// after a rename or move. It is resolved without UI and without mounting, so an upload never stops at a server's
-/// password dialog; an unmounted share says so instead.
+/// Finding and checking a shared folder. Outside the sandbox the bookmark is a plain one: it finds the folder after a
+/// rename or move; in the App Store edition it is security-scoped, which the sandbox needs to let Oriel back in. It is
+/// resolved without UI and without mounting, so an upload never stops at a server's password dialog; an unmounted share
+/// says so instead.
 nonisolated enum SharedFolderAccess {
+    /// Security-scoped in the App Store edition, whose sandbox opens a folder after a relaunch only through one.
     static func bookmark(for folder: URL) throws -> Data {
-        try folder.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
+        try folder.bookmarkData(options: Sandbox.isActive ? .withSecurityScope : [], includingResourceValuesForKeys: nil, relativeTo: nil)
     }
 
     /// The folder now, and the settings to keep when its bookmark had to be renewed (it moved, or it had none).
@@ -15,10 +18,14 @@ nonisolated enum SharedFolderAccess {
             return (byPath, nil)
         }
         var isStale = false
+        let scope: URL.BookmarkResolutionOptions = Sandbox.isActive ? .withSecurityScope : []
         guard let resolved = try? URL(
-            resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting], relativeTo: nil, bookmarkDataIsStale: &isStale
+            resolvingBookmarkData: bookmark, options: [.withoutUI, .withoutMounting, scope], relativeTo: nil, bookmarkDataIsStale: &isStale
         ) else {
             return (byPath, nil)
+        }
+        if Sandbox.isActive {
+            FolderBookmark.startAccessing(resolved)
         }
         guard isStale || resolved.path != configuration.path, let renewed = try? Self.bookmark(for: resolved) else {
             return (resolved, nil)

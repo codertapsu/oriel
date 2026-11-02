@@ -1,4 +1,5 @@
 import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Settings → Upload (PLAN §7.8, §17): the destinations (S3-compatible storage, WebDAV, SFTP, a shared folder, Dropbox
@@ -48,7 +49,7 @@ public struct UploadSettingsView: View {
                 UploadDestinationRow(model: model, destination: model.binding(for: destination.id))
             }
             if model.destinations.isEmpty {
-                ForEach(UploadDestinationKind.allCases) { kind in
+                ForEach(UploadDestinationKind.available) { kind in
                     Button { model.add(kind) } label: {
                         HStack(spacing: 10) {
                             Image(systemName: kind.symbol)
@@ -72,9 +73,10 @@ public struct UploadSettingsView: View {
         } header: {
             HStack {
                 Text("Destinations")
+                ProBadge(.upload)
                 Spacer()
                 Menu("Add Destination") {
-                    ForEach(UploadDestinationKind.allCases) { kind in
+                    ForEach(UploadDestinationKind.available) { kind in
                         Button { model.add(kind) } label: { Label(kind.title, systemImage: kind.symbol) }
                     }
                 }
