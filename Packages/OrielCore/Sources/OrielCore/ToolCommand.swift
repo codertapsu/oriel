@@ -19,6 +19,8 @@ public struct ToolCommand: Identifiable, Sendable {
     public let route: String?
     /// Whether the status menu lists it; a command that only makes sense as a shortcut leaves it out.
     public let showsInMenu: Bool
+    /// The Pro feature it starts, if it needs Oriel Pro (PLAN §19).
+    public let proFeature: ProFeature?
     public let perform: @MainActor @Sendable () -> Void
 
     public init(
@@ -29,6 +31,7 @@ public struct ToolCommand: Identifiable, Sendable {
         defaultShortcut: KeyCombo? = nil,
         route: String? = nil,
         showsInMenu: Bool = true,
+        proFeature: ProFeature? = nil,
         perform: @escaping @MainActor @Sendable () -> Void
     ) {
         self.id = id
@@ -38,7 +41,23 @@ public struct ToolCommand: Identifiable, Sendable {
         self.defaultShortcut = defaultShortcut
         self.route = route
         self.showsInMenu = showsInMenu
+        self.proFeature = proFeature
         self.perform = perform
+    }
+
+    /// The same command, asking `access` first when it starts a Pro feature: what the app wires to its menu items,
+    /// shortcuts, URLs and App Intents, so none of them can start a locked feature.
+    public func gated(by access: ProAccess) -> ToolCommand {
+        guard let proFeature else { return self }
+        let perform = perform
+        return ToolCommand(
+            id: id, title: title, symbol: symbol, group: group, defaultShortcut: defaultShortcut, route: route,
+            showsInMenu: showsInMenu, proFeature: proFeature
+        ) {
+            if access.check(proFeature) {
+                perform()
+            }
+        }
     }
 
     /// Where the user's shortcut for the command is kept.

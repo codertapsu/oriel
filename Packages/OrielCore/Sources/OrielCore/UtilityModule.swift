@@ -19,6 +19,8 @@ public protocol UtilityModule: CommandProviding {
     var settingsSymbol: String { get }
     /// CLI verbs the module answers.
     var ipcCommands: [IPCCommandHandler] { get }
+    /// What only Oriel Pro unlocks in the module (PLAN §19).
+    var proFeatures: [ProFeature] { get }
     func activate(context: ModuleContext) async
     func deactivate() async
 }
@@ -31,5 +33,9 @@ public extension UtilityModule {
 
     var settingsSymbol: String {
         "puzzlepiece.extension"
+    }
+
+    var proFeatures: [ProFeature] {
+        []
     }
 }
