@@ -1,8 +1,10 @@
 import FoundationModels
 import OrielCore
 import Permissions
-import PrivateAPIs
 import Translation
+#if !APP_STORE
+    import PrivateAPIs
+#endif
 
 /// Fills in `Capabilities` (PLAN §3.2) for Settings → Diagnostics and `oriel debug capabilities --json`.
 @MainActor
@@ -11,9 +13,18 @@ enum CapabilitiesProbe {
         await Capabilities(
             appleIntelligence: appleIntelligence(),
             translationPacks: translationPacks(translationPair),
-            privateSymbols: PrivateAPIs.shared.presenceByName,
+            privateSymbols: privateSymbols,
             permissions: permissions.summary
         )
+    }
+
+    /// None in the App Store edition, which links no private API (PLAN §19).
+    private static var privateSymbols: [String: Bool] {
+        #if APP_STORE
+            [:]
+        #else
+            PrivateAPIs.shared.presenceByName
+        #endif
     }
 
     static func appleIntelligence() -> String {

@@ -1,6 +1,11 @@
 name: Oriel
 options:
   bundleIdPrefix: com.codertapsu
+configs:                             # the -AppStore pair builds the App Store edition into its own products folder
+  Debug: debug
+  Release: release
+  Debug-AppStore: debug
+  Release-AppStore: release
   deploymentTarget:
     macOS: "26.0"
   xcodeVersion: "27.1"
@@ -27,6 +32,7 @@ packages:
   ColorPicker:      { path: Packages/ColorPicker }
   ScreenRuler:      { path: Packages/ScreenRuler }
   WindowTiling:     { path: Packages/WindowTiling }
+  Licensing:        { path: Packages/Licensing }       # StoreKit; the App Store edition only
 
 settings:
   base:
@@ -48,6 +54,13 @@ settings:
     Release:
       ONLY_ACTIVE_ARCH: NO
       CODE_SIGN_IDENTITY: "Developer ID Application"
+      SWIFT_COMPILATION_MODE: wholemodule
+    Debug-AppStore:
+      ONLY_ACTIVE_ARCH: YES
+      CODE_SIGN_IDENTITY: "Apple Development"
+    Release-AppStore:
+      ONLY_ACTIVE_ARCH: NO
+      CODE_SIGN_IDENTITY: "Apple Development"
       SWIFT_COMPILATION_MODE: wholemodule
 
 targets:
@@ -154,6 +167,94 @@ targets:
           destination: wrapper
           subpath: Contents/Helpers
 
+  # The App Store edition (PLAN §19): the same app sources with APP_STORE, sandboxed, without what the sandbox or the
+  # App Store rules exclude (the window switcher, Window Tiling, Activity Monitor, private APIs, the CLI, root), and with
+  # Oriel Pro sold through StoreKit. The release's bundle ID; only its archive is Oriel.app, built in the -AppStore
+  # configurations, so the two Oriel.app bundles never share a products folder.
+  OrielAppStore:
+    type: application
+    platform: macOS
+    sources:
+      - path: App/Sources
+        excludes:
+          - SelfTest.swift
+          - Shell/IPCRouter.swift
+          - System/CLIInstaller.swift
+          - System/Uninstaller.swift
+          - Sync/ICloudDriveSyncBackend.swift
+          - Intents/FocusWindowIntent.swift
+          - Intents/WindowEntity.swift
+          - Intents/WindowQuery.swift
+      - App/Resources
+      - path: App/StoreKit
+        buildPhase: none             # for Xcode's StoreKit testing; never shipped
+    settings:
+      base:
+        PRODUCT_NAME: OrielAppStore  # unique, so neither scheme takes it for the other's Oriel.app
+        PRODUCT_MODULE_NAME: OrielAppStore
+        PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel
+        ORIEL_DISPLAY_NAME: Oriel
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) APP_STORE
+        CODE_SIGN_ENTITLEMENTS: App/AppStore/OrielAppStore.entitlements
+      configs:
+        Debug-AppStore:              # its own ID and container, apart from the release and the Developer ID Debug build
+          PRODUCT_BUNDLE_IDENTIFIER: com.codertapsu.oriel.appstore.debug
+          ORIEL_DISPLAY_NAME: Oriel App Store Debug
+          CODE_SIGN_ENTITLEMENTS: App/AppStore/OrielAppStoreDebug.entitlements   # no iCloud: that needs a profile
+        Release-AppStore:            # Xcode signs for the App Store when archiving and re-signs on upload
+          PRODUCT_NAME: Oriel
+          CODE_SIGN_STYLE: Automatic
+    info:
+      path: App/AppStore/Info.plist
+      properties:
+        CFBundleDisplayName: $(ORIEL_DISPLAY_NAME)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSUIElement: true
+        LSMinimumSystemVersion: "26.0"
+        LSApplicationCategoryType: public.app-category.utilities
+        ITSAppUsesNonExemptEncryption: false   # only the encryption built into macOS (App Store export compliance)
+        NSMicrophoneUsageDescription: "Oriel records your microphone only during screen recordings you start."
+        NSCameraUsageDescription: "Oriel shows your camera only in the recording overlay you enable."
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true      # Ollama / LM Studio / llama.cpp on localhost
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: com.codertapsu.oriel.document
+            UTTypeDescription: Oriel Document
+            UTTypeConformsTo: [com.apple.package, public.composite-content]
+            UTTypeTagSpecification:
+              public.filename-extension: [oriel]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Oriel Document
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [com.codertapsu.oriel.document]
+          - CFBundleTypeName: Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.png, public.jpeg, public.heic, public.tiff]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.codertapsu.oriel
+            CFBundleURLSchemes: [oriel]
+    dependencies:
+      - package: OrielCore
+      - package: Permissions
+      - package: Hotkeys
+      - package: SharedUI
+      - package: Capture
+      - package: Recording
+      - package: Editor
+      - package: OCR
+      - package: OrielTranslation
+      - package: Upload
+      - package: ClipboardHistory
+      - package: DiskAnalyzer
+      - package: ColorPicker
+      - package: ScreenRuler
+      - package: Licensing
+
   oriel-cli:                         # target name must differ from "Oriel" by more than case (shared intermediates dir)
     type: tool
     platform: macOS
@@ -182,6 +283,21 @@ targets:
       - package: OrielCore
         product: OrielTestSupport
 
+  OrielAppStoreTests:                # run inside the sandboxed App Store edition
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/OrielAppStoreTests
+      - path: App/StoreKit             # for StoreKit test sessions
+        buildPhase: resources
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - target: OrielAppStore
+      - package: OrielCore
+        product: OrielTestSupport
+
   OrielUITests:
     type: bundle.ui-testing
     platform: macOS
@@ -204,3 +320,19 @@ schemes:
         ORIEL_TCC_TESTS: "0"
     archive:
       config: Release
+  Oriel App Store:
+    build:
+      targets: { OrielAppStore: all }
+      buildImplicitDependencies: false   # both editions make an Oriel.app; only the explicit dependencies belong here
+    run:
+      config: Debug-AppStore
+      storeKitConfiguration: App/StoreKit/Oriel.storekit
+    test:
+      config: Debug-AppStore
+      targets: [OrielAppStoreTests]
+    profile:
+      config: Release-AppStore
+    analyze:
+      config: Debug-AppStore
+    archive:
+      config: Release-AppStore

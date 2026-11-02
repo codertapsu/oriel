@@ -1,5 +1,7 @@
 import AppKit
-import DiskAnalyzer
+#if !APP_STORE
+    import DiskAnalyzer
+#endif
 
 /// Entry point and application delegate of the menu-bar agent.
 @main
@@ -14,15 +16,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var exitObserver: (any NSObjectProtocol)?
 
     static func main() {
-        // Disk Space Analyzer's helper is this executable, started by launchd as root: it only lists folders for Oriel.
-        PrivilegedReaderDaemon.runIfRequested()
-        // Read as Administrator through the password prompt runs it as root too, only to list folders.
-        if let status = ElevatedRead.runIfRequested(CommandLine.arguments) {
-            exit(status)
-        }
-        if CommandLine.arguments.contains("--self-test") {
-            exit(SelfTest.run())
-        }
+        #if !APP_STORE
+            // Disk Space Analyzer's helper is this executable, started by launchd as root: it only lists folders for Oriel.
+            PrivilegedReaderDaemon.runIfRequested()
+            // Read as Administrator through the password prompt runs it as root too, only to list folders.
+            if let status = ElevatedRead.runIfRequested(CommandLine.arguments) {
+                exit(status)
+            }
+            if CommandLine.arguments.contains("--self-test") {
+                exit(SelfTest.run())
+            }
+        #endif
         let app = OrielApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate

@@ -1,4 +1,5 @@
 SCHEME      := Oriel
+APPSTORE    := Oriel App Store
 PROJECT     := Oriel.xcodeproj
 CONFIG_DIR  := build
 DIST        := dist
@@ -12,7 +13,7 @@ UI_TESTS    := $(if $(filter 1,$(ORIEL_UI_TESTS)),,-skip-testing:OrielUITests)
 # Extra xcodebuild arguments for build, test and universal-check; CI signs ad hoc with them (.github/workflows/ci.yml).
 XCODEBUILD_FLAGS ?=
 
-.PHONY: generate build run test lint universal-check install release-dry-run clean tools
+.PHONY: generate build run test lint universal-check appstore-check appstore-archive install release-dry-run clean tools
 
 tools:
 	@for t in $(TOOL_LIST); do command -v $$t >/dev/null || { echo "missing $$t (brew install $$t)"; exit 1; }; done
@@ -31,6 +32,7 @@ run: build
 test: generate
 	TEST_RUNNER_ORIEL_TCC_TESTS="$(ORIEL_TCC_TESTS)" xcodebuild -project $(PROJECT) -scheme $(SCHEME) -destination 'platform=macOS' test $(UI_TESTS) \
 	$(XCODEBUILD_FLAGS)
+	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -destination 'platform=macOS' test $(XCODEBUILD_FLAGS)
 	@for p in $(PACKAGES); do echo "== $$p"; swift test --package-path "$$p" || exit 1; done
 
 lint: tools
@@ -44,6 +46,22 @@ universal-check: generate
 	lipo -archs $(CONFIG_DIR)/Release/Oriel.app/Contents/Helpers/oriel | grep -q "x86_64 arm64\|arm64 x86_64"
 	arch -x86_64 $(CONFIG_DIR)/Release/Oriel.app/Contents/MacOS/Oriel --self-test
 	$(CONFIG_DIR)/Release/Oriel.app/Contents/MacOS/Oriel --self-test
+
+# The App Store edition's Release build, both slices, unsigned (signing for the App Store goes through Xcode's account),
+# checked for what App Review rejects: private symbols, a root helper, an embedded CLI (PLAN §19).
+appstore-check: generate
+	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -configuration Release-AppStore -destination 'generic/platform=macOS' \
+	ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO CONFIGURATION_BUILD_DIR=$(CURDIR)/$(CONFIG_DIR)/Release-AppStore \
+	build $(XCODEBUILD_FLAGS)
+	bash scripts/verify-appstore.sh $(CONFIG_DIR)/Release-AppStore/Oriel.app
+
+# Archives the App Store edition for upload (docs/RELEASING.md). Xcode signs it with your account and, the first time,
+# registers the App ID's capabilities and creates the App Store profiles; then upload from Xcode's Organizer. The build
+# number is the commit count, as in the Developer ID release (scripts/release/export-app.sh).
+appstore-archive: generate
+	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -configuration Release-AppStore -destination 'generic/platform=macOS' \
+	CURRENT_PROJECT_VERSION=$$(git rev-list --count HEAD) -archivePath $(DIST)/Oriel-AppStore.xcarchive \
+	-allowProvisioningUpdates archive
 
 install: generate
 	bash scripts/install.sh        # archive → export (developer-id) → /Applications → codesign --verify → open

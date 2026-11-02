@@ -14,6 +14,11 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
         rawValue
     }
 
+    /// The permissions this edition can use: the App Store edition's sandbox cannot be granted Accessibility (PLAN §19).
+    public static var available: [PermissionKind] {
+        Sandbox.isActive ? allCases.filter { $0 != .accessibility } : allCases
+    }
+
     /// The permission's name. Its pane in System Settings can be called something else: `settingsPaneName`.
     public var displayName: String {
         switch self {
@@ -31,7 +36,9 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
         case .accessibility:
             "Lists, focuses and arranges windows, takes over Cmd-Tab, and scrolls for scrolling capture."
         case .screenRecording:
-            "Screenshots, screen recordings, window thumbnails in the switcher and text to translate."
+            Sandbox.isActive
+                ? "Screenshots, screen recordings, text to translate and the edges Screen Ruler measures."
+                : "Screenshots, screen recordings, window thumbnails in the switcher and text to translate."
         case .microphone:
             "Adds your voice to screen recordings you start."
         case .camera:
@@ -41,9 +48,10 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
         }
     }
 
-    /// Whether Oriel is still useful without it.
+    /// Whether Oriel is still useful without it: the window tools need Accessibility, and the App Store edition, which
+    /// has none, is about the screen.
     public var isRequired: Bool {
-        self == .accessibility
+        self == (Sandbox.isActive ? .screenRecording : .accessibility)
     }
 
     /// The name of its pane in System Settings → Privacy & Security. macOS 27 calls Accessibility "Device Control

@@ -46,11 +46,17 @@ final class SettingsSyncService {
         self.makeBackend = makeBackend
     }
 
+    /// iCloud key-value storage when the entitlement is there; else, in the Developer ID edition, a folder in iCloud
+    /// Drive, which the App Store edition's sandbox does not reach (PLAN §19).
     static func iCloudBackend() -> (any SettingsSyncBackend)? {
         if KeyValueStoreSyncBackend.isAvailable {
             return KeyValueStoreSyncBackend()
         }
-        return ICloudDriveSyncBackend.isAvailable ? ICloudDriveSyncBackend() : nil
+        #if APP_STORE
+            return nil
+        #else
+            return ICloudDriveSyncBackend.isAvailable ? ICloudDriveSyncBackend() : nil
+        #endif
     }
 
     /// How it would sync on this Mac, or nil while neither iCloud store can be used.
@@ -58,7 +64,11 @@ final class SettingsSyncService {
         if KeyValueStoreSyncBackend.isAvailable {
             return "iCloud key-value storage"
         }
-        return ICloudDriveSyncBackend.isAvailable ? "iCloud Drive" : nil
+        #if APP_STORE
+            return nil
+        #else
+            return ICloudDriveSyncBackend.isAvailable ? "iCloud Drive" : nil
+        #endif
     }
 
     /// Starts or stops with the setting; called at launch and whenever the setting changes.

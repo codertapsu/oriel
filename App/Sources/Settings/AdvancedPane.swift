@@ -6,7 +6,9 @@ import SwiftUI
 struct AdvancedPane: View {
     let controller: AppController
     @State private var capabilities: Capabilities?
-    @State private var installed = CLIInstaller.installedLocations
+    #if !APP_STORE
+        @State private var installed = CLIInstaller.installedLocations
+    #endif
     @State private var message: String?
 
     var body: some View {
@@ -17,8 +19,10 @@ struct AdvancedPane: View {
                     LabeledContent("Apple silicon", value: capabilities.isAppleSiliconHardware ? "yes" : "no")
                     LabeledContent("Apple Intelligence", value: capabilities.appleIntelligence)
                     LabeledContent("Translation packs", value: capabilities.translationPacks)
-                    let found = capabilities.privateSymbols.values.filter(\.self).count
-                    LabeledContent("Private symbols", value: "\(found) of \(capabilities.privateSymbols.count)")
+                    if !capabilities.privateSymbols.isEmpty {
+                        let found = capabilities.privateSymbols.values.filter(\.self).count
+                        LabeledContent("Private symbols", value: "\(found) of \(capabilities.privateSymbols.count)")
+                    }
                     ForEach(capabilities.permissions.keys.sorted(), id: \.self) { name in
                         LabeledContent(name, value: capabilities.permissions[name] ?? "")
                     }
@@ -27,6 +31,21 @@ struct AdvancedPane: View {
                     ProgressView()
                 }
             }
+            #if !APP_STORE
+                developerIDSections
+            #endif
+            if let message {
+                Text(message).font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .task { capabilities = await controller.capabilities() }
+    }
+
+    #if !APP_STORE
+        /// The command-line tool, the shared configuration and Uninstall, which the App Store edition leaves out: its
+        /// sandbox reaches neither ~/.local/bin nor the files of other apps, and the App Store removes it (PLAN §19).
+        @ViewBuilder private var developerIDSections: some View {
             Section {
                 ForEach([CLIInstaller.Location.user, .system], id: \.self) { location in
                     LabeledContent(location.link.path) {
@@ -61,23 +80,18 @@ struct AdvancedPane: View {
                     )
                 }
             }
-            if let message {
-                Text(message).font(.callout).foregroundStyle(.secondary)
-            }
         }
-        .formStyle(.grouped)
-        .task { capabilities = await controller.capabilities() }
-    }
 
-    private func change(_ action: () throws -> Void) {
-        do {
-            try action()
-            message = nil
-        } catch {
-            message = error.localizedDescription
+        private func change(_ action: () throws -> Void) {
+            do {
+                try action()
+                message = nil
+            } catch {
+                message = error.localizedDescription
+            }
+            installed = CLIInstaller.installedLocations
         }
-        installed = CLIInstaller.installedLocations
-    }
+    #endif
 
     private func copy(_ capabilities: Capabilities) {
         let encoder = JSONEncoder()

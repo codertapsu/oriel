@@ -10,6 +10,15 @@ struct AboutPane: View {
         return "Version \(short) (\(build))"
     }
 
+    /// What this edition does; the App Store edition has no window tools (PLAN §19).
+    static var tagline: String {
+        #if APP_STORE
+            "Screenshots and recording, translation, Clipboard History and more tools."
+        #else
+            "Window switcher, screenshots and recording, and screenshot translation."
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 14) {
             Image(nsImage: NSApp.applicationIconImage)
@@ -17,16 +26,18 @@ struct AboutPane: View {
                 .frame(width: 96, height: 96)
             Text("Oriel").font(.largeTitle.bold())
             Text(version).foregroundStyle(.secondary)
-            Text("Window switcher, screenshots and recording, and screenshot translation.")
+            Text(Self.tagline)
             GroupBox("System requirements") {
                 Text(Self.requirements)
                     .font(.system(.caption, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .textSelection(.enabled)
             }
-            Button("Copy update command") {
-                Pasteboard.copy("brew upgrade --cask oriel")
-            }
+            #if !APP_STORE
+                Button("Copy update command") {
+                    Pasteboard.copy("brew upgrade --cask oriel")
+                }
+            #endif
         }
         .padding(24)
     }

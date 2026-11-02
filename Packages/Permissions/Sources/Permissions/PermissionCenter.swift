@@ -57,7 +57,7 @@ public final class PermissionCenter: PermissionChecking {
 
     public func refresh() {
         var fresh: [PermissionKind: PermissionStatus] = [:]
-        for kind in PermissionKind.allCases {
+        for kind in PermissionKind.available {
             fresh[kind] = reader(kind)
         }
         if fresh != statuses {
@@ -132,7 +132,7 @@ public final class PermissionCenter: PermissionChecking {
 
     /// Permission name → state, for Diagnostics and `oriel debug capabilities`.
     public var summary: [String: String] {
-        Dictionary(uniqueKeysWithValues: PermissionKind.allCases.map { ($0.rawValue, status(of: $0).rawValue) })
+        Dictionary(uniqueKeysWithValues: PermissionKind.available.map { ($0.rawValue, status(of: $0).rawValue) })
     }
 
     /// Reads the state through the public APIs only; Oriel never touches the TCC database (PLAN §8.2). Paste from Other

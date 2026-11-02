@@ -8,7 +8,7 @@ struct PermissionList: View {
     let permissions: PermissionCenter
 
     var body: some View {
-        ForEach(PermissionKind.allCases) { kind in
+        ForEach(PermissionKind.available) { kind in
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: icon(for: kind))
                     .foregroundStyle(color(for: kind))

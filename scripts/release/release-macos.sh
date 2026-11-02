@@ -130,8 +130,8 @@ if [ "${SKIP_BUILD:-}" = "1" ]; then
     exit 1
   }
 else
-  echo "==> the full quality gate (make lint test universal-check)"
-  make lint test universal-check
+  echo "==> the full quality gate (make lint test universal-check appstore-check)"
+  make lint test universal-check appstore-check
   bash scripts/release/export-app.sh
 fi
 

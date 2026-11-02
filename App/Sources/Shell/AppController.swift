@@ -1,10 +1,12 @@
 import AppKit
 import Hotkeys
-import IPC
 import OrielCore
 import os
 import Permissions
 import SharedUI
+#if !APP_STORE
+    import IPC
+#endif
 
 /// The app shell (PLAN §6.1): settings, permissions, global shortcuts, the CLI socket, the module registry, the
 /// status menu and the windows. Features live behind `FeatureHub`.
@@ -26,7 +28,9 @@ final class AppController {
     private var statusMenu: StatusMenuController?
     private var settingsWindow: SettingsWindowController?
     private var onboardingWindow: OnboardingWindowController?
-    private var ipcServer: IPCServer?
+    #if !APP_STORE
+        private var ipcServer: IPCServer?
+    #endif
     private var settingsObserver: NSObjectProtocol?
     private let log = Log.logger("app")
 
@@ -47,9 +51,11 @@ final class AppController {
         IntentContext.controller = self
         dockPresence.start()
         MainMenu.install(settings: { [weak self] in self?.showSettings() }, closeWindows: { [weak self] in self?.closeWindows() })
-        if LaunchChecks.offerMoveToApplications() {
-            return // the copy in Applications takes over once this one has quit
-        }
+        #if !APP_STORE
+            if LaunchChecks.offerMoveToApplications() {
+                return // the copy in Applications takes over once this one has quit
+            }
+        #endif
         LaunchChecks.showArchitectureNotices(settings: settings)
         statusMenu = StatusMenuController(controller: self)
         hub.onRecordingChange = { [weak self] recording in self?.statusMenu?.showRecording(recording) }
@@ -74,7 +80,9 @@ final class AppController {
                 }
             }
         }
-        startIPC()
+        #if !APP_STORE
+            startIPC()
+        #endif
         Task {
             await bootstrapImporter.importAvailable()
             await registry.activateEnabledModules()
@@ -93,7 +101,9 @@ final class AppController {
         sync.stop()
         await registry.deactivateAll()
         await hub.shutdown()
-        ipcServer?.stop()
+        #if !APP_STORE
+            ipcServer?.stop()
+        #endif
         hotkeys.unregisterAll()
     }
 
@@ -226,25 +236,27 @@ final class AppController {
 
     // MARK: CLI
 
-    private func startIPC() {
-        let router = IPCRouter { [weak self] in self?.ipcCommands ?? [] }
-        let server = IPCServer { request in await router.handle(request) }
-        do {
-            try server.start()
-            ipcServer = server
-        } catch {
-            log.error("the CLI socket could not start: \(error.localizedDescription, privacy: .public)")
+    #if !APP_STORE
+        private func startIPC() {
+            let router = IPCRouter { [weak self] in self?.ipcCommands ?? [] }
+            let server = IPCServer { request in await router.handle(request) }
+            do {
+                try server.start()
+                ipcServer = server
+            } catch {
+                log.error("the CLI socket could not start: \(error.localizedDescription, privacy: .public)")
+            }
         }
-    }
 
-    private var ipcCommands: [IPCCommandHandler] {
-        let capabilities = IPCCommandHandler(verb: "debug.capabilities", usage: "debug capabilities --json") { [weak self] request in
-            guard let self else { return .failure(request, "Oriel is shutting down.") }
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = await (try? encoder.encode(capabilities())) ?? Data()
-            return .ok(request, String(data: data, encoding: .utf8) ?? "{}")
+        private var ipcCommands: [IPCCommandHandler] {
+            let capabilities = IPCCommandHandler(verb: "debug.capabilities", usage: "debug capabilities --json") { [weak self] request in
+                guard let self else { return .failure(request, "Oriel is shutting down.") }
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                let data = await (try? encoder.encode(capabilities())) ?? Data()
+                return .ok(request, String(data: data, encoding: .utf8) ?? "{}")
+            }
+            return [capabilities] + hub.ipcCommands + registry.ipcCommands
         }
-        return [capabilities] + hub.ipcCommands + registry.ipcCommands
-    }
+    #endif
 }

@@ -15,12 +15,14 @@ nonisolated struct OrielShortcuts: AppShortcutsProvider {
             shortTitle: "Translate Area",
             systemImageName: "character.bubble"
         )
-        AppShortcut(
-            intent: FocusWindowIntent(),
-            phrases: ["Focus a window with \(.applicationName)"],
-            shortTitle: "Focus Window",
-            systemImageName: "macwindow"
-        )
+        #if !APP_STORE
+            AppShortcut(
+                intent: FocusWindowIntent(),
+                phrases: ["Focus a window with \(.applicationName)"],
+                shortTitle: "Focus Window",
+                systemImageName: "macwindow"
+            )
+        #endif
         AppShortcut(
             intent: RunCommandIntent(),
             phrases: ["Run an \(.applicationName) command"],
