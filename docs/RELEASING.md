@@ -6,7 +6,7 @@ A release is one notarized, stapled `dist/Oriel-<version>.dmg`. Oriel has no upd
 
 ## One-time setup
 
-1. **A Developer ID Application certificate** for team `4XVYLW8RXS` (the `DEVELOPMENT_TEAM` in `project.yml`) in the login keychain. `security find-identity -v -p codesigning` lists it. The current certificate chains to Apple's original Developer ID CA and expires on 2027-02-01 (PLAN §16).
+1. **A Developer ID Application certificate** for team `4XVYLW8RXS` (the `DEVELOPMENT_TEAM` in `project.yml`) in the login keychain. `security find-identity -v -p codesigning` lists it. The current certificate comes from Apple's original Developer ID authority and cannot sign after 2027-02-01; replace it with a G2 certificate, valid for one year, before then (`docs/APPLE_ACCOUNT.md`).
 2. **The credentials file.** `scripts/apple-credentials.env` is the same file the other desktop apps use: copy it from one of them, or start from `scripts/apple-credentials.env.example`. It holds `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password, not the Apple ID password) and `APPLE_TEAM_ID`. It is git-ignored. Never commit it, and never paste its values into a chat, an issue or a commit message.
 3. **The notary keychain profile.** `xcrun notarytool store-credentials codertapsu-notary --apple-id <Apple ID> --team-id 4XVYLW8RXS` asks for the app-specific password and keeps it in the login keychain. The release scripts sign in to the notary service with it whenever it exists (`scripts/release/notary-auth.sh`; another name through `NOTARY_PROFILE=…`), and fall back to the variables above when it does not. The profile serves every app of the team. `xcrun notarytool history --keychain-profile codertapsu-notary` checks it.
 4. **Tooling:** Xcode 27.1 or later, `brew install xcodegen swiftlint swiftformat`, and Rosetta (`softwareupdate --install-rosetta --agree-to-license`) for the x86_64 self-test.
@@ -66,13 +66,14 @@ The App Store edition (PLAN §18, §19) is signed by Apple, not with Developer I
 
 ## Renewing certificates and passwords
 
-Each of these serves every app of the team (Oriel, Gitweaver, Mother Claude); renew it once and update each project's credentials file.
+[APPLE_ACCOUNT.md](APPLE_ACCOUNT.md) has the inventory, the dates and every step. Each credential serves every app of the team (Oriel, Gitweaver, Mother Claude), so renew it once and update each project's credentials file. In short:
 
 | What | When | How |
 |---|---|---|
-| Developer ID Application certificate | Before it expires; the current one, chained to Apple's original Developer ID CA, expires on 2027-02-01 | Keychain Access → **Certificate Assistant → Request a Certificate from a Certificate Authority** (saved to disk); developer.apple.com → Certificates → **+** → Developer ID Application, upload the request, download and open the certificate. Check that `security find-identity -v -p codesigning` lists it, set `APPLE_SIGNING_IDENTITY` in each credentials file if its name changed, run `make release-dry-run`, then delete the old certificate and its private key from the login keychain so builds cannot pick it. Export the new one with its key (a `.p12`) to keep a backup and to set up another Mac. |
-| App-specific password | When it is revoked, or the Apple ID password changes | appleid.apple.com → **Sign-In and Security → App-Specific Passwords**; update `APPLE_PASSWORD` in each credentials file and run the `store-credentials` command above again. |
-| Apple Development and Apple Distribution certificates | Xcode renews them | Automatic signing makes them as needed; a Mac that builds Debug or archives the App Store edition needs the team's account in Xcode. |
+| The membership | Yearly; renewable from 30 days before it expires | developer.apple.com/account → Membership details → **Renew Membership**, by the Account Holder |
+| Developer ID Application certificate | **Before 2027-02-01**: the current one comes from Apple's previous Developer ID authority, which expires then. Its G2 replacement is valid for one year, so yearly after that | Xcode → Settings → Accounts → Manage Certificates → **+** → Developer ID Application, or the browser with a signing request, choosing **G2 Sub-CA**. Then back up and **delete the old certificate first**: two identities of the same name make signing by name ambiguous. Then `make release-dry-run` |
+| App-specific password | When it is revoked, or the Apple Account password changes | account.apple.com → Sign-In and Security → App-Specific Passwords; update `APPLE_PASSWORD` and store the `codertapsu-notary` profile again |
+| Apple Development and Apple Distribution | Yearly (2027-06-01 and 2027-06-03 now) | Xcode, which also makes them as automatic signing needs them |
 
 ## Installing on this Mac
 

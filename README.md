@@ -23,7 +23,9 @@ Settings sync through iCloud, and App Intents put Oriel's actions in the Shortcu
 | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) | Using Oriel: permissions, shortcuts, every tool, the CLI, troubleshooting |
 | [docs/BUILDING.md](docs/BUILDING.md) | Building, signing, notarizing and packaging `Oriel.app` by hand, step by step, and installing it |
 | [docs/RELEASING.md](docs/RELEASING.md) | The scripted release: one command from a tagged commit to a notarized DMG |
-| [docs/APP_STORE.md](docs/APP_STORE.md) | The Mac App Store edition: what is ready, setting up App Store Connect and Oriel Pro, review notes |
+| [docs/APP_STORE.md](docs/APP_STORE.md) | The Mac App Store edition: what is ready, what App Review checks, what it leaves out |
+| [docs/APP_STORE_CONNECT.md](docs/APP_STORE_CONNECT.md) | Registering Oriel in App Store Connect, step by step: agreements, devices, the app record, Oriel Pro, the listing, upload, TestFlight, submission |
+| [docs/APPLE_ACCOUNT.md](docs/APPLE_ACCOUNT.md) | The Apple Developer membership, certificates, passwords and profiles: what expires when, and how to renew each |
 | [docs/PLAN.md](docs/PLAN.md), [docs/checklist.md](docs/checklist.md) | Design, decisions, roadmap and the verification checklist |
 | [docs/os-quirks.md](docs/os-quirks.md), [docs/provenance.md](docs/provenance.md) | OS behaviour found along the way; where each private-API signature came from |
 | [docs/qa-checklists.md](docs/qa-checklists.md) | The manual checks for a new build, step by step, and the record of each run |

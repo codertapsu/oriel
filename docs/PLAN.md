@@ -1442,7 +1442,7 @@ Multi-display, mixed-scale (Retina + 1× external) setups are tested manually be
 ## 15. Build, signing, notarization, installation and release
 
 1. **Project:** XcodeGen `project.yml` (Appendix D); the generated `.xcodeproj` is git-ignored; local packages under `Packages/`. `MARKETING_VERSION` is SemVer; the build number (`CURRENT_PROJECT_VERSION`) is the git commit count at archive time, set by `scripts/release/export-app.sh`.
-2. **Certificates:** one "Apple Development" certificate shared by every dev machine (export once; TCC grants are tied to the signing identity) and one "Developer ID Application" certificate for releases. The two signatures cannot share a bundle ID's permission entries, so Debug builds use `com.codertapsu.oriel.debug` ("Oriel Debug") and the release `com.codertapsu.oriel`; the release's certificate is chained to the current Developer ID CA (the original CA expires 2027-02-01). No "Developer ID Installer": there is no `.pkg`.
+2. **Certificates:** one "Apple Development" certificate shared by every dev machine (export once; TCC grants are tied to the signing identity) and one "Developer ID Application" certificate for releases. The two signatures cannot share a bundle ID's permission entries, so Debug builds use `com.codertapsu.oriel.debug` ("Oriel Debug") and the release `com.codertapsu.oriel`; the release's certificate comes from the original Developer ID authority, which expires on 2027-02-01, and its replacement from the G2 authority is valid for one year (`docs/APPLE_ACCOUNT.md`). No "Developer ID Installer": there is no `.pkg`.
 3. **Signing:** Hardened Runtime on the app and the CLI; sign inside-out (CLI first, then the app); `--deep` is for verification only. The CLI embeds its Info.plist, so it signs as `com.codertapsu.oriel.cli` rather than `oriel`. Plain builds, Release included, keep `com.apple.security.get-task-allow` so Instruments can attach; only the `developer-id` export strips it, so only `dist/` output gets notarized.
 4. **Notarization:** `scripts/release/notarize.sh` runs `xcrun notarytool submit … --wait` signed in through `notary-auth.sh`: the keychain profile `codertapsu-notary` (`NOTARY_PROFILE`; made once with `xcrun notarytool store-credentials`, `docs/RELEASING.md`), which keeps the app-specific password in the login keychain, else `APPLE_ID`, `APPLE_PASSWORD` and `APPLE_TEAM_ID` from `scripts/apple-credentials.env`, git-ignored and shared with the other desktop apps. It checks that the result is Accepted (printing Apple's log if not), staples the ticket and validates it. The release script uses it twice: on the exported app, so the copy a user drags out of the DMG carries its own ticket, and then on the DMG built from it.
 5. **DMG:** `scripts/release/make-dmg.sh` runs `hdiutil create -volname Oriel -srcfolder dist/dmgroot -ov -format ULFO dist/Oriel-$VERSION.dmg` with the stapled app and an `/Applications` symlink, then `codesign --sign "$APPLE_SIGNING_IDENTITY" --timestamp` on the DMG.
@@ -1475,7 +1475,7 @@ Multi-display, mixed-scale (Retina + 1× external) setups are tested manually be
 | Translation API cost or key leakage | Medium / Medium | Apple/local defaults; usage caps; Keychain only; redacted logs |
 | Intel coverage disappears (Rosetta gone in macOS 28) | High / Low | Rosetta while it lasts; optional physical Intel Mac; decide an Intel end-of-support date when Apple stops Tahoe security updates |
 | A 27-only API turns out to matter | Low / Low | Floor change is two lines (§2.2) |
-| The Developer ID certificate expires: the current one chains to the original CA and expires 2027-02-01 | High / High (no new signatures after that date) | Issue a G2-chained Developer ID Application certificate before 1.0 and update the CI secrets |
+| The Developer ID certificate expires: the current one chains to the original CA and expires 2027-02-01 | High / High (no new signatures after that date) | Issue a G2 Developer ID Application certificate before 2027-02-01, delete the old one (two of the same name make signing ambiguous), and renew it yearly, since G2 certificates last one year (`docs/APPLE_ACCOUNT.md`). CI signs ad hoc, so it holds no secret to update |
 | OAuth redirects not yet confirmed: Dropbox accepting `db-<app key>://2/token` without a registered redirect URI (known from its SDKs, not documented), and Google accepting an iOS-type client from a macOS app | Medium / Medium (no Dropbox or Drive uploads) | QA with a real Dropbox app and Google Cloud client; the fallback is a loopback redirect (`http://127.0.0.1:<port>/`) with a one-shot local listener |
 | Google ends the sign-in after 7 days while a consent screen is in Testing | High / Low | Publish the consent screen (`drive.file` needs no review, though Google may ask for brand verification); Settings says "Sign in again" |
 | iCloud key-value storage needs the `ubiquity-kvstore-identifier` entitlement, which a Developer ID app gets only with an iCloud provisioning profile | High / Low | Settings sync uses a folder in iCloud Drive until then; the app switches to key-value storage by itself once the entitlement is there (§7.16) |
@@ -1624,7 +1624,7 @@ Guidelines 5.1.2(i) ask an app to say so and get permission before it shares per
 
 ### 19.8 Pages and App Store Connect
 
-Oriel's privacy policy, support page and terms of use (EULA) are on the Codertapsu site (repository `codertapsu-web`, Firebase Hosting, generated from its `apps.json`): `https://codertapsu-web.web.app/oriel/privacy`, `/oriel/support` and `/oriel/terms` (`OrielLinks`). Settings → Oriel Pro links the terms and the privacy policy, and Help links the support page. Setting up App Store Connect, archiving, uploading and review are in `docs/APP_STORE.md`.
+Oriel's privacy policy, support page and terms of use (EULA) are on the Codertapsu site (repository `codertapsu-web`, Firebase Hosting, generated from its `apps.json`): `https://codertapsu-web.web.app/oriel/privacy`, `/oriel/support` and `/oriel/terms` (`OrielLinks`). Settings → Oriel Pro links the terms and the privacy policy, and Help links the support page. `docs/APP_STORE_CONNECT.md` is the step-by-step procedure for App Store Connect, from the agreements to a submitted version with Oriel Pro, and `docs/APPLE_ACCOUNT.md` the membership, certificates and their renewals.
 
 ---
 
@@ -1666,7 +1666,8 @@ oriel/
 │   └── release/  (release-macos.sh, export-app.sh, notarize.sh, notary-auth.sh, make-dmg.sh; bump-cask.sh once the tap exists)
 ├── docs/
 │   ├── PLAN.md                      # this document
-│   ├── checklist.md  provenance.md  os-quirks.md  qa-checklists.md  bootstrap.example.json  RELEASING.md  APP_STORE.md  USER_GUIDE.md
+│   ├── checklist.md  provenance.md  os-quirks.md  qa-checklists.md  bootstrap.example.json  RELEASING.md
+│   ├── APP_STORE.md  APP_STORE_CONNECT.md  APPLE_ACCOUNT.md  USER_GUIDE.md  BUILDING.md
 │   ├── decisions/ADR-001-deployment-floor.md
 │   ├── spikes/S0.md … S9.md
 │   └── reports/00-bootstrap.md, phase-0.md, …
