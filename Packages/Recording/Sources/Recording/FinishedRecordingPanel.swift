@@ -167,12 +167,14 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
         menu.addItem(withTitle: "GIF")
         menu.lastItem?.target = self
         menu.lastItem?.action = #selector(exportGIF(_:))
+        menu.lastItem.map { ProMenuBadge.apply(.recordingExports, to: $0) }
         menu.lastItem?.image = NSImage(systemSymbolName: "photo.on.rectangle.angled", accessibilityDescription: nil)
         menu.addItem(withTitle: "Constant Frame Rate (\(frameRate) fps)")
         menu.lastItem?.target = self
         menu.lastItem?.action = #selector(exportConstantFrameRate(_:))
         menu.lastItem?.image = NSImage(systemSymbolName: "film", accessibilityDescription: nil)
         menu.lastItem?.toolTip = "Re-encode at a constant \(frameRate) fps for video editors"
+        menu.lastItem.map { ProMenuBadge.apply(.recordingExports, to: $0) }
         menu.setAccessibilityLabel("Export")
         return menu
     }
@@ -246,6 +248,7 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
     }
 
     @objc private func exportGIF(_: Any?) {
+        guard ProAccess.shared.check(.recordingExports) else { return }
         let options = RecordingOptions(settings: settings).gif
         run("Making the GIF…") { [movie] in
             let output = RecordingFileNamer.sibling(of: movie, pathExtension: "gif")
@@ -255,6 +258,7 @@ final class FinishedRecordingPanel: NSObject, NSWindowDelegate {
     }
 
     @objc private func exportConstantFrameRate(_: Any?) {
+        guard ProAccess.shared.check(.recordingExports) else { return }
         let frameRate = frameRate
         run("Converting to \(frameRate) fps…") { [movie] in
             let output = RecordingFileNamer.sibling(of: movie, suffix: " (CFR)", pathExtension: "mp4")

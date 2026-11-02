@@ -1,6 +1,7 @@
 import AppKit
 import OrielCore
 import Permissions
+import SharedUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -72,20 +73,28 @@ struct RecordingSettingsView: View {
 
     private var overlaySection: some View {
         Section("Overlays") {
-            Toggle("Camera bubble", isOn: settings.binding(Keys.cameraBubble))
-            if settings[Keys.cameraBubble] {
+            HStack {
+                Toggle("Camera bubble", isOn: settings.binding(Keys.cameraBubble).gated(by: .cameraBubble))
+                ProBadge(.cameraBubble)
+            }
+            if settings[Keys.cameraBubble], ProAccess.shared.allows(.cameraBubble) {
                 permissionNote(.camera, "Oriel may not use the camera, so no camera bubble is shown.")
                 CameraEffectSettingsView(settings: settings)
             }
-            Toggle("Highlight clicks", isOn: settings.binding(Keys.clickRings))
+            HStack {
+                Toggle("Highlight clicks", isOn: settings.binding(Keys.clickRings).gated(by: .clickHighlights))
+                ProBadge(.clickHighlights)
+            }
             Toggle("Remember clicks for Auto Zoom", isOn: settings.binding(Keys.remembersClicks))
             if settings[Keys.remembersClicks] {
                 Text("Each recording's clicks are saved in a small file next to it, so the video editor can zoom in on them.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
-            Toggle("Show keystrokes", isOn: settings.binding(Keys.keystrokes))
-            if settings[Keys.keystrokes], permissions.status(of: .accessibility) != .granted {
+            if !Sandbox.isActive {
+                Toggle("Show keystrokes", isOn: settings.binding(Keys.keystrokes).gated(by: .clickHighlights))
+            }
+            if !Sandbox.isActive, settings[Keys.keystrokes], permissions.status(of: .accessibility) != .granted {
                 note(
                     "Showing keystrokes needs Accessibility, so that Oriel can see the keys you type in other apps. "
                         + "Recordings leave keystrokes out until it is granted.",

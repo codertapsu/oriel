@@ -26,6 +26,7 @@ public extension RecordingCoordinator {
     /// `replacing` is given (a window with nothing to lose that the movie was dropped on), the new window takes its
     /// place.
     func openVideo(at url: URL) {
+        guard ProAccess.shared.check(.videoEditor) else { return }
         openVideo(at: url, replacing: nil)
     }
 

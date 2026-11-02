@@ -8,7 +8,8 @@ extension RecordingCoordinator: CommandProviding {
             title: "Open Video…",
             symbol: "film",
             group: .library,
-            route: "video/open"
+            route: "video/open",
+            proFeature: .videoEditor
         ) { [weak self] in
             self?.openVideoEditor()
         }

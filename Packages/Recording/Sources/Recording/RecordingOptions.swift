@@ -73,9 +73,11 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
             systemAudio: settings[Keys.systemAudio],
             microphone: settings[Keys.microphone],
             microphoneDeviceID: settings[Keys.microphoneDeviceID],
-            cameraBubble: settings[Keys.cameraBubble],
-            clickRings: settings[Keys.clickRings],
-            keystrokes: settings[Keys.keystrokes],
+            // Pro features stay off without Oriel Pro (PLAN §19); keystrokes need Accessibility, which the App Store
+            // edition's sandbox cannot be granted.
+            cameraBubble: settings[Keys.cameraBubble] && ProAccess.shared.allows(.cameraBubble),
+            clickRings: settings[Keys.clickRings] && ProAccess.shared.allows(.clickHighlights),
+            keystrokes: settings[Keys.keystrokes] && ProAccess.shared.allows(.clickHighlights) && !Sandbox.isActive,
             remembersClicks: settings[Keys.remembersClicks],
             cameraBackground: CameraBackground.resolve(
                 blurs: settings[Keys.blursCameraBackground],
