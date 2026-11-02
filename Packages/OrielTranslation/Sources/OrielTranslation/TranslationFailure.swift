@@ -30,6 +30,8 @@ public enum TranslationFailure: LocalizedError, Sendable, Equatable {
     case modelUnavailable(String)
     case unavailable(String)
     case unknownProvider(String)
+    /// The provider needs Oriel Pro (PLAN §19).
+    case needsPro(String)
     case cancelled
 
     public var errorDescription: String? {
@@ -55,6 +57,7 @@ public enum TranslationFailure: LocalizedError, Sendable, Equatable {
         case let .modelUnavailable(message): message
         case let .unavailable(reason): reason
         case let .unknownProvider(id): "There is no translation provider called “\(id)”."
+        case let .needsPro(name): "\(name) is part of Oriel Pro. Apple Translation and Apple Intelligence are free."
         case .cancelled: "Cancelled."
         }
     }

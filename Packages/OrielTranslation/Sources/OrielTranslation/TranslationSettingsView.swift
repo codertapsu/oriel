@@ -1,3 +1,5 @@
+import OrielCore
+import SharedUI
 import SwiftUI
 
 /// Settings → Translation (PLAN §7.7.5, §17): languages, default provider, every provider's endpoint, model, key and
@@ -97,6 +99,10 @@ struct TranslationSettingsView: View {
 
     private var glossary: some View {
         Section {
+            HStack {
+                Text("Glossaries keep names and terms translated the same way.").font(.callout).foregroundStyle(.secondary)
+                ProBadge(.glossaries)
+            }
             Picker("Use glossary", selection: model.activeGlossary) {
                 Text("None").tag(UUID?.none)
                 if !model.glossaries.projects.isEmpty {

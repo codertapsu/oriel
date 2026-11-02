@@ -142,6 +142,9 @@ extension TranslationCoordinator {
             return result(text)
         }
         guard !usage.isOverCap(config) else { throw TranslationFailure.capReached }
+        if let failure = Self.proBlock(config) {
+            throw failure
+        }
         let provider = registry.provider(for: config)
         let availability = await provider.availability(source: source, target: target)
         if case let .packNotInstalled(from, into) = availability, offeredCursorLanguagePacks.insert("\(from)>\(into)").inserted {

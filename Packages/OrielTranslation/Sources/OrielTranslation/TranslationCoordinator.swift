@@ -90,6 +90,13 @@ public final class TranslationCoordinator {
         glossaries.onProjectDeleted = { [registry] id in registry.deleteDeepLGlossaries(ofProject: id) }
     }
 
+    /// A provider that needs Oriel Pro, while Pro is locked: shows what Pro adds and fails the translation, which says
+    /// that Apple Translation and Apple Intelligence are free (PLAN §19).
+    static func proBlock(_ config: ProviderConfig, access: ProAccess = .shared) -> TranslationFailure? {
+        guard config.kind.needsPro, !access.check(.translationProviders) else { return nil }
+        return .needsPro(config.displayName)
+    }
+
     // MARK: - Public API
 
     /// The interactive flow: shows the frozen capture over the captured area at once, recognizes its text, and fills
@@ -146,6 +153,9 @@ public final class TranslationCoordinator {
                 translations[block.id] = block.text
             }
         } else if !blocks.isEmpty {
+            if let failure = Self.proBlock(config) {
+                throw failure
+            }
             let provider = registry.provider(for: config)
             if let failure = await provider.availability(source: source, target: targetLanguage).failure {
                 throw failure

@@ -72,6 +72,10 @@ extension TranslationCoordinator {
             model.phase = .finished
             return
         }
+        if let failure = Self.proBlock(config) {
+            model.phase = .failed(failure.localizedDescription)
+            return
+        }
         let provider = registry.provider(for: config)
         model.phase = .translating
         await glossaries.loadIfNeeded()
@@ -174,7 +178,7 @@ extension TranslationCoordinator {
                 Self.copyAll(of: model)
             },
             aiVision: { [weak self, weak model] in
-                guard let model else { return }
+                guard let model, ProAccess.shared.check(.aiVision) else { return }
                 self?.retranslate(model, useImage: true)
             },
             toggleSidePanel: { [weak self, weak model] in

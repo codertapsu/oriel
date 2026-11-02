@@ -11,7 +11,8 @@ extension TranslationCoordinator: CommandProviding {
                 symbol: "character.cursor.ibeam",
                 group: .translation,
                 defaultShortcut: Self.cursorShortcut,
-                route: "translate/cursor"
+                route: "translate/cursor",
+                proFeature: isTranslatingUnderCursor ? nil : .translateUnderCursor // turning it off always works
             ) { [weak self] in
                 self?.toggleTranslateUnderCursor()
             },
@@ -20,7 +21,8 @@ extension TranslationCoordinator: CommandProviding {
                 title: "Translate File…",
                 symbol: "doc.text",
                 group: .translation,
-                route: "translate/file"
+                route: "translate/file",
+                proFeature: .translateFiles
             ) { [weak self] in
                 self?.chooseFileToTranslate()
             },

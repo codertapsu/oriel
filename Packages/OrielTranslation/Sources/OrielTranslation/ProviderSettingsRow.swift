@@ -1,3 +1,5 @@
+import OrielCore
+import SharedUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -26,7 +28,12 @@ struct ProviderSettingsRow: View {
         } label: {
             Toggle(isOn: $config.isEnabled) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(config.displayName)
+                    HStack(spacing: 6) {
+                        Text(config.displayName)
+                        if config.kind.needsPro {
+                            ProBadge(.translationProviders)
+                        }
+                    }
                     Text(subtitle).font(.caption).foregroundStyle(.secondary)
                 }
             }

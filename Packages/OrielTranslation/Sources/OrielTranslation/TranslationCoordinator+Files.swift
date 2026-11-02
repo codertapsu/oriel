@@ -207,6 +207,9 @@ extension TranslationCoordinator {
         if usage.isOverCap(config) {
             throw TranslationFailure.capReached
         }
+        if let failure = Self.proBlock(config) {
+            throw failure
+        }
         let provider = registry.provider(for: config)
         let availability = await provider.availability(source: model.sourceLanguage, target: model.targetLanguage)
         guard isCurrent(job) else { throw CancellationError() }

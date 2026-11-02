@@ -102,8 +102,9 @@ final class GlossaryLibraryModel {
     }
 
     /// What a translation from `source` into `target` uses: the active project's terms for that pair.
+    /// The active project's terms for the pair; none without Oriel Pro (PLAN §19).
     func glossary(source: Locale.Language?, target: Locale.Language) -> TranslationGlossary {
-        library.glossary(project: activeProjectID, source: source, target: target)
+        library.glossary(project: ProAccess.shared.allows(.glossaries) ? activeProjectID : nil, source: source, target: target)
     }
 
     /// The pair a new glossary starts with: from English into the target language in Settings, or from any language

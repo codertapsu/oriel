@@ -12,6 +12,11 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Identifiable 
         rawValue
     }
 
+    /// Whether translating with it needs Oriel Pro: everything but Apple Translation and Apple Intelligence on this Mac.
+    public var needsPro: Bool {
+        self != .apple && self != .foundationModels
+    }
+
     public var displayName: String {
         switch self {
         case .apple: "Apple Translation"
