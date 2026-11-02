@@ -210,6 +210,7 @@ extension TranslationCoordinator {
         if let failure = Self.proBlock(config) {
             throw failure
         }
+        guard consent.request(config) else { throw TranslationFailure.notAllowed(config.displayName) }
         let provider = registry.provider(for: config)
         let availability = await provider.availability(source: model.sourceLanguage, target: model.targetLanguage)
         guard isCurrent(job) else { throw CancellationError() }

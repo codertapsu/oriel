@@ -76,6 +76,10 @@ extension TranslationCoordinator {
             model.phase = .failed(failure.localizedDescription)
             return
         }
+        guard consent.request(config) else {
+            model.phase = .failed(TranslationFailure.notAllowed(config.displayName).localizedDescription)
+            return
+        }
         let provider = registry.provider(for: config)
         model.phase = .translating
         await glossaries.loadIfNeeded()

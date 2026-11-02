@@ -145,6 +145,7 @@ extension TranslationCoordinator {
         if let failure = Self.proBlock(config) {
             throw failure
         }
+        guard consent.request(config) else { throw TranslationFailure.notAllowed(config.displayName) }
         let provider = registry.provider(for: config)
         let availability = await provider.availability(source: source, target: target)
         if case let .packNotInstalled(from, into) = availability, offeredCursorLanguagePacks.insert("\(from)>\(into)").inserted {

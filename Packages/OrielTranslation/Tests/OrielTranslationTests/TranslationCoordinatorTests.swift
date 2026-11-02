@@ -64,9 +64,10 @@ struct TranslationCoordinatorTests {
         defer { settings.remove() }
         let answer = #"[{"id":1,"translation":"Bonjour le monde"},{"id":2,"translation":"Bonjour à tous"}]"#
         let server = StubServer { _ in .events(TestSupport.openAIStream(answer)) }
-        settings.store[TranslationKeys.providers] = ProviderConfig.builtIns + [
-            ProviderConfig(id: "ollama", kind: .openAICompatible, baseURL: "\(server.baseURL)/v1", model: "qwen2.5:7b"),
-        ]
+        let config = ProviderConfig(id: "ollama", kind: .openAICompatible, baseURL: "\(server.baseURL)/v1", model: "qwen2.5:7b")
+        settings.store[TranslationKeys.providers] = ProviderConfig.builtIns + [config]
+        // The stub server is off this Mac, so the headless path needs the consent given in Settings.
+        ProviderConsent(settings: settings.store).set(true, for: config)
         let coordinator = coordinator(settings.store, http: server.http)
         let outcome = try await coordinator.translateHeadless(image: TestSupport.image(), target: "fr", providerID: "ollama")
         #expect(outcome.providerID == "ollama")

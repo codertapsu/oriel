@@ -97,6 +97,11 @@ public final class TranslationCoordinator {
         return .needsPro(config.displayName)
     }
 
+    /// Consent to send text to providers off this Mac (PLAN §19).
+    var consent: ProviderConsent {
+        ProviderConsent(settings: settings)
+    }
+
     // MARK: - Public API
 
     /// The interactive flow: shows the frozen capture over the captured area at once, recognizes its text, and fills
@@ -156,6 +161,8 @@ public final class TranslationCoordinator {
             if let failure = Self.proBlock(config) {
                 throw failure
             }
+            // No dialog here: Shortcuts and the command line cannot answer one.
+            guard consent.isGranted(config) else { throw TranslationFailure.notAllowed(config.displayName) }
             let provider = registry.provider(for: config)
             if let failure = await provider.availability(source: source, target: targetLanguage).failure {
                 throw failure

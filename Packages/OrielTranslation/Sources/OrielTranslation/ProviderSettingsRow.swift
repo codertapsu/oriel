@@ -20,6 +20,9 @@ struct ProviderSettingsRow: View {
                 if config.kind.requiresAPIKey || config.kind == .openAICompatible {
                     apiKey
                 }
+                if ProviderConsent.isNeeded(for: config) {
+                    consent
+                }
                 options
                 usage
                 actions
@@ -101,6 +104,16 @@ struct ProviderSettingsRow: View {
                 Text(message).font(.caption).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Whether Oriel may send text to the provider, which it asks before the first translation (PLAN §19).
+    private var consent: some View {
+        let consent = ProviderConsent(settings: model.settings)
+        return Toggle("Allow sending text to \(config.displayName)", isOn: Binding(
+            get: { consent.isGranted(config) },
+            set: { consent.set($0, for: config) }
+        ))
+        .help("The text Oriel reads from your screen or a file goes to this provider only while this is on")
     }
 
     @ViewBuilder private var options: some View {

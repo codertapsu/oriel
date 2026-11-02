@@ -32,6 +32,8 @@ public enum TranslationFailure: LocalizedError, Sendable, Equatable {
     case unknownProvider(String)
     /// The provider needs Oriel Pro (PLAN §19).
     case needsPro(String)
+    /// The user has not allowed Oriel to send text to the provider (`ProviderConsent`).
+    case notAllowed(String)
     case cancelled
 
     public var errorDescription: String? {
@@ -58,6 +60,8 @@ public enum TranslationFailure: LocalizedError, Sendable, Equatable {
         case let .unavailable(reason): reason
         case let .unknownProvider(id): "There is no translation provider called “\(id)”."
         case let .needsPro(name): "\(name) is part of Oriel Pro. Apple Translation and Apple Intelligence are free."
+        case let .notAllowed(name):
+            "Oriel sends nothing to \(name) until you allow it in Settings → Translation. Apple Translation translates on this Mac."
         case .cancelled: "Cancelled."
         }
     }
