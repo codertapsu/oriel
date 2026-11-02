@@ -20,7 +20,8 @@
 #   SKIP_BUILD=1  ...   reuse dist/Oriel.app (no gate, no archive)
 #   ALLOW_DIRTY=1 ...   build uncommitted work or another commit (rehearsals only)
 #
-# Required env: APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID.
+# Required env: APPLE_SIGNING_IDENTITY, APPLE_TEAM_ID, and for notarization the keychain profile
+# NOTARY_PROFILE (codertapsu-notary) or APPLE_ID and APPLE_PASSWORD (notary-auth.sh).
 set -euo pipefail
 
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -33,8 +34,6 @@ esac
 VERSION="${TAG#v}"
 
 : "${APPLE_SIGNING_IDENTITY:?set APPLE_SIGNING_IDENTITY — run: source scripts/apple-credentials.env}"
-: "${APPLE_ID:?set APPLE_ID — run: source scripts/apple-credentials.env}"
-: "${APPLE_PASSWORD:?set APPLE_PASSWORD (an app-specific password, not your Apple ID password)}"
 : "${APPLE_TEAM_ID:?set APPLE_TEAM_ID — run: source scripts/apple-credentials.env}"
 
 [ "$(uname -s)" = "Darwin" ] || {
@@ -86,12 +85,14 @@ case "$APPLE_SIGNING_IDENTITY" in
 esac
 
 echo "==> preflight: Apple accepts the notarization credentials"
-xcrun notarytool history --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" \
-  >/dev/null || {
-  echo "error: notarytool rejected APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID. APPLE_PASSWORD must be an" >&2
-  echo "       app-specific password (appleid.apple.com -> Sign-In and Security)." >&2
+# shellcheck source=SCRIPTDIR/notary-auth.sh
+source scripts/release/notary-auth.sh
+xcrun notarytool history "${NOTARY_AUTH[@]}" >/dev/null || {
+  echo "error: notarytool rejected $NOTARY_SOURCE. APPLE_PASSWORD must be an app-specific password" >&2
+  echo "       (appleid.apple.com -> Sign-In and Security)." >&2
   exit 1
 }
+echo "    signed in through $NOTARY_SOURCE"
 
 echo "==> preflight: the working tree is clean, and is $TAG"
 # A release built from uncommitted work, or from a commit other than the tag's, cannot be reproduced
