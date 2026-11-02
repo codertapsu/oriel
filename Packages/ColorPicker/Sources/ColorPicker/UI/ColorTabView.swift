@@ -1,4 +1,5 @@
 import AppKit
+import OrielCore
 
 /// The Color tab: the current color, large, with the buttons that put it in a palette or the contrast checker; every
 /// format, each a click (or its number key) from the clipboard; and the latest picks.
@@ -36,9 +37,10 @@ final class ColorTabView: NSView {
                 continue
             }
             row.isHidden = !row.format.isShown(for: color)
+            let locked = row.format.isPro && !ProAccess.shared.allows(.colorFormats)
             row.configure(
                 title: ColorFormatter.title(row.format, for: color),
-                value: ColorFormatter.string(row.format, for: color, uppercaseHex: uppercaseHex),
+                value: locked ? "Oriel Pro" : ColorFormatter.string(row.format, for: color, uppercaseHex: uppercaseHex),
                 isDefault: row.format == defaultFormat
             )
         }

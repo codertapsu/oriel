@@ -68,6 +68,10 @@ public final class ColorPickerModule: UtilityModule {
         AnyView(ColorPickerSettingsView(model: settingsModel))
     }
 
+    public var proFeatures: [ProFeature] {
+        ProFeature.colorPickerFeatures
+    }
+
     public var settingsSymbol: String {
         "eyedropper"
     }

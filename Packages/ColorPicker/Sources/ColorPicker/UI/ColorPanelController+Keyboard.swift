@@ -33,7 +33,7 @@ extension ColorPanelController {
     func keyEquivalent(_ event: NSEvent) -> Bool {
         guard event.type == .keyDown, Self.modifiers(of: event) == .command else { return false }
         if let number = Self.number(of: event.keyCode), let tab = ColorPanelTab(rawValue: number - 1) {
-            content.show(tab)
+            select(tab)
             panel.makeFirstResponder(content)
             return true
         }

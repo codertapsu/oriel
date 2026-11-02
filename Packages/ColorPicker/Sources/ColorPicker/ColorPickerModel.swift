@@ -33,8 +33,10 @@ final class ColorPickerModel {
         settings[ColorPickerSettings.uppercaseHex]
     }
 
+    /// The format ⌘C and picking copy; a Pro format falls back to HEX while Oriel Pro is locked.
     var defaultFormat: ColorFormat {
-        settings[ColorPickerSettings.defaultFormat]
+        let format = settings[ColorPickerSettings.defaultFormat]
+        return format.isPro && !ProAccess.shared.allows(.colorFormats) ? .hex : format
     }
 
     /// Reads the library from disk, once, when the module starts.

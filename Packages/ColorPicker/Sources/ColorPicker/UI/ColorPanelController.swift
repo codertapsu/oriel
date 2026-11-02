@@ -55,7 +55,7 @@ final class ColorPanelController: NSObject {
     /// Shows the panel, at `tab` when given, and takes the keyboard so the number keys and ⌘C work at once.
     func show(tab: ColorPanelTab? = nil) {
         if let tab {
-            content.show(tab)
+            select(tab)
         }
         refresh()
         if !panel.isVisible {
@@ -184,8 +184,22 @@ final class ColorPanelController: NSObject {
     // MARK: Buttons
 
     @objc private func tabChanged() {
-        content.show(content.selectedTab)
+        select(content.selectedTab)
         panel.makeFirstResponder(content)
+    }
+
+    /// Shows `tab`; Palettes and Contrast need Oriel Pro, and while it is locked the Color tab stays (PLAN §19).
+    func select(_ tab: ColorPanelTab) {
+        let feature: ProFeature? = switch tab {
+        case .color: nil
+        case .palettes: .palettes
+        case .contrast: .contrastChecker
+        }
+        guard let feature, !ProAccess.shared.check(feature) else {
+            content.show(tab)
+            return
+        }
+        content.show(.color)
     }
 
     @objc private func pickClicked() {

@@ -15,6 +15,11 @@ nonisolated enum ColorFormat: String, CaseIterable, Codable, Sendable, Identifia
     case cmyk
     case displayP3
 
+    /// Whether copying it needs Oriel Pro: everything but HEX, RGB and HSL (PLAN §19).
+    var isPro: Bool {
+        ![.hex, .hexAlpha, .rgb, .rgba, .hsl].contains(self)
+    }
+
     var id: String {
         rawValue
     }

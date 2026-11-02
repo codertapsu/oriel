@@ -8,6 +8,7 @@ extension ColorPanelController {
 
     /// Copies the current color in `format`, and says so on its row.
     func copy(_ format: ColorFormat) {
+        guard !format.isPro || ProAccess.shared.check(.colorFormats) else { return }
         guard let color = model.current else {
             NSSound.beep()
             return

@@ -25,7 +25,7 @@ struct ColorPickerSettingsView: View {
                 Toggle("Copy the color as soon as it is picked", isOn: settings.binding(ColorPickerSettings.copiesOnPick))
                 Picker("Copy as", selection: settings.binding(ColorPickerSettings.defaultFormat)) {
                     ForEach(ColorFormat.allCases) { format in
-                        Text(format.title).tag(format)
+                        Text(format.isPro && !ProAccess.shared.isUnlocked ? "\(format.title) (Pro)" : format.title).tag(format)
                     }
                 }
                 Text(example(settings))
