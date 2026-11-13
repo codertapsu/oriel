@@ -120,7 +120,7 @@ The first archive after step 3.2 lets Xcode register `com.codertapsu.oriel` as a
 - **iCloud**, for key-value storage (settings sync);
 - **In-App Purchase**, which every App ID has.
 
-Xcode then makes the Mac Team Provisioning Profile. Nothing else is needed: the sandbox, network, files, Pictures, microphone and camera entitlements need no portal capability.
+Xcode then makes the Mac Team Provisioning Profile. Nothing else is needed: the sandbox, network, files, Pictures, Movies, microphone and camera entitlements need no portal capability.
 
 To check, or to do it by hand, open <https://developer.apple.com/account/resources/identifiers>.
 - **If `com.codertapsu.oriel` is listed,** open it and check that **iCloud** is ticked. Key-value storage needs no iCloud container; the CloudKit option can stay off.
@@ -359,6 +359,8 @@ Terms of Use: https://codertapsu-web.web.app/oriel/terms
 **App Review notes:**
 
 > Oriel is a menu-bar utility: after it opens, its icon is in the menu bar at the top right, and Help → Oriel Feature Tour shows each tool. Screen & System Audio Recording is used only for the screenshots, recordings, on-screen translations and Screen Ruler measurements the user starts. The microphone and camera are used only in recordings, if the user turns them on. Translation runs on the Mac with Apple Translation and Apple Intelligence; the other providers (DeepL, Google Translate, OpenAI, Anthropic or the user's own server) need the user's own API key and ask the user's permission before the first request. Oriel Pro is a non-consumable in-app purchase; Settings → Oriel Pro lists what it adds and has Restore Purchases. Oriel has no account and no server.
+>
+> Entitlements: com.apple.security.assets.pictures.read-write saves screenshots to ~/Pictures/Oriel (Capture Area from the menu-bar menu, drag, then Command-S, or Save in the thumbnail); com.apple.security.assets.movies.read-write saves screen recordings to ~/Movies/Oriel (Record Area, then Control-Shift-R again to stop). Settings → Capture and Settings → Recording show those folders and let the user choose others.
 
 ## 11. Upload the build
 
@@ -425,6 +427,20 @@ With `destination` set to `export` instead of `upload`, it writes a signed `.pkg
    - Reply there if it is a misunderstanding.
    - Otherwise fix the cause and build again: a new commit gives a new build number.
    - Upload, choose the new build on the version page and submit again.
+
+### When App Review rejects or asks
+
+App Review's messages are under the submission: App Store Connect → the app → **App Review** (in the sidebar, under Distribution) → the submission. Each issue names a guideline. Answer each one under **Reply**, fix what needs fixing, and submit again.
+
+1. **A question only** ("describe how and where the app uses the following entitlements"): reply with the steps that show it; no new build is needed. If the same submission also needs a fix, say so in the reply and upload the new build.
+2. **A fix:**
+   1. Fix it on `main` and run the gate (`make lint test universal-check appstore-check`).
+   2. Commit; the build number is the new commit count.
+   3. `make appstore-archive`, then upload the archive (step 11).
+   4. On the version page, under **Build**, remove the old build and choose the new one.
+3. **Reply** under the rejection: what changed, with steps App Review can follow. Then click **Add for Review** and **Submit for Review**, with the in-app purchase still in the submission.
+
+The first review, of 1.0.0 build 134 on 2026-11-12, and its answers are in `docs/reports/09-app-review.md`.
 
 ## 14. After approval, and for later versions
 

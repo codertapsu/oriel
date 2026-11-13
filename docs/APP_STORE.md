@@ -7,7 +7,7 @@ The Mac App Store edition is the same app, sandboxed, built by the `OrielAppStor
 | Item | Where |
 |---|---|
 | The target, its configurations and scheme | `project.yml`: `OrielAppStore`; Debug-AppStore and Release-AppStore; scheme **Oriel App Store** |
-| Entitlements | `App/AppStore/OrielAppStore.entitlements` (Release): sandbox, network client, user-selected files and their bookmarks, Pictures, microphone, camera, iCloud key-value storage. `OrielAppStoreDebug.entitlements` is the same without iCloud, which needs a provisioning profile |
+| Entitlements | `App/AppStore/OrielAppStore.entitlements` (Release): sandbox, network client, user-selected files and their bookmarks, Pictures, Movies, microphone, camera, iCloud key-value storage. `OrielAppStoreDebug.entitlements` is the same without iCloud, which needs a provisioning profile |
 | Info.plist | `App/AppStore/Info.plist`: export compliance (`ITSAppUsesNonExemptEncryption` false), the Utilities category, the purpose strings |
 | Privacy manifest | `App/Resources/PrivacyInfo.xcprivacy` (PLAN §19.7) |
 | Oriel Pro | `Packages/Licensing`, product ID `com.codertapsu.oriel.pro`; `App/StoreKit/Oriel.storekit` for testing in Xcode |
@@ -61,9 +61,10 @@ The text to paste is in [APP_STORE_CONNECT.md](APP_STORE_CONNECT.md) step 10, wi
 | Guideline | What it rejects | Where Oriel stands |
 |---|---|---|
 | 2.5.1 | Private APIs, even as strings | The edition links no PrivateAPIs; `make appstore-check` looks for the names |
-| 2.4.5 | Entitlements without a feature, files outside the container without the user's choice, launching at login unasked, root, helpers | Each entitlement has its feature (network: providers and uploads; user-selected files and bookmarks: the save folder, Disk Space Analyzer's grants, shared folders, opened images and files; Pictures: the default save folder; microphone and camera: recordings; iCloud: settings sync). Open at login is off until the user turns it on. No helper, daemon or CLI |
+| 2.4.5 | Entitlements without a feature; the user's files saved in the container, out of their sight; files outside the container without the user's choice; launching at login unasked; root, helpers | Each entitlement has its feature (network: providers and uploads; user-selected files and bookmarks: the save folders, Disk Space Analyzer's grants, shared folders, opened images and files; Pictures: the default capture folder; Movies: the default recordings folder; microphone and camera: recordings; iCloud: settings sync). Captures and recordings go to Pictures/Oriel and Movies/Oriel, or to folders the user chooses; the container holds only app data. Open at login is off until the user turns it on. No helper, daemon or CLI |
 | 3.1.1 | Unlocking features without in-app purchase; no Restore | Pro is sold only through StoreKit; Restore Purchases is in Settings → Oriel Pro |
 | 5.1.1 | Missing purpose strings or privacy policy | The purpose strings are in the Info.plist; the policy is linked in App Store Connect and in the app |
+| 5.1.1(iv) | A custom message before a permission request whose button pushes to allow it ("Grant", "Allow") | The welcome window and Settings → Permissions say Continue, mark nothing required, and Done closes the window whatever was allowed (rejected for "Grant" on 2026-11-12) |
 | 5.1.2(i) | Sharing personal data with third-party AI without permission | Oriel asks before the first request to each provider off the Mac (PLAN §19.6) |
 | 2.3.1 | Metadata describing what the app does not do | The listing describes this edition only |
 

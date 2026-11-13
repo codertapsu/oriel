@@ -22,7 +22,7 @@ This guide describes the edition you download and install yourself, which includ
 
 1. Open `Oriel-<version>.dmg` and drag **Oriel** to **Applications**.
 2. Open Oriel from Applications. If you open it from the disk image instead, it offers to move itself; accept.
-3. A welcome window lists the permissions. Grant what you want to use, then press **Done** or **Continue without**:
+3. A welcome window describes the permissions. Choose **Continue** next to one to see macOS's request for it, and **Done** when you have finished; you can decide later from the menu or Settings → Permissions:
 
 | Permission | Needed for | Without it |
 |---|---|---|
@@ -373,7 +373,7 @@ A `bootstrap.json` in `~/Library/Application Support/Oriel/` is imported on the 
 
 Oriel comes in two editions built from the same code. The one this guide describes, installed from the disk image, includes everything. The **Mac App Store edition** runs in Apple's App Sandbox and is free, with **Oriel Pro**, a one-time purchase, for the advanced features.
 
-**What the App Store edition leaves out.** The window switcher and Window Tiling need Accessibility, which macOS does not let App Store apps have, and Activity Monitor needs to read other apps' processes; they are not in it. For the same reason scrolling capture is manual (you scroll, Oriel adds each part), recordings cannot show keystrokes, and choosing an item in Clipboard History copies it for you to press ⌘V. It has no command-line tool, SFTP uploads or Read as Administrator. Captures are saved to the folder you choose in Settings → Capture, or to Pictures → Oriel; Disk Space Analyzer asks you to allow each drive or folder once; settings sync through iCloud's key-value storage.
+**What the App Store edition leaves out.** The window switcher and Window Tiling need Accessibility, which macOS does not let App Store apps have, and Activity Monitor needs to read other apps' processes; they are not in it. For the same reason scrolling capture is manual (you scroll, Oriel adds each part), recordings cannot show keystrokes, and choosing an item in Clipboard History copies it for you to press ⌘V. It has no command-line tool, SFTP uploads or Read as Administrator. Captures are saved to the folder you choose in Settings → Capture, or to Pictures → Oriel, and recordings to the folder you choose in Settings → Recording, or to Movies → Oriel; the capture history has no Show in Finder, so use Save to Folder; Disk Space Analyzer asks you to allow each drive or folder once; settings sync through iCloud's key-value storage.
 
 **What is free.** Every tool works without Oriel Pro: screenshots of an area, window or screen with Quick Access and pins, Capture Text, the editor's drawing tools with blur, pixelate and crop, screen recordings with sound, translation with Apple Translation and Apple Intelligence, Clipboard History's last 100 items from the past week, Disk Space Analyzer's scans and views, the Color Picker's HEX, RGB and HSL, and the Screen Ruler's Dimensions and Measure Area.
 

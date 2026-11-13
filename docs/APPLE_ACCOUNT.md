@@ -15,7 +15,7 @@ Read on this Mac on 2026-11-02. Re-read it with [the commands below](#checking-w
 | **Developer ID Application**: Khanh Hoang (4XVYLW8RXS), from the *previous* Developer ID authority | Signing the Developer ID edition, which notarization requires | **2027-02-01**, the day that authority expires; it cannot sign after | Replace with a G2 certificate before then, then yearly ([below](#replacing-the-developer-id-application-certificate)) | Login keychain, with its private key |
 | Apple Development: Khanh Hoang (2HY96CNG4K) | Debug builds; App Store archives | 2027-06-01 | Xcode ([below](#apple-development-and-apple-distribution)) | Login keychain |
 | Apple Distribution: Khanh Hoang (4XVYLW8RXS) | Signing App Store uploads | 2027-06-03 | Xcode | Login keychain |
-| Mac Installer Distribution | Signing the package Xcode uploads to App Store Connect | Made by Xcode at the first upload, as a cloud-managed certificate when the account allows | Xcode | Apple, or the login keychain |
+| Mac Installer Distribution: 3rd Party Mac Developer Installer: Khanh Hoang (4XVYLW8RXS) | Signing the package Xcode uploads to App Store Connect | 2027-11-03 | Xcode, which made it at the first upload (2026-11-03) | Login keychain |
 | App-specific password for notarization | `notarytool`, as `APPLE_PASSWORD` | No expiry; revoked when the Apple Account password changes, or by hand | [below](#the-app-specific-password-and-the-notary-profile) | `scripts/apple-credentials.env` and the profile below |
 | Keychain profile `codertapsu-notary` | Notarization in the release scripts | As long as its password | Store it again with a new password | Login keychain |
 | Provisioning profiles for the App Store edition | Archive and upload | One year; Xcode replaces them | Xcode, automatically | `~/Library/Developer/Xcode/UserData/Provisioning Profiles` |
@@ -186,4 +186,5 @@ The scripts read it only after `source scripts/apple-credentials.env`, in the sh
 | **Before 2027-02-01** | Replace the Developer ID Application certificate with a G2 one, delete the old, rehearse a release | Account Holder |
 | A month before each G2 certificate's expiry, yearly | Renew the Developer ID Application certificate | Account Holder |
 | Before 2027-06-01 and 2027-06-03, then yearly | Apple Development and Apple Distribution, through Xcode | Anyone on the team |
+| Before 2027-11-03, then yearly | Mac Installer Distribution, through Xcode | Anyone on the team |
 | Whenever the Apple Account password changes | A new app-specific password; store the notary profile again | You |
