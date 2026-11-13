@@ -1,3 +1,4 @@
+import Foundation
 import OrielCore
 
 /// The Recording pane's settings. Every name starts with `recording.`, so
@@ -26,8 +27,11 @@ public nonisolated enum RecordingSettingKeys {
     public static let clickRings = SettingKey("recording.clickRings", default: false)
     /// Whether keystrokes are shown in a HUD (needs Accessibility to observe keys in other apps).
     public static let keystrokes = SettingKey("recording.keystrokes", default: false)
-    /// A folder path for finished recordings; empty uses `AppPaths.recordings`.
+    /// A folder path for finished recordings; empty uses the default folder (`RecordingOptions.folder`).
     public static let outputFolder = SettingKey("recording.outputFolder", default: "")
+    /// The App Store edition's chosen folder, as a security-scoped bookmark: its sandbox opens a folder after a relaunch
+    /// only through one (PLAN §19.1). Its name keeps it on each Mac.
+    public static let outputFolderBookmark = SettingKey<Data?>("recording.outputFolderBookmark", default: nil)
     /// The widest a GIF export may be, in pixels.
     public static let gifMaxWidth = SettingKey("recording.gifMaxWidth", default: 800)
     /// Frames per second of a GIF export (10–15).

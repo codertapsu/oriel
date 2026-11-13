@@ -2,6 +2,7 @@ import Foundation
 @testable import OrielAppStore
 import OrielCore
 import Permissions
+@testable import Recording
 import Testing
 
 /// The App Store edition, tested inside its own sandbox (PLAN §19): what the App Store's rules exclude is not in the
@@ -38,6 +39,18 @@ struct AppStoreEditionTests {
         #expect(!PermissionKind.available.contains(.accessibility))
         #expect(PermissionKind.screenRecording.isRequired)
         #expect(!PermissionKind.accessibility.isRequired)
+    }
+
+    /// Guideline 2.4.5(i): recordings go where the user can find them, not into the container. Movies/Oriel by default,
+    /// through its entitlement, at its real path; captures go to Pictures/Oriel the same way.
+    @Test func itSavesTheUsersFilesOutsideItsContainer() {
+        #expect(Entitlements.value(of: "com.apple.security.assets.pictures.read-write") as? Bool == true)
+        #expect(Entitlements.value(of: "com.apple.security.assets.movies.read-write") as? Bool == true)
+        let container = NSHomeDirectory()
+        #expect(container.contains("/Library/Containers/"), "the test host runs in the sandbox")
+        let movies = RecordingOptions.folder(fromPath: "").path(percentEncoded: false)
+        #expect(!movies.hasPrefix(container), "\(movies)")
+        #expect(movies.hasSuffix("/Movies/Oriel/") || movies.hasSuffix("/Movies/Oriel"), "\(movies)")
     }
 
     /// The privacy manifest App Store Connect checks: no tracking, nothing collected, and a reason for each

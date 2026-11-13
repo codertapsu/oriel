@@ -85,15 +85,28 @@ nonisolated struct RecordingOptions: Sendable, Equatable {
                 colorHex: settings[Keys.cameraBackgroundColor],
                 gate: CameraBackground.gate
             ),
-            outputFolder: Self.folder(fromPath: settings[Keys.outputFolder]),
+            outputFolder: Self.folder(fromPath: settings[Keys.outputFolder], bookmark: settings[Keys.outputFolderBookmark]),
             gif: GIFExportOptions(frameRate: settings[Keys.gifFrameRate], maxWidth: settings[Keys.gifMaxWidth])
         )
     }
 
-    /// The configured folder, or `AppPaths.recordings` when none is set. `~` is expanded.
-    static func folder(fromPath path: String) -> URL {
+    /// The configured folder, or `AppPaths.recordings` when none is set. `~` is expanded. In the App Store edition the
+    /// configured folder comes from its bookmark and the default is Movies/Oriel: there `AppPaths.recordings` lies in
+    /// the container, which is not for the user's files (App Review Guidelines 2.4.5(i), PLAN §19.1).
+    static func folder(fromPath path: String, bookmark: Data? = nil, sandboxed: Bool = Sandbox.isActive) -> URL {
+        if sandboxed {
+            return bookmark.flatMap(FolderBookmark.resolve) ?? moviesFolder
+        }
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return AppPaths.recordings }
         return URL(filePath: (trimmed as NSString).expandingTildeInPath, directoryHint: .isDirectory)
+    }
+
+    /// Movies/Oriel at its real path, which `com.apple.security.assets.movies.read-write` opens. In the sandbox the
+    /// Movies folder FileManager names is a link inside the container, which Settings and Finder would show.
+    static var moviesFolder: URL {
+        let movies = FileManager.default.urls(for: .moviesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appending(path: "Movies", directoryHint: .isDirectory)
+        return movies.resolvingSymlinksInPath().appending(path: "Oriel", directoryHint: .isDirectory)
     }
 }

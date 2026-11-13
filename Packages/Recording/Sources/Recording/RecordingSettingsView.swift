@@ -109,10 +109,10 @@ struct RecordingSettingsView: View {
     }
 
     private var outputSection: some View {
-        let folder = RecordingOptions.folder(fromPath: settings[Keys.outputFolder])
+        let folder = RecordingOptions.folder(fromPath: settings[Keys.outputFolder], bookmark: settings[Keys.outputFolderBookmark])
         return Section("Saving") {
             LabeledContent("Save recordings to") {
-                Text(folder.path(percentEncoded: false))
+                Text(folderName(folder))
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(folder.path(percentEncoded: false))
@@ -123,16 +123,35 @@ struct RecordingSettingsView: View {
                     _ = try? AppPaths.ensureDirectory(folder)
                     NSWorkspace.shared.activateFileViewerSelecting([folder])
                 }
-                if !settings[Keys.outputFolder].isEmpty {
-                    Button("Use Default Folder") { settings.reset(Keys.outputFolder) }
+                if Sandbox.isActive ? settings[Keys.outputFolderBookmark] != nil : !settings[Keys.outputFolder].isEmpty {
+                    Button("Use Default Folder") {
+                        settings.reset(Keys.outputFolder)
+                        settings.reset(Keys.outputFolderBookmark)
+                    }
                 }
             }
             .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
                 if case let .success(url) = result {
                     settings[Keys.outputFolder] = url.path(percentEncoded: false)
+                    if Sandbox.isActive {
+                        // The importer's folder opens only while access is started; its bookmark opens it after a relaunch.
+                        let accessing = url.startAccessingSecurityScopedResource()
+                        settings[Keys.outputFolderBookmark] = FolderBookmark.make(for: url)
+                        if accessing {
+                            url.stopAccessingSecurityScopedResource()
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// The App Store edition's default as Movies/Oriel, else the folder's path with `~`.
+    private func folderName(_ folder: URL) -> String {
+        if Sandbox.isActive, settings[Keys.outputFolderBookmark] == nil {
+            return "Movies/Oriel"
+        }
+        return (folder.path(percentEncoded: false) as NSString).abbreviatingWithTildeInPath
     }
 
     private var gifSection: some View {

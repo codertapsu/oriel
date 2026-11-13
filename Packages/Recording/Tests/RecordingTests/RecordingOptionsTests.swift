@@ -85,6 +85,18 @@ struct RecordingOptionsTests {
         #expect(RecordingOptions.folder(fromPath: "") == AppPaths.recordings)
     }
 
+    /// The App Store edition keeps recordings out of its container: Movies/Oriel by default, else the folder its
+    /// bookmark opens; a bare path opens nothing in the sandbox (App Review Guidelines 2.4.5(i)).
+    @Test func theAppStoreEditionRecordsIntoMovies() {
+        let folder = RecordingOptions.folder(fromPath: "", bookmark: nil, sandboxed: true)
+        #expect(folder == RecordingOptions.moviesFolder)
+        #expect(folder.lastPathComponent == "Oriel")
+        #expect(folder.deletingLastPathComponent().lastPathComponent == "Movies")
+        #expect(!folder.path(percentEncoded: false).contains("/Library/Containers/"))
+        #expect(RecordingOptions.folder(fromPath: "/tmp/elsewhere", sandboxed: true) == RecordingOptions.moviesFolder)
+        #expect(RecordingOptions.folder(fromPath: "", sandboxed: false) == AppPaths.recordings)
+    }
+
     @Test func everySettingNameSharesThePanePrefix() {
         let names = [
             Keys.preset.name, Keys.frameRate.name, Keys.codec.name, Keys.showsCursor.name, Keys.systemAudio.name,
