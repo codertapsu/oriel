@@ -37,7 +37,7 @@ struct TilingSettingsView: View {
                             Button("Open System Settings") { model.openAccessibilitySettings() }
                         }
                     }
-                    note(PermissionKind.accessibility.grantHint())
+                    note(PermissionKind.accessibility.settingsHint())
                 }
                 note(Self.intro)
             }

@@ -1,29 +1,36 @@
 import Permissions
 import SwiftUI
 
+/// The welcome window's permissions page (PLAN §8.2). It comes before any permission request, so it only describes:
+/// macOS asks for a permission when the user chooses its Continue, and Done closes it whatever was allowed (App Review
+/// Guidelines 5.1.1(iv)).
 struct OnboardingView: View {
     let permissions: PermissionCenter
     let onContinue: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Oriel needs a few permissions").font(.title2.bold())
+            Text("Before you start").font(.title2.bold())
             Text("""
-            Each one unlocks a tool; nothing is sent anywhere. Grant what you want to use now — you can come back \
-            from the status menu or Settings → Permissions at any time.
+            Some of Oriel's tools read the screen, and recordings can add your voice and camera. macOS asks you \
+            before Oriel can use any of these: choose Continue next to one to see its request. The tools that do not \
+            use a permission work either way, and you can decide later from Oriel's menu or Settings → Permissions.
             """)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
             Divider()
-            PermissionList(permissions: permissions)
+            PermissionList(permissions: permissions, context: .welcome)
             Divider()
-            Text("After granting Screen Recording, quit and reopen Oriel. macOS will ask again now and then whether it may still record.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Text("""
+            If you allow Screen & System Audio Recording, macOS may ask you to quit and reopen Oriel, and it checks \
+            with you again from time to time.
+            """)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
             HStack {
-                Button("Open Privacy & Security") { permissions.openSystemSettings(for: .accessibility) }
                 Spacer()
-                Button(permissions.allRequiredGranted ? "Done" : "Continue without") { onContinue() }
+                Button("Done") { onContinue() }
                     .keyboardShortcut(.defaultAction)
             }
         }

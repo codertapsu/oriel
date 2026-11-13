@@ -10,8 +10,9 @@ struct PermissionsPane: View {
                 PermissionList(permissions: permissions)
             } footer: {
                 Text("""
-                macOS asks again from time to time whether Oriel may still record the screen; that prompt cannot be \
-                switched off except by a management profile. After granting Screen Recording, quit and reopen Oriel.
+                macOS checks from time to time whether Oriel may still record the screen; only a management profile can \
+                switch that off. After a change to Screen & System Audio Recording, macOS may ask you to quit and \
+                reopen Oriel.
                 """)
             }
             Section {

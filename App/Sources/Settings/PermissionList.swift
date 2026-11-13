@@ -2,42 +2,46 @@ import OrielCore
 import Permissions
 import SwiftUI
 
-/// Each permission with what it unlocks, its live state and the way to grant it (PLAN §8.2). Used by the
-/// onboarding window, Settings → Permissions and, for the permissions a feature uses, the feature tour.
+/// Each permission with what it is for and its live state (PLAN §8.2). Used by the welcome window, Settings →
+/// Permissions and, for the permissions a feature uses, the feature tour. Nothing here pushes the user to allow
+/// anything (App Review Guidelines 5.1.1(iv)): the button that leads to macOS's request says Continue, no permission
+/// is marked as required, and where it can be changed is said only in Settings.
 struct PermissionList: View {
+    /// The welcome window comes before any request, so it describes and asks only on Continue; Settings also says
+    /// where a permission that is off can be changed.
+    enum Context {
+        case welcome, settings
+    }
+
     let permissions: PermissionCenter
     var kinds = PermissionKind.available
+    var context = Context.settings
 
     var body: some View {
         ForEach(kinds) { kind in
+            let status = permissions.status(of: kind)
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: icon(for: kind))
-                    .foregroundStyle(color(for: kind))
+                Image(systemName: status == .granted ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(status == .granted ? Color.green : Color.secondary)
                     .font(.title2)
                     .frame(width: 28)
                 VStack(alignment: .leading, spacing: 3) {
-                    HStack {
-                        Text(kind.displayName).font(.headline)
-                        if kind.isRequired {
-                            Text("required").font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
+                    Text(kind.displayName).font(.headline)
                     Text(kind.purpose).font(.callout).foregroundStyle(.secondary)
-                    if permissions.status(of: kind) != .granted {
-                        Text(kind.grantHint())
+                    if context == .settings, status != .granted {
+                        Text(kind.settingsHint())
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 Spacer()
-                if permissions.status(of: kind) == .granted {
-                    Text("Granted").foregroundStyle(.secondary)
+                if status == .granted {
+                    Text("Allowed").foregroundStyle(.secondary)
                 } else {
-                    Button("Grant…") {
+                    Button(Self.buttonTitle(for: status)) {
                         Task {
-                            let status = await permissions.request(kind)
-                            if status != .granted {
+                            if await permissions.request(kind) != .granted {
                                 permissions.openSystemSettings(for: kind)
                             }
                         }
@@ -49,14 +53,9 @@ struct PermissionList: View {
         }
     }
 
-    private func icon(for kind: PermissionKind) -> String {
-        permissions.status(of: kind) == .granted ? "checkmark.circle.fill" : "exclamationmark.circle"
-    }
-
-    private func color(for kind: PermissionKind) -> Color {
-        if permissions.status(of: kind) == .granted {
-            return .green
-        }
-        return kind.isRequired ? .orange : .secondary
+    /// Continue leads to macOS's own request; a permission the user has turned down can only change in System
+    /// Settings, so its button says so.
+    static func buttonTitle(for status: PermissionStatus) -> String {
+        status == .denied ? "Open System Settings…" : "Continue"
     }
 }

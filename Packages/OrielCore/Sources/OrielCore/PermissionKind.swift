@@ -66,20 +66,22 @@ public enum PermissionKind: String, CaseIterable, Codable, Sendable, Identifiabl
         }
     }
 
-    /// What to do in System Settings while the permission is missing.
-    public func grantHint(macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion) -> String {
+    /// Where the permission can be changed, worded as information rather than a push to allow it (App Review
+    /// Guidelines 5.1.1(iv)); shown in Settings while the permission is off, never before Oriel has asked.
+    public func settingsHint(macOSMajorVersion: Int = ProcessInfo.processInfo.operatingSystemVersion.majorVersion) -> String {
         let pane = "System Settings → Privacy & Security → \(settingsPaneName(macOSMajorVersion: macOSMajorVersion))"
         switch self {
         case .accessibility:
             // macOS keeps one switch per bundle ID, signed by whichever copy asked first; another copy fails it.
-            return "Switch Oriel on in \(pane). Already on? Select it, remove it with −, then add Oriel again with +."
+            return "You can change this in \(pane). If Oriel is on there but still cannot use it, select it, remove it with −, "
+                + "then add Oriel again with +."
         case .screenRecording:
-            return "Switch Oriel on in \(pane), then choose Quit & Reopen when macOS offers it."
+            return "You can change this in \(pane). After a change there, choose Quit & Reopen when macOS offers it."
         case .microphone, .camera:
-            return "Switch Oriel on in \(pane)."
+            return "You can change this in \(pane)."
         case .pasteboard:
             // macOS lists an app there only once it has asked about that app.
-            return "Set Oriel to Allow in \(pane). Oriel is listed there after macOS has asked about it once."
+            return "You can change this in \(pane), where Oriel is listed after macOS has asked about it once."
         }
     }
 }
