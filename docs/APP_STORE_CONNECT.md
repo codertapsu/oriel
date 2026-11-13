@@ -95,7 +95,7 @@ This happens in Certificates, Identifiers & Profiles (<https://developer.apple.c
 | Stage | Signed with | Profile | Made by |
 |---|---|---|---|
 | Archive (`make appstore-archive`) | Apple Development certificate | Mac Team Provisioning Profile for `com.codertapsu.oriel`, a development profile, which lists registered devices | Xcode, automatic signing |
-| Upload (Organizer → Distribute App) | Apple Distribution certificate; the uploaded package with Mac Installer Distribution | Mac App Store profile for `com.codertapsu.oriel` | Xcode, at upload |
+| Upload (`make appstore-upload`, or Organizer → Distribute App) | Apple Distribution certificate; the uploaded package with Mac Installer Distribution | Mac App Store profile for `com.codertapsu.oriel` | Xcode, at upload |
 | Release | Apple re-signs it | — | Apple |
 
 The Developer ID certificate plays no part here; it signs only the Developer ID edition.
@@ -380,23 +380,26 @@ The app record (step 4) must exist and the archive (step 3.4) must be there. Eac
 **From the command line**, with the same signing:
 
 ```bash
-cat > /tmp/ExportOptions-AppStore.plist <<'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>method</key><string>app-store-connect</string>
-  <key>destination</key><string>upload</string>
-  <key>teamID</key><string>4XVYLW8RXS</string>
-  <key>signingStyle</key><string>automatic</string>
-  <key>manageAppVersionAndBuildNumber</key><false/>
-  <key>uploadSymbols</key><true/>
-</dict></plist>
-EOF
-xcodebuild -exportArchive -archivePath dist/Oriel-AppStore.xcarchive \
-  -exportOptionsPlist /tmp/ExportOptions-AppStore.plist -exportPath dist/AppStore -allowProvisioningUpdates
+make appstore-archive      # at the release commit, clean tree: dist/Oriel-AppStore.xcarchive
+make appstore-upload       # signs for the App Store with the account in Xcode and uploads it
 ```
 
-With `destination` set to `export` instead of `upload`, it writes a signed `.pkg` to `dist/AppStore` without uploading. Apple's **Transporter** app can upload that package later.
+`make appstore-upload` runs
+
+```bash
+xcodebuild -exportArchive -archivePath dist/Oriel-AppStore.xcarchive \
+  -exportOptionsPlist ExportOptions-AppStore.plist -exportPath dist/AppStore -allowProvisioningUpdates
+```
+
+`ExportOptions-AppStore.plist` sets:
+- method `app-store-connect` and destination `upload`;
+- automatic signing for team `4XVYLW8RXS`;
+- `manageAppVersionAndBuildNumber` false, so the build number stays the commit count;
+- `uploadSymbols` true.
+
+The log ends with "Uploaded package is processing" and "Upload succeeded".
+
+To check the App Store signing without uploading, export a signed package instead. Copy the plist with `destination` set to `export`, and pass it as `-exportOptionsPlist`; `dist/AppStore/Oriel.pkg` is then signed by the Mac Installer Distribution certificate. Check it with `pkgutil --check-signature dist/AppStore/Oriel.pkg`. Apple's **Transporter** app can upload that package too.
 
 **After the upload:**
 - The build shows as **Processing** under TestFlight → macOS. Apple emails you when it is ready, usually within an hour.

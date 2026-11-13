@@ -13,7 +13,7 @@ UI_TESTS    := $(if $(filter 1,$(ORIEL_UI_TESTS)),,-skip-testing:OrielUITests)
 # Extra xcodebuild arguments for build, test and universal-check; CI signs ad hoc with them (.github/workflows/ci.yml).
 XCODEBUILD_FLAGS ?=
 
-.PHONY: generate build run test lint universal-check appstore-check appstore-archive install release-dry-run clean tools
+.PHONY: generate build run test lint universal-check appstore-check appstore-archive appstore-upload install release-dry-run clean tools
 
 tools:
 	@for t in $(TOOL_LIST); do command -v $$t >/dev/null || { echo "missing $$t (brew install $$t)"; exit 1; }; done
@@ -56,12 +56,18 @@ appstore-check: generate
 	bash scripts/verify-appstore.sh $(CONFIG_DIR)/Release-AppStore/Oriel.app
 
 # Archives the App Store edition for upload (docs/RELEASING.md). Xcode signs it with your account and, the first time,
-# registers the App ID's capabilities and creates the App Store profiles; then upload from Xcode's Organizer. The build
-# number is the commit count, as in the Developer ID release (scripts/release/export-app.sh).
+# registers the App ID's capabilities and creates the App Store profiles; then make appstore-upload or Xcode's Organizer
+# uploads it. The build number is the commit count, as in the Developer ID release (scripts/release/export-app.sh).
 appstore-archive: generate
 	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -configuration Release-AppStore -destination 'generic/platform=macOS' \
 	CURRENT_PROJECT_VERSION=$$(git rev-list --count HEAD) -archivePath $(DIST)/Oriel-AppStore.xcarchive \
 	-allowProvisioningUpdates archive
+
+# Uploads that archive to App Store Connect (docs/APP_STORE_CONNECT.md step 11): Xcode signs it for the App Store with
+# your account, keeping the build number. The app record must exist; App Review is a separate step in App Store Connect.
+appstore-upload:
+	xcodebuild -exportArchive -archivePath $(DIST)/Oriel-AppStore.xcarchive -exportOptionsPlist ExportOptions-AppStore.plist \
+	-exportPath $(DIST)/AppStore -allowProvisioningUpdates
 
 install: generate
 	bash scripts/install.sh        # archive → export (developer-id) → /Applications → codesign --verify → open

@@ -59,8 +59,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
   `.requiresTCC` trait and run only with ORIEL_TCC_TESTS=1 on the dev Mac or the macOS 26 VM. UI tests
   (XCUITest) run only with ORIEL_UI_TESTS=1, because they need macOS Automation Mode.
 - Commands: `make generate`, `make build`, `make run`, `make test`, `make lint`, `make universal-check`,
-  `make appstore-check`, `make appstore-archive`, `make install`, `make release-dry-run` (after
-  `source scripts/apple-credentials.env`).
+  `make appstore-check`, `make appstore-archive`, `make appstore-upload`, `make install`, `make release-dry-run`
+  (after `source scripts/apple-credentials.env`).
 - Test on macOS 27 first, then the macOS 26 VM. Never add workarounds for macOS < 26.
 - When an Apple API behaves differently between 26 and 27, note it in docs/os-quirks.md with the build number.
 - End each phase with docs/reports/phase-N.md: what was built, what deviated from the plan, open questions.

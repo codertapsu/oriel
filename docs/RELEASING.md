@@ -60,7 +60,7 @@ The App Store edition (PLAN §18, §19) is signed by Apple, not with Developer I
 
 1. Cut the release as above, so the tag, the version and the build number (the commit count) are the Developer ID release's.
 2. `make appstore-archive`, or in Xcode: scheme **Oriel App Store**, **Product → Archive**. Xcode signs the archive for team `4XVYLW8RXS` with automatic signing; the first time, it registers the App ID's iCloud capability and makes the App Store provisioning profiles, which needs the team's account in Xcode → Settings → Accounts and this Mac registered as one of the team's devices (`docs/APP_STORE.md` step 2).
-3. Xcode → **Window → Organizer** → the archive → **Distribute App** → **App Store Connect** → **Upload**. Xcode validates it first; fix what it reports and archive again.
+3. `make appstore-upload`, or Xcode → **Window → Organizer** → the archive → **Distribute App** → **App Store Connect** → **Upload**. Both sign it for the App Store and upload it, keeping the build number; the Organizer validates it first. Fix what is reported and archive again. Then keep the archive, with its symbols, in `~/Library/Developer/Xcode/Archives/<date>/` before `dist/` is cleared.
 4. In App Store Connect, the build appears under **TestFlight** after processing (minutes to an hour). Test it there, Oriel Pro included: TestFlight purchases are free and use the sandbox.
 5. Add the build to the version, with Oriel Pro, and **Submit for Review**. The first submission must include the in-app purchase.
 

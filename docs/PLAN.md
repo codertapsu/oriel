@@ -6,6 +6,7 @@
 - Guidelines 5.1.1(iv): the welcome window and Settings → Permissions now say Continue on the button that leads to macOS's request, mark no permission as required, and say where a permission can be changed only in Settings (§8.2).
 - Guidelines 2.4.5(i): the App Store edition records into Movies/Oriel through `assets.movies.read-write` and keeps a chosen recordings folder as a security-scoped bookmark. It saves captures to Pictures/Oriel at the folder's real path, and offers no Show in Finder for the capture history, which lives in the container (§19.1).
 - The reply to App Review says where the Pictures and Movies entitlements are used (§8.1).
+- Build 141 was uploaded from the command line; `make appstore-upload`, with `ExportOptions-AppStore.plist`, now does that upload (§15 item 9, Appendices A–C).
 
 **Changes in 2.12** (release 1.0.0, `docs/reports/08-app-store-edition.md`): the first release is 1.0.0, in both editions; it supersedes the 0.1.0 builds. Oriel comes in two editions from one source tree (D3, §18): the Developer ID edition, unchanged, and a sandboxed Mac App Store edition with the release's bundle ID, `com.codertapsu.oriel`, built by a second app target, `OrielAppStore`, with `APP_STORE`, in its own configurations and scheme (Appendix D). The App Store edition leaves out what the App Store's rules or the sandbox exclude, the window switcher, Window Tiling, Activity Monitor, private APIs, the CLI and root, and adapts the rest: scrolling capture is manual, captures are saved through a security-scoped bookmark or to Pictures, Disk Space Analyzer reads what the user allows, uploads have no SFTP, and Clipboard History copies instead of pasting (§19.1). It is free, with Oriel Pro, a US$10.00 one-time purchase not shared through Family Sharing, sold through StoreKit with no server (D15, §19.2–§19.4); every feature and tool declares its Pro features, and the Developer ID edition includes them all. A feature tour, whose pages the features and tools declare, opens after the first onboarding and from the menus (§19.5). Text goes to a translation provider off the Mac only after the user allows it, in both editions (§19.6); a privacy manifest declares the required-reason APIs (§19.7); Oriel's privacy policy, support page and terms are on the Codertapsu site (§19.8). Releases notarize through a keychain profile (§15 item 4). The App Store edition's entitlements are the sandbox's (§8.1); the Developer ID edition's are unchanged. No private API or dependency was added.
 
@@ -1459,7 +1460,7 @@ Multi-display, mixed-scale (Retina + 1× external) setups are tested manually be
    - Settings → About shows the version and a "Copy update command" button (`brew upgrade --cask oriel`). No updater code.
 7. **CI (GitHub Actions):** `ci.yml` on pull requests and pushes to `main` (arm64 runner: XcodeGen, lint, Debug build, unit tests, Release Universal build, `lipo` check, Rosetta self-test after `softwareupdate --install-rosetta --agree-to-license`), signing ad hoc through the Makefile's `XCODEBUILD_FLAGS` (`CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM=`), on `macos-26` with Xcode 27.1 unless the repository variables `ORIEL_CI_RUNNER` and `ORIEL_CI_XCODE` say otherwise; no release workflow: installers are built, notarized and verified on the maintainer's Mac by `scripts/release/release-macos.sh` (`docs/RELEASING.md`), as Gitweaver's and Mother Claude's are, so CI holds no signing secrets. `nightly-tcc.yml` targets a self-hosted runner only if one is ever set up.
 8. **Uninstall:** Advanced → "Uninstall Oriel…" removes Application Support data, Keychain items, the login item and the CLI symlink; the cask's `zap` stanza does the same from Homebrew.
-9. **The App Store edition** (§18): `make appstore-check` builds its Release for both slices, unsigned, and `scripts/verify-appstore.sh` checks it; the release gate runs both. It is signed by Apple: `make appstore-archive` (or Xcode, scheme "Oriel App Store", Product → Archive) archives it with automatic signing for the team, which needs the Mac registered as one of the team's devices, then Xcode's Organizer validates and uploads it to App Store Connect, for TestFlight and review (`docs/APP_STORE.md`, `docs/RELEASING.md`). Its build number is the same commit count.
+9. **The App Store edition** (§18): `make appstore-check` builds its Release for both slices, unsigned, and `scripts/verify-appstore.sh` checks it; the release gate runs both. It is signed by Apple: `make appstore-archive` (or Xcode, scheme "Oriel App Store", Product → Archive) archives it with automatic signing for the team, which needs the Mac registered as one of the team's devices, then `make appstore-upload`, or Xcode's Organizer, which validates it first, uploads it to App Store Connect for TestFlight and review (`docs/APP_STORE.md`, `docs/RELEASING.md`). Its build number is the same commit count.
 
 ---
 
@@ -1645,6 +1646,7 @@ oriel/
 ├── project.yml                      # Appendix D (XcodeGen)
 ├── Makefile                         # Appendix C
 ├── ExportOptions.plist              # method: developer-id, signingStyle: manual, teamID
+├── ExportOptions-AppStore.plist     # method: app-store-connect, destination: upload (make appstore-upload)
 ├── .gitignore  .swiftlint.yml  .swiftformat
 ├── App/
 │   ├── Sources/                     # AppDelegate, Shell/ (status menu, ModuleRegistry, FeatureHub), Onboarding/, Tour/, Settings/, Bootstrap/, System/, Sync/, Intents/
@@ -1830,8 +1832,8 @@ human checkpoints: end of Phase 0, end of Phase 3, end of Phase 6, before taggin
   `.requiresTCC` trait and run only with ORIEL_TCC_TESTS=1 on the dev Mac or the macOS 26 VM. UI tests
   (XCUITest) run only with ORIEL_UI_TESTS=1, because they need macOS Automation Mode.
 - Commands: `make generate`, `make build`, `make run`, `make test`, `make lint`, `make universal-check`,
-  `make appstore-check`, `make appstore-archive`, `make install`, `make release-dry-run` (after
-  `source scripts/apple-credentials.env`).
+  `make appstore-check`, `make appstore-archive`, `make appstore-upload`, `make install`, `make release-dry-run`
+  (after `source scripts/apple-credentials.env`).
 - Test on macOS 27 first, then the macOS 26 VM. Never add workarounds for macOS < 26.
 - When an Apple API behaves differently between 26 and 27, note it in docs/os-quirks.md with the build number.
 - End each phase with docs/reports/phase-N.md: what was built, what deviated from the plan, open questions.
@@ -1862,7 +1864,7 @@ UI_TESTS    := $(if $(filter 1,$(ORIEL_UI_TESTS)),,-skip-testing:OrielUITests)
 # Extra xcodebuild arguments for build, test and universal-check; CI signs ad hoc with them (.github/workflows/ci.yml).
 XCODEBUILD_FLAGS ?=
 
-.PHONY: generate build run test lint universal-check appstore-check appstore-archive install release-dry-run clean tools
+.PHONY: generate build run test lint universal-check appstore-check appstore-archive appstore-upload install release-dry-run clean tools
 
 tools:
 	@for t in $(TOOL_LIST); do command -v $$t >/dev/null || { echo "missing $$t (brew install $$t)"; exit 1; }; done
@@ -1905,12 +1907,18 @@ appstore-check: generate
 	bash scripts/verify-appstore.sh $(CONFIG_DIR)/Release-AppStore/Oriel.app
 
 # Archives the App Store edition for upload (docs/RELEASING.md). Xcode signs it with your account and, the first time,
-# registers the App ID's capabilities and creates the App Store profiles; then upload from Xcode's Organizer. The build
-# number is the commit count, as in the Developer ID release (scripts/release/export-app.sh).
+# registers the App ID's capabilities and creates the App Store profiles; then make appstore-upload or Xcode's Organizer
+# uploads it. The build number is the commit count, as in the Developer ID release (scripts/release/export-app.sh).
 appstore-archive: generate
 	xcodebuild -project $(PROJECT) -scheme "$(APPSTORE)" -configuration Release-AppStore -destination 'generic/platform=macOS' \
 	CURRENT_PROJECT_VERSION=$$(git rev-list --count HEAD) -archivePath $(DIST)/Oriel-AppStore.xcarchive \
 	-allowProvisioningUpdates archive
+
+# Uploads that archive to App Store Connect (docs/APP_STORE_CONNECT.md step 11): Xcode signs it for the App Store with
+# your account, keeping the build number. The app record must exist; App Review is a separate step in App Store Connect.
+appstore-upload:
+	xcodebuild -exportArchive -archivePath $(DIST)/Oriel-AppStore.xcarchive -exportOptionsPlist ExportOptions-AppStore.plist \
+	-exportPath $(DIST)/AppStore -allowProvisioningUpdates
 
 install: generate
 	bash scripts/install.sh        # archive → export (developer-id) → /Applications → codesign --verify → open

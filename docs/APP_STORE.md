@@ -44,13 +44,13 @@ The Mac App Store edition is the same app, sandboxed, built by the `OrielAppStor
    - promotional text, description and keywords;
    - support URL, copyright;
    - App Review information, manual release.
-8. **Upload** from Xcode's Organizer, **test** in TestFlight (QA items 49–53), then **submit** the version and Oriel Pro together.
+8. **Upload** with `make appstore-upload` or from Xcode's Organizer, **test** in TestFlight (QA items 49–53), then **submit** the version and Oriel Pro together.
 
 Certificates, the membership and their renewals are in [APPLE_ACCOUNT.md](APPLE_ACCOUNT.md).
 
 ## Each version
 
-`docs/RELEASING.md` → The App Store edition: archive, upload from the Organizer, test in TestFlight, submit. App Store builds are not notarized: App Review stands in for it.
+`docs/RELEASING.md` → The App Store edition: archive, upload (`make appstore-upload` or the Organizer), test in TestFlight, submit. App Store builds are not notarized: App Review stands in for it.
 
 ### Notes for App Review
 
