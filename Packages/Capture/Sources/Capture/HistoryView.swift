@@ -1,3 +1,4 @@
+import OrielCore
 import SharedUI
 import SwiftUI
 
@@ -83,7 +84,11 @@ struct HistoryView: View {
         Button("Save to Folder") { model.perform?(.save, entry) }
         Button("Pin to Screen") { model.perform?(.pin, entry) }
         Button("Annotate") { model.perform?(.annotate, entry) }
-        Button("Show in Finder") { model.perform?(.reveal, entry) }
+        // In the App Store edition the history lives in the container, which is not for the user to browse; Save to
+        // Folder puts a capture where they can (App Review Guidelines 2.4.5(i)).
+        if !Sandbox.isActive {
+            Button("Show in Finder") { model.perform?(.reveal, entry) }
+        }
         Divider()
         Button("Delete", role: .destructive) {
             Task { await model.delete(entry) }

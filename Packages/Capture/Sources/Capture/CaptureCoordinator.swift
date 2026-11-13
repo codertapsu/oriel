@@ -266,9 +266,11 @@ public final class CaptureCoordinator {
         return url
     }
 
+    /// Pictures/Oriel at its real path: in the sandbox the Pictures folder FileManager names is a link inside the
+    /// container, which the toasts and Finder would show.
     private var picturesFolder: URL {
-        let pictures = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
-            ?? FileManager.default.homeDirectoryForCurrentUser
+        let pictures = (FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser).resolvingSymlinksInPath()
         return (try? AppPaths.ensureDirectory(pictures.appending(path: "Oriel", directoryHint: .isDirectory))) ?? pictures
     }
 }
