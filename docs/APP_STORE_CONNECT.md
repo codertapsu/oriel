@@ -10,24 +10,26 @@ Labels are as of November 2026, and Apple renames buttons now and then. When App
 
 ## The order, and where things stand
 
-| # | Step | Who can do it | Where | State on 2026-11-02 |
+| Step | What | Who can do it | Where | State on 2026-11-13 |
 |---|---|---|---|---|
-| 1 | The membership is active | Account Holder | developer.apple.com/account | Check the date there ([APPLE_ACCOUNT.md](APPLE_ACCOUNT.md)) |
-| 2 | Paid Apps agreement, tax forms, bank account | Account Holder | App Store Connect → Business | To do |
-| 3 | Register this Mac as one of the team's devices | Account Holder or Admin | Certificates, Identifiers & Profiles → Devices | **To do**: blocks the archive. The values are ready in step 3.2 |
-| 4 | App ID `com.codertapsu.oriel` with iCloud | Xcode, automatically | Certificates, Identifiers & Profiles | Happens with the first archive after step 3 |
-| 5 | Signed archive of 1.0.0 (134) | Anyone on the team | This Mac | Waits for step 3 |
-| 6 | Create the app record | Account Holder, Admin, App Manager | App Store Connect → Apps → + | To do (web only) |
-| 7 | App Information: subtitle, category, age rating, privacy policy | Account Holder, Admin, App Manager | App Information | To do |
-| 8 | Pricing and Availability | Account Holder, Admin, App Manager | Pricing and Availability | To do |
-| 9 | App Privacy | Account Holder, Admin, App Manager | App Privacy | To do |
-| 10 | Oriel Pro, the in-app purchase | Account Holder, Admin, App Manager, Developer, Marketing | Monetization → In-App Purchases | To do |
-| 11 | The 1.0.0 version page: screenshots, text, review information | Account Holder, Admin, App Manager, Marketing | macOS App → 1.0.0 | To do |
-| 12 | Upload the build | Anyone with the archive and the team in Xcode | Xcode Organizer | After 5 and 6 |
-| 13 | Test in TestFlight | Account Holder, Admin, App Manager | TestFlight | After 12 |
-| 14 | Submit for review, with Oriel Pro | Account Holder, Admin, App Manager | The version page | After 7–13 |
+| 1 | The membership is active | Account Holder | developer.apple.com/account | Active; renewal date 2027-01-25 ([APPLE_ACCOUNT.md](APPLE_ACCOUNT.md)) |
+| 2 | Paid Apps agreement, tax forms, bank account | Account Holder | App Store Connect → Business | Done: the Paid Apps and Free Apps agreements are active until 2027-01-24; the tax forms and the bank account are active |
+| 3.2 | Register this Mac as one of the team's devices | Account Holder or Admin | Certificates, Identifiers & Profiles → Devices | Done |
+| 3.3 | App ID `com.codertapsu.oriel` with iCloud | Xcode, automatically | Certificates, Identifiers & Profiles | Done, by the first archive |
+| 3.4 | Signed archive | Anyone on the team | This Mac | 1.0.0 (141); 1.0.0 (134) before it |
+| 4 | Create the app record | Account Holder, Admin, App Manager | App Store Connect → Apps → + | Done: Oriel: Screenshot & Translate, Apple ID 6829796484 |
+| 5 | App Information: subtitle, category, age rating, privacy policy | Account Holder, Admin, App Manager | App Information | Done |
+| 6 | Pricing and Availability | Account Holder, Admin, App Manager | Pricing and Availability | Done |
+| 7 | App Privacy | Account Holder, Admin, App Manager | App Privacy | Done |
+| 8 | Oriel Pro, the in-app purchase | Account Holder, Admin, App Manager, Developer, Marketing | Monetization → In-App Purchases | Done; Waiting for Review with the version |
+| 9, 10 | Screenshots, and the 1.0.0 version page: text, review information | Account Holder, Admin, App Manager, Marketing | macOS App → 1.0 | Done |
+| 11 | Upload the build | Anyone with the archive and the team in Xcode | `make appstore-upload`, or Xcode's Organizer | 1.0.0 (134), then 1.0.0 (141) on 2026-11-13 |
+| 12 | Test in TestFlight | Account Holder, Admin, App Manager | TestFlight | 1.0.0 (141) is there, Ready to Submit; run QA items 49–53 on it |
+| 13 | Submit for review, with Oriel Pro | Account Holder, Admin, App Manager | The version page | 1.0.0 (134) rejected on 2026-11-12; 1.0.0 (141) resubmitted on 2026-11-13, Waiting for Review |
 
-Only steps 2 and 6 cannot be done from this Mac at all: Apple offers no API to accept agreements or create an app record.
+The step numbers are this guide's section numbers.
+
+Only steps 2 and 4 cannot be done from this Mac at all: Apple offers no API to accept agreements or create an app record.
 
 ## 1. Before you start
 
@@ -43,7 +45,7 @@ Only steps 2 and 6 cannot be done from this Mac at all: Apple offers no API to a
   - terms of use: <https://codertapsu-web.web.app/oriel/terms>
 
   They come from the `codertapsu-web` repository's `apps.json`.
-- **Screenshots** of the App Store edition (step 11). Prepare them before step 11, from a TestFlight or Debug-AppStore build.
+- **Screenshots** of the App Store edition (step 9). Prepare them before step 10, from a TestFlight or Debug-AppStore build.
 
 **Roles,** if more people join the team later (App Store Connect → Users and Access):
 
@@ -168,7 +170,7 @@ App Store Connect → **Apps** (<https://appstoreconnect.apple.com/apps>). The a
    | SKU | **oriel-mac** | Letters, numbers, hyphens, periods and underscores, not starting with a hyphen, period or underscore. Never shown to customers. **It cannot change once the app is added** |
    | User Access | **Full Access** | Limited Access only matters with more users |
 
-3. Click **Create**. App Store Connect opens the new record, with the version **1.0 Prepare for Submission** under macOS App; you set the version number to 1.0.0 in step 11.
+3. Click **Create**. App Store Connect opens the new record, with the version **1.0 Prepare for Submission** under macOS App; you set the version number to 1.0.0 in step 10.
 4. Note the app's **Apple ID**, App Information → General Information → Apple ID, a number. It goes into the record of this app in [Appendix A](#appendix-a-oriels-values).
 
 **If something goes wrong:**
@@ -209,7 +211,7 @@ In the record: **General** → **App Information**.
 
 In the record: **Pricing and Availability**.
 
-1. **Price Schedule** → **Add Pricing** (or **Set Up Price**): base country or region **United States (USD)**, price **Free**, then **Next** and **Confirm**. Oriel itself is free; Oriel Pro is sold inside it (step 10).
+1. **Price Schedule** → **Add Pricing** (or **Set Up Price**): base country or region **United States (USD)**, price **Free**, then **Next** and **Confirm**. Oriel itself is free; Oriel Pro is sold inside it (step 8).
 2. **Availability** → **Set Up Availability**: **All countries or regions** (the default), then **Confirm**.
 3. **Tax Category**: leave the default, App Store software.
 
@@ -262,7 +264,7 @@ Review notes for Oriel Pro:
 
 When every section is complete, the status reads **Ready to Submit**.
 
-**The first in-app purchase must be submitted with a new app version** (step 14). Later in-app purchases can go to review alone, once the app has an approved version.
+**The first in-app purchase must be submitted with a new app version** (step 13). Later in-app purchases can go to review alone, once the app has an approved version.
 
 ## 9. Screenshots
 
@@ -305,8 +307,8 @@ In the record: **macOS App** → the version in **Prepare for Submission**.
 | Support URL | <https://codertapsu-web.web.app/oriel/support> | Required; must show real contact details |
 | Marketing URL | <https://codertapsu-web.web.app/> | Optional |
 | Copyright | **2026 Hoàng Duy Khánh** | The year rights were obtained, then the owner; App Store Connect adds © |
-| Build | **1.0.0 (134)**, after step 11 | — |
-| In-App Purchases and Subscriptions | **Oriel Pro** (step 14) | — |
+| Build | **1.0.0 (141)**, after step 11; it replaced 1.0.0 (134) after App Review's first review | — |
+| In-App Purchases and Subscriptions | **Oriel Pro** (step 8) | — |
 | App Review Information: Sign-in required | **Off** | Oriel has no account |
 | App Review Information: Contact | Your first and last name, phone in international format (**+84** and the number), and the support email | Required; not shown to customers |
 | App Review Information: Notes | Below | At most 4000 bytes |
@@ -433,17 +435,49 @@ To check the App Store signing without uploading, export a signed package instea
 
 ### When App Review rejects or asks
 
-App Review's messages are under the submission: App Store Connect → the app → **App Review** (in the sidebar, under Distribution) → the submission. Each issue names a guideline. Answer each one under **Reply**, fix what needs fixing, and submit again.
+This is the procedure that answered the first rejection, on 2026-11-13, with each screen as App Store Connect showed it. The rejection, Apple's message and the reply are in `docs/reports/09-app-review.md`.
 
-1. **A question only** ("describe how and where the app uses the following entitlements"): reply with the steps that show it; no new build is needed. If the same submission also needs a fix, say so in the reply and upload the new build.
-2. **A fix:**
-   1. Fix it on `main` and run the gate (`make lint test universal-check appstore-check`).
-   2. Commit; the build number is the new commit count.
-   3. `make appstore-archive`, then upload the archive (step 11).
-   4. On the version page, under **Build**, remove the old build and choose the new one.
-3. **Reply** under the rejection: what changed, with steps App Review can follow. Then click **Add for Review** and **Submit for Review**, with the in-app purchase still in the submission.
+**1. Read the rejection.**
+1. App Store Connect → **Apps** → Oriel → **Distribution**. The version reads **1.0 Rejected**; click it, then **View Submission**. The other way in: in the sidebar under **General**, click **App Review**, then the submission.
+2. Under **Items Submitted**, each item has its review status. The rejected version lists the guidelines, and an attachment with Apple's screenshots: click **Download**, or **See More**.
+3. Under **Messages**, Apple's message gives one issue per guideline:
+   - a **Next Steps** paragraph;
+   - for an information request, the line "You will not need to upload a new binary".
 
-The first review, of 1.0.0 build 134 on 2026-11-12, and its answers are in `docs/reports/09-app-review.md`.
+   Note the submission ID and the review date.
+
+**2. Fix and build.**
+1. Fix it on `main`, commit, and run the gate: `make lint test universal-check appstore-check`.
+2. Make the docs commit last. The build number is the commit count, so the docs (with the report) are final before the build.
+3. Archive from that commit, with a clean tree: `make appstore-archive`, which writes `dist/Oriel-AppStore.xcarchive`.
+4. Check it: the version, the build number, both slices and the entitlements (step 3.4), then `bash scripts/verify-appstore.sh dist/Oriel-AppStore.xcarchive/Products/Applications/Oriel.app`.
+
+**3. Upload.** `make appstore-upload` (or the Organizer, step 11). It signs for the App Store with the account in Xcode and uploads; the log ends "Upload succeeded". Then:
+1. Watch **TestFlight** → **macOS**: the new build shows **Processing**, then **Ready to Submit**, usually within minutes.
+2. The internal group gets it automatically.
+3. Move the archive out of `dist/` before the next clean build, to keep its symbols: put it in `~/Library/Developer/Xcode/Archives/<date>/`, where the Organizer lists it.
+
+**4. Change the build on the version.**
+1. **Distribution** → **macOS App** → **1.0 Rejected**.
+2. Under **Build**, click **Delete** beside the old build. This only takes it off the version; the build stays in TestFlight.
+3. Click **Add Build**, choose the new build in the list, then **Done**.
+4. If the answer belongs in the review notes too, edit **App Review Information** → **Notes**: Apple allows 4000 bytes (step 10), and the field shows how many characters remain.
+5. Click **Save** at the top. The version now reads **1.0 Prepare for Submission**, and **Update Review** becomes available.
+
+**App Sandbox Information**, lower on the same page, lists only temporary-exception and special entitlements (`temporary-exception.*`, `system-extension.*`, `videotoolbox…`). Oriel uses none of them, so leave it empty and explain `assets.*` and other entitlements in the notes and the reply.
+
+**5. Reply.**
+1. On the submission page, under **Messages**, click **Reply to App Review**.
+2. Write what changed and the steps that show it, one paragraph per guideline, naming the build. For an entitlement, say where the app uses it and how to see that. Report 09 has the reply that answered the first rejection.
+3. Click **Reply**. The message appears under **Messages** with your name and the time.
+
+**6. Resubmit.**
+1. Back on the version page, click **Update Review**. It shows **Processing** while it puts the edited version back into the submission, then opens the submission page. There, both the version (with the new build) and Oriel Pro read **Ready for Review**.
+2. Click **Resubmit to App Review**. It stays greyed out until **Update Review** has finished. The submission and both items then read **Waiting for Review**.
+
+**7. Release the Developer ID edition from the same commit.** Cut the release as `docs/RELEASING.md` describes, at the commit the App Store build came from. The tag moves there, so both editions ship the same version and build number. The release script does not touch `dist/Oriel-AppStore.xcarchive`, so it can run before or after the upload.
+
+**If App Review only asks a question** and nothing needs fixing, skip parts 2 to 4 and 7: reply (part 5), then resubmit (part 6).
 
 ## 14. After approval, and for later versions
 
@@ -467,7 +501,7 @@ The first review, of 1.0.0 build 134 on 2026-11-12, and its answers are in `docs
 | Name under the icon | Oriel |
 | Subtitle | Record, annotate, extract text |
 | SKU | oriel-mac |
-| Apple ID of the app record | (write it here after step 4) |
+| Apple ID of the app record | 6829796484 (App Information → Apple ID) |
 | Primary language | English (U.S.) |
 | Categories | Utilities; Productivity |
 | Age rating | 4+ |
@@ -477,9 +511,9 @@ The first review, of 1.0.0 build 134 on 2026-11-12, and its answers are in `docs
 | Support | <https://codertapsu-web.web.app/oriel/support> |
 | Terms | <https://codertapsu-web.web.app/oriel/terms> |
 | Copyright | 2026 Hoàng Duy Khánh |
-| Version and build | 1.0.0 (134), tag `v1.0.0` |
-| Archive | `dist/Oriel-AppStore.xcarchive` from `make appstore-archive` |
-| Registered device | MacBook Pro M4 Pro, Provisioning UDID `00006040-000211A13AEA801C` (to register; step 3.2) |
+| Version and build | 1.0.0 (141), tag `v1.0.0`; 1.0.0 (134), the first upload, was rejected on 2026-11-12 |
+| Archive | `dist/Oriel-AppStore.xcarchive` from `make appstore-archive`; build 141's is kept in `~/Library/Developer/Xcode/Archives/2026-11-13/` |
+| Registered device | MacBook Pro M4 Pro, Provisioning UDID `00006040-000211A13AEA801C` (registered; step 3.2) |
 
 ## References
 

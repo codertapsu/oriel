@@ -1,6 +1,6 @@
 # 09 — App Review's first review of the App Store edition (release 1.0.0)
 
-2026-11-13 · macOS 27.2 (26B123) · Xcode 27.1 · App Review rejected the App Store edition, 1.0.0 build 134, on 2026-11-12: submission `20f64cbb-45d2-4c25-a567-a4a96cdc4000`, reviewed on a 14-inch MacBook Pro. This report covers what Apple said, read in App Store Connect with Apple's two screenshots; what changed in build 141; and the reply to send. Plan 2.13 records it.
+2026-11-13 · macOS 27.2 (26B123) · Xcode 27.1 · App Review rejected the App Store edition, 1.0.0 build 134, on 2026-11-12: submission `20f64cbb-45d2-4c25-a567-a4a96cdc4000`, reviewed on a 14-inch MacBook Pro. This report covers what Apple said, read in App Store Connect with Apple's two screenshots; what changed in build 141; the reply; and the resubmission of build 141 the same day. Plan 2.13 records it.
 
 ## What App Review said
 
@@ -43,7 +43,7 @@ Oriel Pro stayed **Ready for Review**: it waits for the version.
 
 ## The reply to App Review
 
-Paste it under the rejection in App Store Connect after choosing build 141:
+Posted under the rejection in App Store Connect on 2026-11-13 at 19:28, after choosing build 141:
 
 > Hello,
 >
@@ -60,10 +60,29 @@ Paste it under the rejection in App Store Connect after choosing build 141:
 > Best regards,
 > Khanh Hoang
 
-## What you need to do
+## The resubmission
 
-1. **Upload build 141.** `dist/Oriel-AppStore.xcarchive` is the archive. Upload it from Xcode's Organizer, keeping the build number, or let me do it (`docs/APP_STORE_CONNECT.md` step 11).
-2. **Choose the build:** on the 1.0 version page, under **Build**, remove 1.0.0 (134) and choose 1.0.0 (141) once it has processed.
-3. **Reply** under the rejection with the text above.
-4. **Submit again:** **Add for Review**, check that Oriel Pro is still in the submission, then **Submit for Review**.
-5. **Optional, the Developer ID edition:** it gets the new welcome window with the next build; `v1.0.0` still points at build 134, the one you installed. Say if you want it rebuilt as 141 too, with the tag moved.
+On 2026-11-13, following `docs/APP_STORE_CONNECT.md` → "When App Review rejects or asks", which now describes each screen as it appeared:
+
+1. **Archive and upload.**
+   - `make appstore-archive` from the release commit, which `v1.0.0` names, with a clean tree. Then `xcodebuild -exportArchive` with a temporary export-options file (destination upload) signed it for the App Store and uploaded it: "Upload succeeded" at 19:24.
+   - That command and its options are now `make appstore-upload` and `ExportOptions-AppStore.plist`.
+   - The archive is kept, with its symbols, in `~/Library/Developer/Xcode/Archives/2026-11-13/`.
+2. **TestFlight:** 1.0.0 (141) went from Processing to **Ready to Submit** within two minutes.
+3. **The version page:**
+   - Under **Build**, 1.0.0 (134) was deleted and 1.0.0 (141) added.
+   - The review notes gained the entitlements paragraph that `docs/APP_STORE_CONNECT.md` step 10 now has: where Oriel uses `com.apple.security.assets.pictures.read-write` and `com.apple.security.assets.movies.read-write`, and how to see it.
+   - **App Sandbox Information** stays empty: it lists only temporary-exception and special entitlements, and Oriel has none.
+   - **Save** turned the version to **Prepare for Submission**.
+4. **The reply** above, posted at 19:28 with **Reply to App Review**.
+5. **Update Review**, then **Resubmit to App Review**. The submission, the version 1.0 with 1.0.0 (141) and Oriel Pro were **Waiting for Review** at 19:29.
+6. **The Developer ID edition:**
+   - It was rebuilt as 1.0.0 (141) by the release script, then notarized and stapled.
+   - `v1.0.0` moved from build 134 to build 141; its message has the disk image's checksum and the notarization IDs.
+   - It gets the new welcome window.
+
+## What remains
+
+1. **App Review's decision.** It comes by email and in App Store Connect, usually within a few days.
+2. **If approved:** release is manual, so the version waits in **Pending Developer Release**. Click **Release This Version** to put it on sale (`docs/APP_STORE_CONNECT.md` step 14).
+3. **If rejected or asked again:** follow `docs/APP_STORE_CONNECT.md` → "When App Review rejects or asks", and record the round here or in a new report.

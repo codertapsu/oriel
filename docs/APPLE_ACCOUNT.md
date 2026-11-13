@@ -7,11 +7,11 @@ What Oriel's builds depend on in the Apple Developer account, when each piece ex
 
 ## Inventory
 
-Read on this Mac on 2026-11-02. Re-read it with [the commands below](#checking-what-you-have).
+Read on this Mac on 2026-11-02, and the membership in the browser on 2026-11-13. Re-read it with [the commands below](#checking-what-you-have).
 
 | Credential | Used for | Valid until | Renew | Lives in |
 |---|---|---|---|---|
-| Apple Developer Program membership, team `4XVYLW8RXS` (Khanh Hoang, individual) | Everything below, and the App Store | The date in developer.apple.com/account → Membership details; not readable from this Mac | Yearly, by the Account Holder ([below](#renewing-the-membership)) | Your Apple Account |
+| Apple Developer Program membership, team `4XVYLW8RXS` (Khanh Hoang, individual) | Everything below, and the App Store | **2027-01-25**, the renewal date in developer.apple.com/account → Membership details; not readable from this Mac. App Store Connect's agreements end the day before | Yearly, by the Account Holder ([below](#renewing-the-membership)) | Your Apple Account |
 | **Developer ID Application**: Khanh Hoang (4XVYLW8RXS), from the *previous* Developer ID authority | Signing the Developer ID edition, which notarization requires | **2027-02-01**, the day that authority expires; it cannot sign after | Replace with a G2 certificate before then, then yearly ([below](#replacing-the-developer-id-application-certificate)) | Login keychain, with its private key |
 | Apple Development: Khanh Hoang (2HY96CNG4K) | Debug builds; App Store archives | 2027-06-01 | Xcode ([below](#apple-development-and-apple-distribution)) | Login keychain |
 | Apple Distribution: Khanh Hoang (4XVYLW8RXS) | Signing App Store uploads | 2027-06-03 | Xcode | Login keychain |
@@ -49,7 +49,7 @@ The notary profile:
 xcrun notarytool history --keychain-profile codertapsu-notary > /dev/null && echo ok
 ```
 
-The membership date is only in the browser: <https://developer.apple.com/account> → Membership details.
+The membership date is only in the browser: <https://developer.apple.com/account> → Membership details → **Renewal date**. On 2026-11-13 it was January 25, 2027, as was the **Device reset date**. App Store Connect → Business showed the Paid Apps and Free Apps agreements active until 24 January 2027, the day before. After renewing, check there that they run to the new date, and accept any new terms.
 
 ## Renewing the membership
 
@@ -182,7 +182,7 @@ The scripts read it only after `source scripts/apple-credentials.env`, in the sh
 
 | When | What | Who |
 |---|---|---|
-| 30 days before the membership's expiry date | Renew the membership | Account Holder |
+| From 2026-12-26, 30 days before 2027-01-25, then yearly | Renew the membership; then check the agreements in App Store Connect → Business | Account Holder |
 | **Before 2027-02-01** | Replace the Developer ID Application certificate with a G2 one, delete the old, rehearse a release | Account Holder |
 | A month before each G2 certificate's expiry, yearly | Renew the Developer ID Application certificate | Account Holder |
 | Before 2027-06-01 and 2027-06-03, then yearly | Apple Development and Apple Distribution, through Xcode | Anyone on the team |
